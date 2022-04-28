@@ -1,19 +1,7 @@
-#include "sbi.h"
-
-void Putchar(char ch)
-{
-	SBI_PUTCHAR(ch);
-}
-
-void Puts(char *s)
-{
-	while (*s)
-		Putchar(*s++);
-}
-
+#include "printk.h"
 void main()
 {
-	Puts("Welcome to PAL_OperatingSystem\n");
-	Puts("Hello,World\n");
+	putsk("Welcome to PAL_OperatingSystem\n");
+	putsk("Hello,World\n");
 	while(1);
 }

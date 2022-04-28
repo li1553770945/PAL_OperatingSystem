@@ -1,10 +1,17 @@
+
+K=kernel
+T=target
+L=linker
+TOOLPREFIX=riscv64-unknown-linux-gnu-
+
 clean:
-	rm -f exe *.o *.ld
+	rm -f *.o $T/*
 
 build:
-	riscv64-unknown-linux-gnu-gcc -nostdlib -c start.s -o start.o
-	riscv64-unknown-linux-gnu-gcc -nostdlib -c kernel/main.c -o main.o -mcmodel=medany
-	riscv64-unknown-linux-gnu-ld -o kernel.elf -Tlink.ld start.o main.o
+	$(TOOLPREFIX)gcc -nostdlib -c start.s -o $T/start.o
+	$(TOOLPREFIX)gcc -nostdlib -c $K/printk.c -o $T/printk.o
+	$(TOOLPREFIX)gcc -nostdlib -c $K/main.c -o $T/main.o -mcmodel=medany
+	$(TOOLPREFIX)ld -o $T/kernel.elf -T$L/link.ld $T/start.o $T/main.o $T/printk.o
 
 run:
-	qemu-system-riscv64 -machine virt -m 256M -nographic -bios default -kernel kernel.elf
+	qemu-system-riscv64 -machine virt -m 256M -nographic -bios default -kernel $T/kernel.elf
