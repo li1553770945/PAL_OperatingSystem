@@ -1,11 +1,15 @@
-#include "sbi.h"
-
-void putchark(char ch)
+#include "include/printk.h"
+#include "include/sbi.h"
+static void putchark(char ch) 
 {
-	SBI_PUTCHAR(ch);
+     sbi_console_putchar(ch);
 }
-void putsk(char *s)
+
+void putsk(const char *str) 
 {
-	while (*s)
-		putchark(*s++);
+    while (*str != '\0') 
+    {
+        putchark(*str);
+        str++;
+    }
 }

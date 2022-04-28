@@ -1,0 +1,2 @@
+void putk();
+void putsk();
