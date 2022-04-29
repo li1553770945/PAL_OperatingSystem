@@ -1,7 +1,7 @@
 #include "include/printk.h"
+#include "include/init.h"
 void main()
 {
-	putsk("Welcome to PAL_OperatingSystem\n");
-	putsk("Hello,World\n");
+	init();
 	while(1);
 }

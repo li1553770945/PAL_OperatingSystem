@@ -2,28 +2,40 @@
 K=kernel
 T=target
 L=linker
+I=include
+SBI=default #使用的SBI
 TOOLPREFIX=riscv64-unknown-linux-gnu-
-CC=$(TOOLPREFIX)gcc #编译器，会自动使用这个根据.o文件列表编译.c文件
+CC=$(TOOLPREFIX)gcc
 LD=$(TOOLPREFIX)ld
 CFLAGS=-nostdlib  -mcmodel=medany #编译选项
 LDFLAGS=  #连接选项
 
-OBJS=$K/main.o \ #所有的目标文件，会自动根据.o编译对应的.c文件
+#所有的目标文件，会自动根据.o编译对应的.c文件
+OBJS=$K/main.o \
 $K/printk.o \
-$K/sbi.o 
+$K/sbi.o \
+$K/init.o \
+$K/trap/trap.o \
+$K/clock.o \
+$K/driver/intr.o
+
+# 使用汇编编译出来的o文件，如果使用默认规则会使用错误的编译器
+SOBJS=start.o \
+$K/trap/trapentry.o
 
 clean:
 	rm -f  $T/* $(OBJS)
 
-start:
-	$(CC) -nostdlib -c start.s -o start.o
+sobj:# 使用汇编编译出来的o文件，如果使用默认规则会使用错误的编译器
+	$(CC) -nostdlib -c start.S -o start.o
+	$(CC) -nostdlib -c $K/trap/trapentry.S -o $K/trap/trapentry.o
 
-build: $(OBJS) start
+build: $(OBJS) sobj
 	@if [ ! -d "./target" ]; then mkdir target; fi
-	$(LD) $(LDFLAGS) -o $T/kernel.elf -T$L/link.ld start.o $(OBJS) 
+	$(LD) $(LDFLAGS) -o $T/kernel.elf -T$L/link.ld $(OBJS) $(SOBJS)
 
 
 QEMU=qemu-system-riscv64
-QEMUFLAGS=-machine virt -m 256M -nographic -bios default -kernel $T/kernel.elf
+QEMUFLAGS=-machine virt -m 256M -nographic  -kernel $T/kernel.elf
 run:
-	$(QEMU) $(QEMUFLAGS)
+	$(QEMU) $(QEMUFLAGS) -bios $(SBI)

@@ -1,6 +1,6 @@
 #include "include/printk.h"
 #include "include/sbi.h"
-static void putchark(char ch) 
+void putchark(char ch) 
 {
      sbi_console_putchar(ch);
 }
@@ -12,4 +12,9 @@ void putsk(const char *str)
         putchark(*str);
         str++;
     }
+}
+
+void printk(const char *str,...)
+{
+    
 }
