@@ -1,2 +1,3 @@
 *.o
 *.elf
+!fw_jump.elf

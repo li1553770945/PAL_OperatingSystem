@@ -32,8 +32,8 @@ static inline uint64_t get_time(void)//返回当前时间
 }
 
 
-//  一个时间片的事件，对于qemu，这个数值每+1，时间+100ns
-static uint64_t timebase = 100;
+//  一个时间片的时间，对于qemu，这个数值每+1，时间+100ns
+static uint64_t timebase = 1000;
 
 void clock_init(void) 
 {

@@ -3,8 +3,8 @@ K=kernel
 T=target
 L=linker
 I=include
-SBI=default #使用的SBI
-TOOLPREFIX=riscv64-unknown-linux-gnu-
+SBI=fw_jump.elf #使用的SBI
+TOOLPREFIX=riscv64-unknown-elf-
 CC=$(TOOLPREFIX)gcc
 LD=$(TOOLPREFIX)ld
 CFLAGS=-nostdlib  -mcmodel=medany #编译选项
