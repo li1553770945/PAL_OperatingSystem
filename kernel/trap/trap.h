@@ -3,7 +3,7 @@
 #ifndef __KERN_TRAP_TRAP_H__
 #define __KERN_TRAP_TRAP_H__
 
-#include "defs.h"
+#include "../include/defs.h"
 
 struct pushregs { //保存上下文（寄存器）
     uintptr_t zero;  // Hard-wired zero

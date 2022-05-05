@@ -15,7 +15,7 @@ $ ./configure --target-list=riscv32-softmmu,riscv64-softmmu
 $ make -j
 $ export PATH=$PWD/riscv32-softmmu:$PWD/riscv64-softmmu:$PATH
 ```
-WARNING:If you use `apt-get install` in ubuntu,it my cause `qemu-system-riscv64: Unable to load the RISC-V firmware` when you run the PAL_OperatingSystem.
+You can also use `apt-get install qemu-system-riscv64` in ubuntu,but it my cause `qemu-system-riscv64: Unable to load the RISC-V firmware` when you run the PAL_OperatingSystem use default bios,but you can use the `fw_jump.elf` instead.
 
 Now you can use `qemu-system-riscv64 -version` to show the version.
 

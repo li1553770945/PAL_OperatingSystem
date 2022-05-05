@@ -1,4 +1,4 @@
-#include "../include/intr.h"
+#include "intr.h"
 #include "../include/riscv.h"
 
 /* intr_enable - enable irq interrupt, 设置sstatus的Supervisor中断使能位 */

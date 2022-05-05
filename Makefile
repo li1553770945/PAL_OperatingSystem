@@ -24,7 +24,7 @@ SOBJS=start.o \
 $K/trap/trapentry.o
 
 clean:
-	rm -f  $T/* $(OBJS)
+	rm -f  $T/* $(OBJS) $(SOBJS)
 
 sobj:# 使用汇编编译出来的o文件，如果使用默认规则会使用错误的编译器
 	$(CC) -nostdlib -c start.S -o start.o

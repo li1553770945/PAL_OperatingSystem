@@ -17,7 +17,7 @@ $ ./configure --target-list=riscv32-softmmu,riscv64-softmmu
 $ make -j
 $ export PATH=$PWD/riscv32-softmmu:$PWD/riscv64-softmmu:$PATH
 ```
-警告:如果在ubuntu使用 `apt-get install`,在运行时可能出现 `qemu-system-riscv64: Unable to load the RISC-V firmware` 错误。
+在ubuntu使用 `apt-get install qemu-system-riscv64`也可以安装,在运行时使用默认bios可能出现 `qemu-system-riscv64: Unable to load the RISC-V firmware` 错误，但是你可以使用我们的fw_jump.elf替代。
 
 现在可以使用 `qemu-system-riscv64 -version` 来显示qemu的版本。
 
@@ -25,10 +25,10 @@ $ export PATH=$PWD/riscv32-softmmu:$PWD/riscv64-softmmu:$PATH
 
 参考[riscv-gnu-toolchain](https://github.com/riscv-collab/riscv-gnu-toolchain)
 
-### build
+### 构建
 
 直接在当前文件夹运行 `make build`.
 
-### run
+### 运行
 
 直接在当前文件夹运行 `make run`.

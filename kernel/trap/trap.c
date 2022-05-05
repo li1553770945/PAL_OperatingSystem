@@ -1,4 +1,4 @@
-#include "../include/trap.h"
+#include "trap.h"
 #include "../include/riscv.h"
 #include "../include/printk.h"
 #include "../include/clock.h"

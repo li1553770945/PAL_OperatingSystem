@@ -1,6 +1,5 @@
-// kern/init/init.c
-#include "include/trap.h"
-#include "include/intr.h"
+#include "trap/trap.h"
+#include "driver/intr.h"
 #include "include/init.h"
 #include "include/printk.h"
 #include "include/clock.h"
