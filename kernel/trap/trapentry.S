@@ -99,6 +99,7 @@
     LOAD x2, 2*REGBYTES(sp)
     .endm
 
+
     .globl __alltraps
 
 .align(2) #中断入口点 __alltraps必须四字节对齐
@@ -110,6 +111,7 @@ __alltraps:
     #trap是trap.c里面的一个C语言函数，也就是我们的中断处理程序
     jal trap 
     #trap函数指向完之后，会回到这里向下继续执行__trapret里面的内容，RESTORE_ALL,sret
+
 
     .globl __trapret
 __trapret:

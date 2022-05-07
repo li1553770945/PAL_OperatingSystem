@@ -2,9 +2,6 @@
 #ifndef __LIBS_DEFS_H__
 #define __LIBS_DEFS_H__
 
-/* Represents true-or-false values */
-typedef int bool;
-
 /* Explicitly-sized versions of integer types */
 typedef char int8_t;
 typedef unsigned char uint8_t;

@@ -7,10 +7,13 @@
 static void print_ticks() {
     putsk("ticks\n");
 }
-
+extern "C" {
+        extern void __alltraps(void);
+    }
+    
 void idt_init(void)
  {
-    extern void __alltraps(void);
+    
     //约定：若中断前处于S态，sscratch为0
     //若中断前处于U态，sscratch存储内核栈地址
     //那么之后就可以通过sscratch的数值判断是内核态产生的中断还是用户态产生的中断
@@ -101,8 +104,7 @@ void exception_handler(struct trapframe *tf) {
             break;
     }
 }
-void trap(struct trapframe *tf) 
-
+extern "C" void trap(struct trapframe *tf) 
 {  //scause的最高位是1，说明trap是由中断引起的
     if ((intptr_t)tf->cause < 0) {
         // 中断

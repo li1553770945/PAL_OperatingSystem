@@ -48,7 +48,7 @@ struct trapframe {
     uintptr_t cause; //scause
 };
 
-void trap(struct trapframe *tf);
+extern "C" void trap(struct trapframe *tf);
 void idt_init(void);
 
 #endif
