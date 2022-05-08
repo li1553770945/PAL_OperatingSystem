@@ -3,22 +3,30 @@ OUTPUT_FORMAT("elf64-littleriscv")
 ENTRY(_start)
 SECTIONS
 {
-	. = 0x80200000;
+	. = 0xffffffffc0200000;
+	
 	start = .;
 	.text :
 	{
 		stext = .;
 		*(.text.entry)
 		*(.text .text.*)
-		. = ALIGN(4k);
-		etext = .;
+		PROVIDE(etext = .);
 	}
+	
+	.rodata : 
+	{
+		srodata = .;
+		*(.rodata .rodata.*)
+		erodata = .;
+	}
+	. = ALIGN(4k);
 
 	.data :
 	{
 		sdata = .;
 		*(.data .data.*)
-		edata = .;
+		PROVIDE(edata = .);
 	}
 
 	.bss :
@@ -27,6 +35,8 @@ SECTIONS
 		*(.bss .bss.*)
 		ebss = .;
 	}
-
+	
 	PROVIDE(end = .);
+	. = ALIGN(4k);
+	PROVIDE(freememstart = .);
 }

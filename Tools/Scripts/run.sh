@@ -1,1 +1,1 @@
-qemu-system-riscv64 -machine virt -kernel ../../Build/1.elf -m 8M -nographic -bios ../../SBI/rustsbi-qemu	
+qemu-system-riscv64 -machine virt -m 8M -nographic -bios ../../SBI/rustsbi-qemu	-device loader,file=../../Build/1.img,addr=0x80200000

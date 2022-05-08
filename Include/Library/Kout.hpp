@@ -103,13 +103,30 @@ namespace POS
 				return *this;
 			}
 			
+			inline KOUT& operator << (const DataWithSize &x)
+			{
+				Puts("Data:");
+				const int size=3;
+				char buffer[size];
+				for (unsigned long long i=0;i<x.size;++i)
+				{
+					int len=ullTOpadic(buffer,size,*((char*)x.data+i));
+					if (len!=-1)
+					{
+						buffer[len]=0;
+						Puts(buffer);
+					}
+				}
+				return *this;
+			}
+			
 			template <typename T> KOUT& operator << (const T &x)
 			{
 				Puts("Unknown KOUT type:");
+				const int size=3;
+				char buffer[size];
 				for (int i=0;i<sizeof(x);++i)
 				{
-					const int size=3;
-					char buffer[size];
 					int len=ullTOpadic(buffer,size,*((char*)&x+i));
 					if (len!=-1)
 					{

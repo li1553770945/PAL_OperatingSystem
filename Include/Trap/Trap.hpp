@@ -1,7 +1,7 @@
 #ifndef POS_TRAP_HPP
 #define POS_TRAP_HPP
 
-#include "../Defs.h"
+#include "../Types.h"
 
 struct RegisterContext
 {

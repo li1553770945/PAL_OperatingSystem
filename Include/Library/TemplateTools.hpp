@@ -1,7 +1,7 @@
 #ifndef POS_TEMPLATETOOLS_HPP
 #define POS_TEMPLATETOOLS_HPP
 
-#include "../Defs.h"
+#include "../Types.h"
 
 namespace POS
 {
