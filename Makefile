@@ -31,7 +31,7 @@ as:
 dir:
 	@if [ ! -d "./$(B)" ]; then mkdir $(B); fi
 
-build: $(OBJECTS) as
+build: dir $(OBJECTS) as
 	$(LD) $(LDFLAGS) -o $(B)/kernel.elf -T$(L)/link.ld $(wildcard $(B)/*.o)  $(LDFLAGS)
 
 all: build
