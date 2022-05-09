@@ -35,7 +35,7 @@ build: $(OBJECTS) as
 	$(LD) $(LDFLAGS) -o $(B)/kernel.elf -T$(L)/link.ld $(wildcard $(B)/*.o)  $(LDFLAGS)
 
 all: build
-
+	riscv64-unknown-elf-objcopy -O binary Build/kernel.elf os.bin
 
 QEMU=qemu-system-riscv64
 QEMUFLAGS=-machine virt -m 256M -nographic -bios SBI/opensbi_qemu.elf -device loader,file=Build/kernel.bin,addr=0x80200000
