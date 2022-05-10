@@ -27,7 +27,6 @@ struct Page
 		   num; //后面有几个页属于他管理
 	Page *pre,
 		 *nxt;
-	
 	inline Uint64 Index() const
 	{return ((Uint64)this-(Uint64)FreeMemBase())/sizeof(Page);}
 	
@@ -38,9 +37,11 @@ struct Page
 class PhysicalMemoryManager
 {	
     Page head;  //相当于链表头节点，不存放数据，head->nxt为链表的第一个节点
+	Page *page_end_addr;
     Uint64 page_count;
+	void MergePage(Page * p);
 	public:
-        
+		Page * GetPageFromAddr(void * addr);
 		const char* Name() const;
         int Init();
 		Page* AllocPage(unsigned long long count);
@@ -51,4 +52,6 @@ class PhysicalMemoryManager
 };
 extern PhysicalMemoryManager POS_PMM;
 
+void *kmalloc(Uint64);
+void kfree(void *);
 #endif

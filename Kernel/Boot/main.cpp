@@ -30,6 +30,6 @@ int main()
 			Sleep(1e8),
 			kout<<str;
 	};
-	DeadLoop(".");
+	// DeadLoop(".");
 	return 0;
 }

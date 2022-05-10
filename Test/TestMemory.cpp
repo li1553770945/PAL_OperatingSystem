@@ -5,9 +5,23 @@ void TestPhysicalMemory()
 {
     using namespace POS;
     kout<<"TestPhysicalMemory()"<<endl;
-    int * p = (int*)POS_PMM.AllocPage(1)->Addr();
+    int * p = (int*)kmalloc(sizeof(int)*2000);
     kout <<"alloc success"<<endl;
     *p = 1;
     p[128] = 2;
-    kout<<p<<" "<<DataWithSize(p,4096);
+    kout<<"p:"<<p;
+
+     int * p2 = (int*)kmalloc(sizeof(int)*2000);
+    kout <<"alloc success"<<endl;
+    kout<<"p2:"<<p2;
+
+    kfree(p);
+    kfree(p2);
+
+    p = (int*)kmalloc(sizeof(int)*10);
+    kout <<"alloc success"<<endl;
+    *p = 1;
+    p[100] = 2;
+    kout<<"p:"<<p;
+    kfree(p);
 }
