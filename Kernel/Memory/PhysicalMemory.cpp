@@ -6,6 +6,7 @@ Page* PhysicalMemoryManager::AllocPage(unsigned long long count)
     Page *p=head.nxt;
     while(p)
     {
+        MergePage(p);
         if(count<p->num)
         {
             Page * pre = p->pre;

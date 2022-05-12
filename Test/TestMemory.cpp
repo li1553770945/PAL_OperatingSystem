@@ -18,7 +18,7 @@ void TestPhysicalMemory()
     kfree(p);
     kfree(p2);
 
-    p = (int*)kmalloc(sizeof(int)*10);
+    p = (int*)kmalloc(sizeof(int)*4000);
     kout <<"alloc success"<<endl;
     *p = 1;
     p[100] = 2;
