@@ -1,5 +1,6 @@
 #include <Library/Math.hpp>
-
+#include <Library/Kout.hpp>
+using namespace POS;
 Uint64 klog2(Uint64 x)
 {
     Uint64 y = 0;
@@ -7,6 +8,7 @@ Uint64 klog2(Uint64 x)
     {
         y++;
     }
+
     return y;
 }
 

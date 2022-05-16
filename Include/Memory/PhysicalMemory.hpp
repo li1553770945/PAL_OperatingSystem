@@ -32,13 +32,13 @@ class FreeArea{
 };
 class Zone{
 	public:
-	Uint64 physical_memory_size = 0x7E00000;
-	Uint64 phymem_virmem_offset=0xFFFFFFFFc0000000ull;
-	Uint64 end_addr = physical_memory_size + phymem_virmem_offset;//物理内存结束地址
+	Uint64 physical_memory_size;
+	Uint64 phymem_virmem_offset;
+	Uint64 end_addr;//物理内存结束地址
 
-	Uint64 page_size = 4096;//每个页的大小
-	Uint64 page_base =  (Uint64)freememstart;//内核结束地址，也就是页表的起始地址
-	Page * page = (Page*)((void*)page_base);
+	Uint64 page_size = PageSize;//每个页的大小
+	Uint64 page_base;//内核结束地址，也就是页表的起始地址
+	Page * page;
 
 	Uint64 page_num;//页的数量
 	Uint64 valid_page_num;//实际可用的页的数量
@@ -67,8 +67,8 @@ class Zone{
 	Page * GetRightSon(Page* P);//获取右孩子
 	Page * GetParent(Page* P);//获取父节点
 	Page*  GetPartner(Page * p);//获取伙伴
-	Page * GetPageFromAddr(void*);//根据物理地址和大小拿到对应的
-	Page * QueryPage(int index,Uint64 addr);
+	Page * GetPageFromAddr(void*);//根据物理地址和大小拿到对应的页
+	Page * QueryPage(int index,Uint64 addr);//递归查找地址对应的页
 };
 class PhysicalMemoryManager
 {	

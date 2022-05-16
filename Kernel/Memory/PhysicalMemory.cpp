@@ -35,15 +35,12 @@ void Page::AddNext(Page * next)
         next->next->pre = next;
 }
 
-void* PhysicalMemoryManager::Alloc(Uint64 size)//需要多少个页
+void* PhysicalMemoryManager::Alloc(Uint64 size)//要分配的字节数
 {
-    size += 8;
-    int order = klog2(size);
-    if(kpow2(order) != size)
-    {
-        order++;
-    }
-    return zone.AllocPage(order);
+    int need_page_num = size/PageSize;
+    if(size%PageSize)
+        need_page_num++;
+    return zone.AllocPage(need_page_num);
 }
 
 void PhysicalMemoryManager::Free(void *p)
@@ -54,11 +51,13 @@ void PhysicalMemoryManager::Free(void *p)
 }
 int PhysicalMemoryManager::Init()
 {
+    kout<<"Initing PhysicalMemoryManager..."<<endl;
     int code = zone.Init();
     if(code)
     {
         return code;
     }
+    kout<<"Init PhysicalMemoryManager Success"<<endl;
     return 0;
 }
 PhysicalMemoryManager::~PhysicalMemoryManager()
@@ -78,8 +77,10 @@ PhysicalMemoryManager POS_PMM;
 
 void * kmalloc(Uint64 size)
 {
-
-    return POS_PMM.Alloc(size);;
+    int need_page_num = size/PageSize;
+    if(size%PageSize)
+        need_page_num++;
+    return POS_PMM.Alloc(need_page_num);;
 }
 
 void  kfree(void *p)
@@ -108,18 +109,19 @@ void Zone::BuildTree(int pos,int left,int right,int x,int y,Uint64 addr)
     }
     if(y>=mid+1)
     {
-        BuildTree(pos*2+1,mid+1,right,x,y,addr + kpow2(page[pos].order-1));
+        BuildTree(pos*2+1,mid+1,right,x,y,addr + kpow2(page[pos].order-1)*PageSize);
     }
 }
 
 void Zone::InitTree(int index,int order,int left,int right)
 {
-
+    // kout<<"init tree:"<<index<<" "<<left<<" " <<right<<endl;
     page[index].index = index;
     page[index].flags = -1;
     page[index].addr = 0;
-    page[index].pre = 0;
-    page[index].next = 0;
+    page[index].pre = nullptr;
+    page[index].next = nullptr;
+    page[index].order = order;
 
     if(left == right)
     {
@@ -134,39 +136,45 @@ void Zone::InitArea(int index,int left,int right)
     if(page[index].flags == 0)
     {
         free_area[page[index].order].head.next = &page[index];
+        page[index].pre = &free_area[page[index].order].head;
         return;
     }
-
     if(left==right)
     {
         return;
     }
+    int mid = (left+right)/2;
+    InitArea(index*2,left,mid);
+    InitArea(index*2+1,mid+1,right);
+
 }
 int Zone::Init()
 {
+    physical_memory_size = 0x7E00000;
+	phymem_virmem_offset=0xFFFFFFFFc0000000ull;
+    page_size = PageSize;
+    end_addr = physical_memory_size + phymem_virmem_offset;
+    page_base = (Uint64)freememstart;
     page = (Page*)((void*)page_base);
     page->next = nullptr;
 
     int height = klog2((end_addr - page_base)/page_size) + 2;
+
     max_order = height - 1;
     page_num = kpow2(height) - 1;
     int right = kpow2(height -1);
     int left = 1;
     InitTree(1,max_order,left,right);
-
     page_need_memory = page_num * sizeof(Page);
     free_memory_start_addr =  page_base + page_need_memory;
     free_memory_size = end_addr - free_memory_start_addr;
     int valid_page_num =  free_memory_size / page_size;
     BuildTree(1,left,right,1,valid_page_num,free_memory_start_addr);
-
     for(int i=0;i<=max_order;i++)
     {
         free_area[i].head.next = nullptr;
     }
-        
     InitArea(1,left,valid_page_num);
-
     return 0;
     
     
@@ -187,7 +195,7 @@ void * Zone::AllocPage(int need_page_num)
             break;
         }
     }while(++cur_order<=max_order);
-    
+    //kout<<"cur_order:"<<cur_order<<endl;
     if(cur_order > max_order)
     {
         return nullptr;
@@ -195,9 +203,11 @@ void * Zone::AllocPage(int need_page_num)
     
     while(cur_order!=order)
     {
+         //kout<<"cur_order1:"<<cur_order<<endl;
         Split(free_area[cur_order].head.next);
         cur_order--;
     }
+   
     Page * cur_page = free_area[order].head.DismantleNext();
     return (void*)cur_page->addr;
 }
@@ -229,6 +239,7 @@ void Zone::Split(Page * p)
 {
     p->Dismantle();
     Page *lson = GetLeftSon(p),*rson = GetRightSon(p);
+    lson->flags = rson->flags = 0;
     int order = lson->order;
     free_area[order].head.AddNext(lson);
     free_area[order].head.AddNext(rson);
@@ -268,7 +279,7 @@ Page * Zone::QueryPage(int index,Uint64 addr)
     {
         //panic("can't find page");
     }
-    Uint64 mid_addr = addr + kpow2(page[index].order-1);
+    Uint64 mid_addr = addr + kpow2(page[index].order-1)*PageSize;
     if(addr<mid_addr)
     {
         return QueryPage(index*2,addr);

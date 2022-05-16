@@ -5,23 +5,34 @@ void TestPhysicalMemory()
 {
     using namespace POS;
     kout<<"TestPhysicalMemory()"<<endl;
-    int * p = (int*)kmalloc(sizeof(int)*2000);
-    kout <<"alloc success"<<endl;
-    *p = 1;
-    p[128] = 2;
-    kout<<"p:"<<p;
+    int * p = (int*)POS_PMM.Alloc(256*sizeof(int));
+    if(p)
+    {
+         kout <<"alloc success"<<endl;
+        *p = 1;
+        p[128] = 2;
+        kout<<"p:"<<p;
+    }
+    else
+    {
+        kout<<"alloc failed"<<endl;
+    }
+   
 
-     int * p2 = (int*)kmalloc(sizeof(int)*2000);
-    kout <<"alloc success"<<endl;
-    kout<<"p2:"<<p2;
+      int * p1 = (int*)POS_PMM.Alloc(256*sizeof(int));
+    if(p1)
+    {
+         kout <<"alloc success"<<endl;
+        *p1 = 1;
+        p1[128] = 2;
+        kout<<"p1:"<<p1;
+    }
+    else
+    {
+        kout<<"alloc failed"<<endl;
+    }
+    
 
-    kfree(p);
-    kfree(p2);
 
-    p = (int*)kmalloc(sizeof(int)*4000);
-    kout <<"alloc success"<<endl;
-    *p = 1;
-    p[100] = 2;
-    kout<<"p:"<<p;
-    kfree(p);
+
 }
