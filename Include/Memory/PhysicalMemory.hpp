@@ -15,7 +15,7 @@ extern char freememstart[];
 class Page{
 	public:
 		Page *pre,*next;
-		bool flags;//-1:不可使用，0未使用，1已使用
+		int flags;//-1:不可使用，0未使用，1已使用
 		int order;
 		int index;
 		Uint64 addr;

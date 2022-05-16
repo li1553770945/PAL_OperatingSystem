@@ -90,19 +90,17 @@ void  kfree(void *p)
 
 void Zone::BuildTree(int pos,int left,int right,int x,int y,Uint64 addr)
 {
+    page[pos].addr = addr;
     if(left==right)
     {
         page[pos].flags = 0;
-        page[pos].addr = addr;
         return;
     }
     int mid = (left+right)/2;
     if(x<=left&&y>=right)
     {
         page[pos].flags = 0;
-        page[pos].addr = addr;
     }
-
     if(x<=mid)
     {
         BuildTree(pos*2,left,mid,x,y,addr);
@@ -195,7 +193,6 @@ void * Zone::AllocPage(int need_page_num)
             break;
         }
     }while(++cur_order<=max_order);
-    //kout<<"cur_order:"<<cur_order<<endl;
     if(cur_order > max_order)
     {
         return nullptr;
@@ -203,17 +200,19 @@ void * Zone::AllocPage(int need_page_num)
     
     while(cur_order!=order)
     {
-         //kout<<"cur_order1:"<<cur_order<<endl;
         Split(free_area[cur_order].head.next);
         cur_order--;
     }
    
     Page * cur_page = free_area[order].head.DismantleNext();
+    kout<<"alloc page:"<<cur_page->index<<" "<<cur_page->order<<endl;
+    cur_page->flags = 1;
     return (void*)cur_page->addr;
 }
 void Zone::FreePage(Page * p)
 {
-   
+    kout<<"free page:"<<p->index<<endl;
+    free_area[p->order].head.AddNext(p);
     p->flags = 0;
     Merge(p);
 }
@@ -227,6 +226,7 @@ void Zone::Merge(Page * p)
     }
     else
     {
+        kout<<"merge:"<<p->index<<endl;
         p->Dismantle();
         partner->Dismantle();
         Page * parent = GetParent(p);
@@ -237,9 +237,9 @@ void Zone::Merge(Page * p)
 
 void Zone::Split(Page * p)
 {
+    kout<<"split:"<<p->index<<endl;
     p->Dismantle();
     Page *lson = GetLeftSon(p),*rson = GetRightSon(p);
-    lson->flags = rson->flags = 0;
     int order = lson->order;
     free_area[order].head.AddNext(lson);
     free_area[order].head.AddNext(rson);
@@ -247,7 +247,7 @@ void Zone::Split(Page * p)
 
 Page* Zone::GetPartner(Page * p)
 {
-    if(p->index%2)
+    if(p->index%2==1)
     {
         return &page[p->index - 1];
     }
@@ -270,16 +270,17 @@ Page * Zone::GetParent(Page * p)//获取父节点
 }
 Page * Zone::QueryPage(int index,Uint64 addr)
 {
-    
     if(addr == page[index].addr&&page[index].flags == 1)
     {
         return &page[index];
     }
     if(page[index].order==0)
     {
+        // kout<<"panic page not find"<<endl;
+        return nullptr;
         //panic("can't find page");
     }
-    Uint64 mid_addr = addr + kpow2(page[index].order-1)*PageSize;
+    Uint64 mid_addr = page[index].addr + kpow2(page[index].order-1)*page_size;
     if(addr<mid_addr)
     {
         return QueryPage(index*2,addr);
