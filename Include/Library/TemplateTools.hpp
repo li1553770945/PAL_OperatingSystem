@@ -1,7 +1,7 @@
 #ifndef POS_TEMPLATETOOLS_HPP
 #define POS_TEMPLATETOOLS_HPP
 
-#include "../Types.h"
+#include "../Types.hpp"
 
 namespace POS
 {
@@ -103,7 +103,15 @@ namespace POS
 		if (dst==nullptr||count==0) return;
 		T *end=dst+count;
 		while (dst!=end)
-			*dst=val,++dst;
+			*dst++=val;
+	}
+	
+	template <typename T> void MemcpyT(T *dst,const T *src,unsigned long long count)
+	{
+		if (dst==nullptr||src==nullptr||count==0) return;
+		T *end=dst+count;
+		while (dst!=end)
+			*dst++=*src++;
 	}
 	
 	template <typename T> T* OperateForAll(T *src,unsigned long long count,void(*func)(T&))
@@ -182,6 +190,14 @@ namespace POS
 			DataWithSize(void *_data,Uint64 _size):data(_data),size(_size) {}
 	};
 	
+	template <typename T> inline bool GetBitMask(T tar,unsigned i)
+	{return (tar>>i)&1;}
+	
+	template <typename T> inline void SetBitMask1(T &tar,unsigned i)
+	{tar|=1ull<<i;}
+	
+	template <typename T> inline void SetBitMask0(T &tar,unsigned i)
+	{tar&=~(1ull<<i);}
 };
 
 #endif

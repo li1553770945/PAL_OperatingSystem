@@ -1,7 +1,6 @@
-#ifndef POS_DEFS_H
-#define POS_DEFS_H
+#ifndef POS_TYPES_H
+#define POS_TYPES_H
 
-//Type:
 using Sint8=signed char;
 using Sint16=signed short;
 using Sint32=signed int;
@@ -16,11 +15,10 @@ using Uint64=unsigned long long;
 using RegisterData=Uint64;
 using ClockTime=Uint64;
 using TickType=Uint64;
-//End of type
-
-//Memory management:
-
-
-//End of Memory management
+using ErrorType=Sint32;
+using PID=Uint32;
+using TID=Uint32;
+using PtrInt=Uint64;//The UintXX of void*
+using PageTableEntryType=Uint64;
 
 #endif

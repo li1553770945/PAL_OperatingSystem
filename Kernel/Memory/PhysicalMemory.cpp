@@ -40,7 +40,7 @@ void* PhysicalMemoryManager::Alloc(Uint64 size)//要分配的字节数
     int need_page_num = size/PageSize;
     if(size%PageSize)
         need_page_num++;
-    return zone.AllocPage(need_page_num);
+    return (void*)zone.AllocPage(need_page_num)->addr;
 }
 
 void PhysicalMemoryManager::Free(void *p)
@@ -49,44 +49,25 @@ void PhysicalMemoryManager::Free(void *p)
     zone.FreePage(page_addr);
 
 }
-int PhysicalMemoryManager::Init()
+
+ErrorType PhysicalMemoryManager::Init()
 {
-    kout<<"Initing PhysicalMemoryManager..."<<endl;
+    kout[Info]<<"Initing PhysicalMemoryManager..."<<endl;
     int code = zone.Init();
     if(code)
     {
         return code;
     }
-    kout<<"Init PhysicalMemoryManager Success"<<endl;
+    kout[Info]<<"Init PhysicalMemoryManager Success"<<endl;
     return 0;
 }
-PhysicalMemoryManager::~PhysicalMemoryManager()
-{
 
-}
-PhysicalMemoryManager::PhysicalMemoryManager()
-{
-    
-}
 const char* PhysicalMemoryManager::Name()  const
 {
-    return "default";
+    return "POS_DefaultPMM";
 }
 
 PhysicalMemoryManager POS_PMM;
-
-void * kmalloc(Uint64 size)
-{
-    int need_page_num = size/PageSize;
-    if(size%PageSize)
-        need_page_num++;
-    return POS_PMM.Alloc(need_page_num);;
-}
-
-void  kfree(void *p)
-{
-    POS_PMM.Free(p);
-}
 
 void Zone::BuildTree(int pos,int left,int right,int x,int y,Uint64 addr)
 {
@@ -148,10 +129,9 @@ void Zone::InitArea(int index,int left,int right)
 }
 int Zone::Init()
 {
-    physical_memory_size = 0x7E00000;
-	phymem_virmem_offset=0xFFFFFFFFc0000000ull;
+    physical_memory_size = PhysicalMemorySize();
     page_size = PageSize;
-    end_addr = physical_memory_size + phymem_virmem_offset;
+    end_addr = PhysicalMemoryVirtualEnd();
     page_base = (Uint64)freememstart;
     page = (Page*)((void*)page_base);
     page->next = nullptr;
@@ -164,7 +144,7 @@ int Zone::Init()
     int left = 1;
     InitTree(1,max_order,left,right);
     page_need_memory = page_num * sizeof(Page);
-    free_memory_start_addr =  page_base + page_need_memory;
+    free_memory_start_addr =  page_base + page_need_memory+4095>>PageSizeBit<<PageSizeBit;
     free_memory_size = end_addr - free_memory_start_addr;
     int valid_page_num =  free_memory_size / page_size;
     BuildTree(1,left,right,1,valid_page_num,free_memory_start_addr);
@@ -177,7 +157,7 @@ int Zone::Init()
     
     
 }
-void * Zone::AllocPage(int need_page_num)
+Page * Zone::AllocPage(Uint64 need_page_num)
 {
     int order = klog2(need_page_num);
     if((int)kpow2(order) != need_page_num)
@@ -207,7 +187,7 @@ void * Zone::AllocPage(int need_page_num)
     Page * cur_page = free_area[order].head.DismantleNext();
     kout<<"alloc page:"<<cur_page->index<<" "<<cur_page->order<<endl;
     cur_page->flags = 1;
-    return (void*)cur_page->addr;
+    return cur_page;
 }
 void Zone::FreePage(Page * p)
 {
@@ -276,6 +256,7 @@ Page * Zone::QueryPage(int index,Uint64 addr)
     }
     if(page[index].order==0)
     {
+    	kout[Error]<<"Zone::QueryPage: Page of "<<(void*)addr<<" not found!"<<endl;
         // kout<<"panic page not find"<<endl;
         return nullptr;
         //panic("can't find page");

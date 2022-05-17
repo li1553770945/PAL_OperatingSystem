@@ -12,12 +12,18 @@ _start:
 	or		t0,	t0,	t1
 	csrw	satp, t0
 	sfence.vma
-	
+
+#	la sp, bootstacktop
 	lui sp, %hi(bootstacktop)
 
-	lui t0, %hi(main)
-	addi t0, t0, %lo(main)
-	jalr t0
+	lui t0, %hi(mymain)
+	addi t0, t0, %lo(mymain)
+#	la t0,main
+	jr t0
+#	call main
+mymain:
+	call main
+	
 
 halt:
 	j halt

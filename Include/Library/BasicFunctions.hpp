@@ -12,6 +12,8 @@ namespace POS
 	
 	inline void Puts(const char *s)
 	{
+		if (s==nullptr)//??
+			return;
 		while (*s)
 			Putchar(*s++);
 	}

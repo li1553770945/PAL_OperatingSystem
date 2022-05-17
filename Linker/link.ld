@@ -5,7 +5,8 @@ SECTIONS
 {
 	. = 0xffffffffc0200000;
 	
-	start = .;
+	PROVIDE(kernelstart = .);
+	
 	.text :
 	{
 		stext = .;
@@ -36,7 +37,7 @@ SECTIONS
 		ebss = .;
 	}
 	
-	PROVIDE(end = .);
+	PROVIDE(kernelend = .);
 	. = ALIGN(4k);
 	PROVIDE(freememstart = .);
 }

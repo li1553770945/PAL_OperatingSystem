@@ -1,7 +1,7 @@
 #ifndef POS_CLOCK_H
 #define POS_CLOCK_H
 
-#include "../Types.h"
+#include "../Types.hpp"
 #include "../SBI.h"
 
 const ClockTime Timer_1ms=1e4;
