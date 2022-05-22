@@ -4,7 +4,7 @@ using namespace POS;
 
 void PrintSystemInfo()
 {
-	kout<<DarkGrayBG<<DarkGrayBG<<LightRed
+	kout<<DarkGrayBG<<LightRed
 		<<"PAL_OperatingSystem       "<<ResetBG<<endline
 		<<DarkGrayBG<<LightYellow
 		<<"Version 0.2               "<<ResetBG<<endline

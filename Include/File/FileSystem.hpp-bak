@@ -4,7 +4,6 @@
 #include "../Error.hpp"
 #include "../Library/TemplateTools.hpp"
 #include "../Process/Synchronize.hpp"
-#include "../Library/String/SysStringTools.hpp"
 
 class FileNode;
 class VirtualFileSystem;
@@ -13,7 +12,7 @@ inline const char * InvalidFileNameCharacter()
 {return "/\\:*?\"<>|";}
 
 inline bool IsValidFileNameCharacter(char ch)
-{return POS::NotInSet(ch,'/','\\',':','*','?','\"','<','>','|');}
+{return NotInSet(ch,'/','\\',':','*','?','\"','<','>','|');}
 
 class FileHandle
 {
@@ -47,55 +46,46 @@ class FileHandle
 
 class FileNode
 {
-	
 	public:
-		enum:Uint64
+		enum
 		{
 			Attri_Dir		=1ull<<0,
-//			Attri_Deleted	=1ull<<1,
-//			Attri_Link		=1ull<<2,
-//			Attri_VFS		=1ull<<3,
+			Attri_Deleted	=1ull<<1,
+			Attri_Link		=1ull<<2
 		};
 		
+//		enum
+//		{
+//			Type_None=0,
+//			Type_File,
+//			Type_Directory,
+//			Type_VFS
+//		};
+	
 	protected:
-		VirtualFileSystem *Vfs;//Belonging VFS
+		VirtualFileSystem *Vfs;
 		char *Name;
+//		Uint8 Type,
+//			  Padding[7];
 		Uint64 Attributes;
-//		FileNode *fa;
+		FileNode *fa;
+		
+		union
+		{
+			
+		};
+
 		Uint64 FileSize;
-		Uint64 RefCount;
+		Uint64 CreatedTime,
+			   ModifyTime,
+			   AccessTime;
 		
 	public:
-		virtual ErrorType Read(void *dst,Uint64 pos,Uint64 size);
-		virtual ErrorType Write(void *src,Uint64 pos,Uint64 size);
-		
-		inline Uint64 Size()
-		{return FileSize;}
-		
-		inline ErrorType Ref(FileHandle *f)
-		{
-			//...
-			++RefCount;
-		}
-		
-		inline ErrorType Unref(FileHandle *f)
-		{
-			//...
-			--RefCount;
-		}
-		
-		virtual ~FileNode()
-		{
-			if (Name!=nullptr)
-				Kfree(Name);
-		}
-		
-		FileNode(VirtualFileSystem *_vfs=nullptr,const char *_name=nullptr,Uint64 attri=0):Vfs(_vfs),Attributes(attri)
-		{
-			if (_name==nullptr)
-				Name=nullptr;
-			else Name=POS::strDump(_name);
-		}
+		ErrorType Read(void *dst,Uint64 pos,Uint64 size);
+		ErrorType Write(void *src,Uint64 pos,Uint64 size);
+		Uint64 Size();
+		ErrorType Ref();
+		ErrorType Unref();
 };
 
 class VirtualFileSystemManager
@@ -110,13 +100,9 @@ class VirtualFileSystemManager
 		ErrorType CreateFile(const char *path);
 		ErrorType Move(const char *src,const char *dst);
 		ErrorType Copy(const char *src,const char *dst);
-		ErrorType Delete(const char *path);
 		
 		FileNode* Open(const char *path);
 		ErrorType Close(FileNode *p);
-		
-		ErrorType Init();
-		ErrorType Destroy();
 };
 extern VirtualFileSystemManager VFSM;
 
@@ -130,12 +116,12 @@ class VirtualFileSystem
 		virtual ErrorType CreateFile(const char *path)=0;
 		virtual ErrorType Move(const char *src,const char *dst)=0;
 		virtual ErrorType Copy(const char *src,const char *dst)=0;
-		virtual ErrorType Delete(const char *path)=0;
 		
 		virtual FileNode* Open(const char *path)=0;
 		virtual ErrorType Close(FileNode *p)=0;
 		
 		virtual ~VirtualFileSystem()=0;
+		VirtualFileSystem();
 };
 
 #endif

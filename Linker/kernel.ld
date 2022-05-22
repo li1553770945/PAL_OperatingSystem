@@ -1,5 +1,4 @@
 OUTPUT_ARCH("riscv")
-OUTPUT_FORMAT("elf64-littleriscv")
 ENTRY(_start)
 SECTIONS
 {
@@ -9,32 +8,32 @@ SECTIONS
 	
 	.text :
 	{
-		stext = .;
+		textstart = .;
 		*(.text.entry)
 		*(.text .text.*)
-		PROVIDE(etext = .);
+		PROVIDE(textend = .);
 	}
 	
 	.rodata : 
 	{
-		srodata = .;
-		*(.rodata .rodata.*)
-		erodata = .;
+		rodatastart = .;
+		*(.srodata .srodata.* .rodata .rodata.*)
+		rodataend = .;
 	}
 	. = ALIGN(4k);
 
 	.data :
 	{
-		sdata = .;
+		datastart = .;
 		*(.data .data.*)
-		PROVIDE(edata = .);
+		PROVIDE(dataend = .);
 	}
 
 	.bss :
 	{
-		sbss = .;
-		*(.bss .bss.*)
-		ebss = .;
+		bssstart = .;
+		*(.sbss .sbss.* .bss .bss.*)
+		bssend = .;
 	}
 	
 	PROVIDE(kernelend = .);

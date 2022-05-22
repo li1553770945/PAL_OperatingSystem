@@ -1,7 +1,6 @@
 #ifndef POS_ERROR_HPP
 #define POS_ERROR_HPP
 
-#include "Trap/Interrupt.h"
 #include "Library/BasicFunctions.hpp"
 
 enum
@@ -14,14 +13,10 @@ enum
 	ERR_AccessPermissionViolate,
 };
 
-inline void KernelFaultSolver()
-{
-	while (1);
-}
+void KernelFaultSolver();
 
 inline void Panic(const char *msg=nullptr)
 {
-	InterruptStackAutoSaver isas;
 	POS::Puts("[Panic!!!] ");
 	POS::Puts(msg);
 	POS::Puts("\n");
@@ -37,7 +32,7 @@ inline void Assert(bool flag,const char *msg=nullptr)
 #define ASSERT(x,s)		\
 {						\
 	if (!(x))			\
-		Panic(s);	\
+		Panic(s);		\
 }
 
 #endif

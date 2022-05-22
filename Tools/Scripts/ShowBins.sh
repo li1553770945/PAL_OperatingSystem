@@ -1,0 +1,1 @@
+nm ../../Build/Kernel/kernel.elf | grep binary

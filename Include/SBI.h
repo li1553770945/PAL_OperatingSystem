@@ -15,6 +15,8 @@
  })
 
 #define SBI_PUTCHAR(__a0) SBI_ECALL(1,__a0,0,0)
+#define SBI_GETCHAR() SBI_ECALL(2,0,0,0)
 #define SBI_SET_TIMER(t) SBI_ECALL(0,t,0,0)
+#define SBI_SHUTDOWN() SBI_ECALL(8,0,0,0)
 
 #endif

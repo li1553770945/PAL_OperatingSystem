@@ -5,6 +5,7 @@
 #include <Error.hpp>
 #include <Process/Process.hpp>
 #include <Memory/VirtualMemory.hpp>
+#include <Trap/Syscall.hpp>
 
 extern "C"
 {
@@ -31,6 +32,11 @@ extern "C"
 		}
 		else switch (tf->cause)
 		{
+			case ExceptionCode_BreakPoint://??
+			case ExceptionCode_UserEcall:
+				err=TrapFunc_Syscall(tf);
+				break;
+			case ExceptionCode_InstructionPageFault:
 			case ExceptionCode_LoadPageFault:
 			case ExceptionCode_StorePageFault:
 				err=TrapFunc_FageFault(tf);
@@ -46,7 +52,7 @@ extern "C"
 		{
 			kout[Fault]<<"TrapFunc failed:"<<endline
 					   <<"  cause   :"<<(void*)tf->cause<<endline
-					   <<"  vaddr:"<<(void*)tf->badvaddr<<endline
+					   <<"  vaddr   :"<<(void*)tf->badvaddr<<endline
 				       <<"  epc     :"<<(void*)tf->epc<<endline
 				       <<"  status  :"<<(void*)tf->status<<endline
 				       <<" TrapFunc ErrorType:"<<err<<endl;

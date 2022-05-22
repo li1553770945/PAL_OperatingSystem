@@ -1,8 +1,6 @@
 #ifndef POS_SYNCHRONIZE_HPP
 #define POS_SYNCHRONIZE_HPP
 
-
-
 class SpinLock
 {
 	protected:

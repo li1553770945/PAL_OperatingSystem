@@ -1,14 +1,23 @@
-riscv64-unknown-elf-g++ -nostdlib -c ../../Kernel/Boot/main.cpp                  -o ../../Build/main.o              -I"../../Include" -mcmodel=medany 
-riscv64-unknown-elf-g++ -nostdlib -c ../../Kernel/Boot/Start.S                   -o ../../Build/Start.o             -I"../../Include" -mcmodel=medany 
-riscv64-unknown-elf-g++ -nostdlib -c ../../Kernel/Boot/SystemInfo.cpp            -o ../../Build/SystemInfo.o        -I"../../Include" -mcmodel=medany 
-riscv64-unknown-elf-g++ -nostdlib -c ../../Kernel/Trap/Clock.cpp                 -o ../../Build/Clock.o 	        -I"../../Include" -mcmodel=medany 
-riscv64-unknown-elf-g++ -nostdlib -c ../../Kernel/Trap/Trap.cpp                  -o ../../Build/Trap.o              -I"../../Include" -mcmodel=medany 
-riscv64-unknown-elf-g++ -nostdlib -c ../../Kernel/Trap/TrapEntry.S               -o ../../Build/TrapEntry.o         -I"../../Include" -mcmodel=medany 
-riscv64-unknown-elf-g++ -nostdlib -c ../../Kernel/Memory/PhysicalMemory.cpp      -o ../../Build/PhysicalMemory.o    -I"../../Include" -mcmodel=medany 
-riscv64-unknown-elf-g++ -nostdlib -c ../../Kernel/Memory/VirtualMemory.cpp       -o ../../Build/VirtualMemory.o     -I"../../Include" -mcmodel=medany 
-riscv64-unknown-elf-g++ -nostdlib -c ../../Kernel/Process/Process.S        	     -o ../../Build/Process_S.o         -I"../../Include" -mcmodel=medany 
-riscv64-unknown-elf-g++ -nostdlib -c ../../Kernel/Process/Process.cpp            -o ../../Build/Process.o           -I"../../Include" -mcmodel=medany 
-riscv64-unknown-elf-g++ -nostdlib -c ../../Kernel/Library/Kout.cpp               -o ../../Build/Kout.o              -I"../../Include" -mcmodel=medany 
-riscv64-unknown-elf-g++ -nostdlib -c ../../Kernel/Library/String/Convert.cpp     -o ../../Build/Convert.o           -I"../../Include" -mcmodel=medany 
-riscv64-unknown-elf-g++ -nostdlib -c ../../Kernel/Library/String/StringTools.cpp -o ../../Build/StringTools.o       -I"../../Include" -mcmodel=medany 
-riscv64-unknown-elf-ld -o ../../Build/1.elf -T ../../Linker/link.ld ../../Build/*.o && riscv64-unknown-elf-objcopy -O binary ../../Build/1.elf ../../Build/1.img
+cd ../..
+
+riscv64-unknown-elf-g++ -nostdlib -c Kernel/Boot/main.cpp                  -o Build/Kernel/main.o              -I"Include" -mcmodel=medany 
+riscv64-unknown-elf-g++ -nostdlib -c Kernel/Boot/Start.S                   -o Build/Kernel/Start.o             -I"Include" -mcmodel=medany 
+riscv64-unknown-elf-g++ -nostdlib -c Kernel/Boot/SystemInfo.cpp            -o Build/Kernel/SystemInfo.o        -I"Include" -mcmodel=medany 
+riscv64-unknown-elf-g++ -nostdlib -c Kernel/Trap/Clock.cpp                 -o Build/Kernel/Clock.o 	           -I"Include" -mcmodel=medany 
+riscv64-unknown-elf-g++ -nostdlib -c Kernel/Trap/Trap.cpp                  -o Build/Kernel/Trap.o              -I"Include" -mcmodel=medany 
+riscv64-unknown-elf-g++ -nostdlib -c Kernel/Trap/TrapEntry.S               -o Build/Kernel/TrapEntry.o         -I"Include" -mcmodel=medany 
+riscv64-unknown-elf-g++ -nostdlib -c Kernel/Trap/Syscall.cpp               -o Build/Kernel/Syscall.o           -I"Include" -mcmodel=medany 
+riscv64-unknown-elf-g++ -nostdlib -c Kernel/Memory/PhysicalMemory.cpp      -o Build/Kernel/PhysicalMemory.o    -I"Include" -mcmodel=medany 
+riscv64-unknown-elf-g++ -nostdlib -c Kernel/Memory/VirtualMemory.cpp       -o Build/Kernel/VirtualMemory.o     -I"Include" -mcmodel=medany 
+riscv64-unknown-elf-g++ -nostdlib -c Kernel/Process/Process.S        	   -o Build/Kernel/Process_S.o         -I"Include" -mcmodel=medany 
+riscv64-unknown-elf-g++ -nostdlib -c Kernel/Process/Process.cpp            -o Build/Kernel/Process.o           -I"Include" -mcmodel=medany 
+riscv64-unknown-elf-g++ -nostdlib -c Kernel/Library/Kout.cpp               -o Build/Kernel/Kout.o              -I"Include" -mcmodel=medany 
+riscv64-unknown-elf-g++ -nostdlib -c Kernel/Library/String/Convert.cpp     -o Build/Kernel/Convert.o           -I"Include" -mcmodel=medany 
+riscv64-unknown-elf-g++ -nostdlib -c Kernel/Library/String/StringTools.cpp -o Build/Kernel/StringTools.o       -I"Include" -mcmodel=medany 
+riscv64-unknown-elf-g++ -nostdlib -c Kernel/Library/KernelMonitor.cpp      -o Build/Kernel/KernelMonitor.o     -I"Include" -mcmodel=medany 
+riscv64-unknown-elf-g++ -nostdlib -c Kernel/File/FileSystem.cpp            -o Build/kernel/FileSystem.o        -I"Include" -mcmodel=medany 
+rm Build/Kernel.img
+riscv64-unknown-elf-ld -o Build/Kernel/kernel.elf -T Linker/kernel.ld Build/Kernel/*.o --format=binary Build/*.img --format=default
+riscv64-unknown-elf-objcopy Build/Kernel/kernel.elf --strip-all -O binary Build/Kernel.img
+
+cd Tools/Scripts

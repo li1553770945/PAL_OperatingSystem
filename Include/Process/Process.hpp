@@ -9,6 +9,9 @@
 
 const unsigned MaxProcessCount=128;
 const Uint64 KernelStackSize=PageSize*4;
+const PtrInt InnerUserProcessLoadAddr=0x800020,
+			 InnerUserProcessStackSize=PageSize*4,
+			 InnerUserProcessStackAddr=0x80000000-InnerUserProcessStackSize;
 
 class Process;
 
@@ -60,12 +63,20 @@ class Process
 		enum
 		{
 			Exit_Normal=0,
-			Exit_Destroy=-10000
+			Exit_Destroy=-10000,
+			Exit_BadSyscall,
 		};
 		
 		struct RegContext
 		{
 			RegisterData ra,sp,s[12];
+		};
+		
+		enum:PID
+		{
+			
+			UnknownPID=(PID)-2,
+			InvalidPID=(PID)-1
 		};
 		
 	protected:
@@ -77,8 +88,10 @@ class Process
 				  StartedTime,
 				  SleepingTime,
 				  WaitingTime;
-		void *Stack;//[Stack,Stack+KernelStackSize) is the stack area
+		void *Stack;//[Stack,Stack+StackSize) is the stack area
 		Uint32 StackSize;
+//		void *UserStack;
+//		Uint32 UserStackSize;
 		Process *fa,
 				*pre,
 				*nxt,
@@ -89,7 +102,7 @@ class Process
 		Uint64 flags;
 		char *Name;
 		Uint32 Namespace;//0 means default
-		Uint32 ReturnedValue;
+		int ReturnedValue;
 		
 		ErrorType InitForKernelProcess0();
 		
@@ -98,6 +111,7 @@ class Process
 		ErrorType Run();
 		ErrorType Exit(int re);
 		ErrorType Start(int (*func)(void*),void *funcdata);
+		ErrorType Start(PtrInt addr);
 		ErrorType SetVMS(VirtualMemorySpace *vms);
 		ErrorType SetStack(void *stack,Uint32 size);//if stack is nullptr, means auto create.
 		ErrorType SetName(char *name);
@@ -110,6 +124,13 @@ class Process
 		
 		inline PID GetPID() const
 		{return ID;}
+		
+		inline bool IsKernelProcess()
+		{return flags&F_Kernel;}
+		
+		inline bool IsUserProcess()
+		{return !(flags)&F_Kernel;}
+		
 		//ClockTime GetXXXTime();
 //		ErrorType Fork();//Reserved... It is not usable
 
@@ -117,10 +138,19 @@ class Process
 		ErrorType Destroy();
 };
 
+PID CreateKernelThread(int (*func)(void*),void *funcdata=nullptr,Uint64 flags=Process::F_AutoDestroy);
+PID CreateKernelProcess(int (*func)(void*),void *funcdata=nullptr,Uint64 flags=Process::F_AutoDestroy);
+PID CreateInnerUserImgProcess(PtrInt start,PtrInt end,Uint64 flags=Process::F_AutoDestroy);
+/*
+	F_Kernel is not set in CreateKernelXXX because it will be auto added;
+	if F_AutoDestroy is set, it will return UnknownPID(but acctually exist valid PID)
+*/
+
 extern "C"
 {
 	void KernelThreadExit(int re);
 	extern void KernelThreadEntry();
+	extern void UserThreadEntry();
 	extern void ProcessSwitchContext(Process::RegContext *from,Process::RegContext *to);
 };
 

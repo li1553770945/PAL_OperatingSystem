@@ -8,6 +8,7 @@
 #include "PhysicalMemory.hpp"
 #include "../Trap/Trap.hpp"
 #include "../Library/Kout.hpp"
+#include "../Riscv.h"
 
 class PageTable;
 
@@ -159,11 +160,12 @@ class PageTable
 		inline Entry& operator [] (int i)
 		{return entries[i];}
 		
-		inline ErrorType InitFrom(PageTable *pt)//Non-recursive
+		inline ErrorType InitAsPDT()
 		{
 			using namespace POS;
-			kout[Test]<<"PageTable::Init "<<this<<" from "<<pt<<endl;
-			POS::MemcpyT(entries,pt->entries,PageTableEntryCount);
+			kout[Test]<<"PageTable::InitAsPDT "<<this<<endl;
+			POS::MemsetT(entries,Entry(0),PageTableEntryCount-1);
+			entries[PageTableEntryCount-1]=(*Boot())[PageTableEntryCount-1];//??
 			return ERR_None;
 		}
 		
@@ -175,7 +177,7 @@ class PageTable
 			return ERR_None;
 		}
 		
-		ErrorType Destroy();
+		inline ErrorType Destroy(const int level);
 };
 
 class VirtualMemorySpace;
@@ -195,14 +197,18 @@ class VirtualMemoryRegion:public POS::LinkTableT <VirtualMemoryRegion>
 			VM_RW=VM_Read|VM_Write,
 			VM_RWX=VM_RW|VM_Exec,
 			VM_KERNEL=VM_Kernel|VM_RWX,
+			VM_USERSTACK=VM_RW|VM_Stack,
 			
 			VM_TEST=VM_Kernel|VM_RW|VM_Shared//??
 		};
 	
 	protected:
+		VirtualMemorySpace *VMS;
 		PtrInt Start,//should align to page
 			   End;
 		Uint32 Flags;
+		
+		ErrorType CopyMemory(PageTable *src,int level);
 		
 	public:
 		inline PageTableEntryType ToPageEntryFlags()
@@ -217,6 +223,7 @@ class VirtualMemoryRegion:public POS::LinkTableT <VirtualMemoryRegion>
 				re|=PageTable::Entry::Mask<PageTable::Entry::X>();
 			if (Flags&VM_Kernel)
 				re|=PageTable::Entry::Mask<PageTable::Entry::G>();
+			else re|=PageTable::Entry::Mask<PageTable::Entry::U>();
 			return re;
 		}
 		
@@ -224,14 +231,20 @@ class VirtualMemoryRegion:public POS::LinkTableT <VirtualMemoryRegion>
 		{return Start<=p&&p<End;}
 		
 		ErrorType Init(PtrInt start,PtrInt end,PtrInt flags);
-		
-		ErrorType Destroy();
 };
 
 class Process;
 
 class VirtualMemorySpace:protected SpinLock
 {
+	public:
+		enum
+		{
+			VMS_Default=0,
+			VMS_CurrentTest,
+			VMS_InnerUserProcess
+		};
+	
 	protected:
 		static VirtualMemorySpace *CurrentVMS,
 								  *BootVMS,
@@ -243,13 +256,9 @@ class VirtualMemorySpace:protected SpinLock
 		PageTable *PDT;
 		Uint32 SharedCount;
 		
-		VirtualMemoryRegion* FindVMR(PtrInt p);
-		void InsertVMR(VirtualMemoryRegion *vmr);
-		void RemoveVMR(VirtualMemoryRegion *vmr);
-		
 		VirtualMemoryRegion* CopyVMR();
-		PageTable *CopyPDT();
-		
+		ErrorType ClearVMR();
+
 		static ErrorType InitForBoot();
 		static ErrorType InitForKernel();
 		
@@ -265,6 +274,10 @@ class VirtualMemorySpace:protected SpinLock
 		
 		static ErrorType InitStatic();
 		
+		VirtualMemoryRegion* FindVMR(PtrInt p);
+		void InsertVMR(VirtualMemoryRegion *vmr);
+		void RemoveVMR(VirtualMemoryRegion *vmr,bool FreeVmr);
+		
 		void Unref(Process *proc);
 		void Ref(Process *proc);
 		bool TryDeleteSelf();//Should not be kernel common space!
@@ -274,8 +287,8 @@ class VirtualMemorySpace:protected SpinLock
 		{KernelVMS->Enter();}
 		
 		ErrorType SolvePageFault(TrapFrame *tf);
-		ErrorType Create();
-		ErrorType CopyFrom(VirtualMemorySpace *vms);//Remember call destroy and init first if not new.
+		ErrorType Create(int type=VMS_Default);
+		ErrorType CreateFrom(VirtualMemorySpace *vms);//Remember call destroy and init first if not new.
 		
 		ErrorType Init();
 		ErrorType Destroy();

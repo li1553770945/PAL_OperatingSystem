@@ -11,7 +11,7 @@ constexpr Uint64 PhysicalVirtualMemoryOffset=0xFFFFFFFF40000000ull,
 				 PhysicalKernelStartAddr=0x80200000ull;
 
 inline Uint64 PhysicalMemorySize()
-{return 0x7E00000;}
+{return 0x600000;}
 
 inline Uint64 PhysicalMemoryPhysicalStart()
 {return 0x80000000;}

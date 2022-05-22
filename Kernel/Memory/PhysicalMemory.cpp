@@ -185,13 +185,13 @@ Page * Zone::AllocPage(Uint64 need_page_num)
     }
    
     Page * cur_page = free_area[order].head.DismantleNext();
-    kout<<"alloc page:"<<cur_page->index<<" "<<cur_page->order<<endl;
+//    kout[Test]<<"Zone::AllocPage: "<<cur_page->index<<" "<<cur_page->order<<endl;
     cur_page->flags = 1;
     return cur_page;
 }
 void Zone::FreePage(Page * p)
 {
-    kout<<"free page:"<<p->index<<endl;
+//    kout[Test]<<"Zone::FreePage: "<<p<<" "<<p->index<<endl;
     free_area[p->order].head.AddNext(p);
     p->flags = 0;
     Merge(p);
@@ -206,7 +206,7 @@ void Zone::Merge(Page * p)
     }
     else
     {
-        kout<<"merge:"<<p->index<<endl;
+//        kout[Test]<<"Zone::Merge: "<<p<<" "<<p->index<<endl;
         p->Dismantle();
         partner->Dismantle();
         Page * parent = GetParent(p);
@@ -217,7 +217,7 @@ void Zone::Merge(Page * p)
 
 void Zone::Split(Page * p)
 {
-    kout<<"split:"<<p->index<<endl;
+//    kout[Test]<<"Zone::Split: "<<p<<" "<<p->index<<endl;
     p->Dismantle();
     Page *lson = GetLeftSon(p),*rson = GetRightSon(p);
     int order = lson->order;
@@ -256,7 +256,6 @@ Page * Zone::QueryPage(int index,Uint64 addr)
     }
     if(page[index].order==0)
     {
-    	kout[Error]<<"Zone::QueryPage: Page of "<<(void*)addr<<" not found!"<<endl;
         // kout<<"panic page not find"<<endl;
         return nullptr;
         //panic("can't find page");

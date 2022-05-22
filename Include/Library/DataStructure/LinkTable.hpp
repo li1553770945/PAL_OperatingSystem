@@ -58,7 +58,7 @@ namespace POS
 					nxt->pre=nullptr;
 					nxt=nullptr;
 				}
-				else if (nxt=nullptr)
+				else if (nxt==nullptr)
 				{
 					pre->nxt=nullptr;
 					pre=nullptr;

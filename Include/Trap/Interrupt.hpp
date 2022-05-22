@@ -1,7 +1,7 @@
-#ifndef POS_INTERRUPT_H
-#define POS_INTERRUPT_H
+#ifndef POS_INTERRUPT_HPP
+#define POS_INTERRUPT_HPP
 
-#include <Riscv.h>
+#include "../Riscv.h"
 
 inline void InterruptEnable()
 {
@@ -23,7 +23,7 @@ class InterruptStackSaver
 		{
 			if (read_csr(sstatus)&SSTATUS_SIE)
 			{
-				InterruptEnable();
+				InterruptDisable();
 				x=true;
 			}
 			else x=false;
@@ -33,7 +33,7 @@ class InterruptStackSaver
 		{
 			if (x)
 			{
-				InterruptDisable();
+				InterruptEnable();
 				x=false;
 			}
 		}

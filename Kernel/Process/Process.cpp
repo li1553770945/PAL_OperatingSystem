@@ -1,10 +1,13 @@
 #include <Process/Process.hpp>
 #include <Library/TemplateTools.hpp>
 #include <Memory/PhysicalMemory.hpp>
-#include <Trap/Interrupt.h>
+#include <Trap/Interrupt.hpp>
 #include <Error.hpp>
 #include <Library/Kout.hpp>
 #include <Riscv.h>
+#include <SyscallID.hpp>
+
+#include "../../Include/Process/Process.hpp"
 
 using namespace POS;
 	
@@ -37,8 +40,10 @@ void ProcessManager::Schedule()
 
 void KernelThreadExit(int re)
 {
-	ProcessManager::Current()->Exit(re);//Multi cpu need get current of that cpu??
-	ProcessManager::Schedule();
+	RegisterData a0=re,a7=SYS_Exit;
+	asm volatile("ld a0,%0; ld a7,%1; ebreak"::"m"(a0),"m"(a7):"memory");
+//	ProcessManager::Current()->Exit(re);//Multi cpu need get current of that cpu??
+//	ProcessManager::Schedule();//Need improve...
 	kout[Fault]<<"KernelThreadExit: Reached unreachable branch!"<<endl;
 }
 
@@ -157,9 +162,23 @@ ErrorType Process::Start(int (*func)(void*),void *funcdata)
     	context.s[1]=(RegisterData)funcdata;
     	context.s[2]=(RegisterData)((read_csr(sstatus)|SSTATUS_SPP|SSTATUS_SPIE)&~SSTATUS_SIE);
 	}
-	else kout[Fault]<<"Process::Start: Uncompleted function of start as non-kernel process!"<<endl;
+	else
+	{
+		TrapFrame *tf=(TrapFrame*)(Stack+StackSize)-1;
+		context.ra  =(RegisterData)UserThreadEntry;
+    	context.sp  =(RegisterData)tf;
+    	tf->reg.sp	=(RegisterData)InnerUserProcessStackAddr+InnerUserProcessStackSize;
+		tf->epc     =(RegisterData)func;
+		tf->status  =(RegisterData)((read_csr(sstatus)|SSTATUS_SPIE)&~SSTATUS_SPP&~SSTATUS_SIE);//??
+	}
 	stat=S_Ready;
 	return ERR_None;
+}
+
+ErrorType Process::Start(PtrInt addr)
+{
+	kout[Warning]<<"Process::Start is testing!"<<endl;
+	return Start((int(*)(void*))addr,nullptr);
 }
 
 ErrorType Process::SetVMS(VirtualMemorySpace *vms)
@@ -232,4 +251,58 @@ ErrorType Process::Destroy()
 	stat=S_None;
 	PM->FreeProcess(this);
 	return ERR_None;
+}
+
+PID CreateKernelThread(int (*func)(void*),void *funcdata,Uint64 flags)
+{
+	InterruptStackAutoSaverBlockController isas;
+	Process *proc=POS_PM.AllocProcess();
+	flags|=Process::F_Kernel;
+	proc->Init(flags);
+	proc->SetStack(nullptr,KernelStackSize);
+	proc->SetVMS(VirtualMemorySpace::Kernel());
+	proc->Start(func,funcdata);
+	return flags&Process::F_AutoDestroy?Process::UnknownPID:proc->GetPID();
+}
+
+PID CreateKernelProcess(int (*func)(void*),void *funcdata,Uint64 flags)
+{
+	kout[Warning]<<"CreateKernelProcess is not usable!"<<endl;
+	return Process::InvalidPID;
+}
+
+PID CreateInnerUserImgProcess(PtrInt start,PtrInt end,Uint64 flags)
+{
+	InterruptStackAutoSaverBlockController isas;
+	kout[Info]<<"CreateInnerUserImgProcess "<<(void*)start<<" "<<(void*)end<<" "<<(void*)flags<<endl;
+	ASSERT(start<end,"CreateInnerUserImgProcess start>=end!");
+	
+	VirtualMemorySpace *vms=KmallocT<VirtualMemorySpace>();
+	vms->Init();
+	vms->Create(VirtualMemorySpace::VMS_CurrentTest);
+	PtrInt loadsize=end-start,
+		   loadstart=InnerUserProcessLoadAddr;
+	VirtualMemoryRegion *vmr_bin=KmallocT<VirtualMemoryRegion>(),
+						*vmr_stack=KmallocT<VirtualMemoryRegion>();
+	vmr_bin->Init(loadstart,loadstart+loadsize,VirtualMemoryRegion::VM_RWX);
+	vmr_stack->Init(InnerUserProcessStackAddr,InnerUserProcessStackAddr+InnerUserProcessStackSize,VirtualMemoryRegion::VM_USERSTACK);
+	vms->InsertVMR(vmr_bin);
+	vms->InsertVMR(vmr_stack);
+
+	{//Test...
+		vms->Enter();
+		write_csr(sstatus,read_csr(sstatus)|SSTATUS_SUM);
+		MemcpyT<char>((char*)InnerUserProcessLoadAddr,(const char*)start,loadsize);
+//		kout<<DataWithSize((void*)InnerUserProcessLoadAddr,loadsize)<<endl;
+		write_csr(sstatus,read_csr(sstatus)&~SSTATUS_SUM);
+		vms->Leave();
+	}
+
+	Process *proc=POS_PM.AllocProcess();
+	proc->Init(flags);
+	proc->SetStack(nullptr,KernelStackSize);
+	proc->SetVMS(vms);
+	proc->Start(InnerUserProcessLoadAddr);
+	kout[Test]<<"CreateInnerUserImgProcess "<<(void*)start<<" "<<(void*)end<<" with PID "<<proc->GetPID()<<endl;
+	return flags&Process::F_AutoDestroy?Process::UnknownPID:proc->GetPID();
 }

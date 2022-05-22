@@ -154,6 +154,9 @@ namespace POS
 				return *this;
 			}
 			
+			inline KOUT& operator << (char *s)
+			{return *this<<(const char*)s;}
+			
 			inline KOUT& operator << (bool b)
 			{
 				if (Precheck())
@@ -355,5 +358,11 @@ namespace POS
 	inline KOUT& endline(KOUT &o)
 	{return o<<"\n";}
 };
+
+#define ASSERTEX(x,s)						\
+{											\
+	if (!(x))								\
+		POS::kout[POS::Fault]<<s<<POS::endl;\
+}
 
 #endif

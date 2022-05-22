@@ -4,14 +4,18 @@
 .globl KernelThreadEntry
 KernelThreadEntry:
 	csrw sstatus, s2
-	la a0,KernelTreadEntry2
+	la a0,KernelThreadEntry2
 	csrw sepc, a0
 	sret
 
-KernelTreadEntry2:
+KernelThreadEntry2:
 	move a0,s1
 	jalr s0
 	jal KernelThreadExit
+
+.globl UserThreadEntry
+UserThreadEntry:
+	j __trapret
 
 .globl ProcessSwitchContext
 ProcessSwitchContext:

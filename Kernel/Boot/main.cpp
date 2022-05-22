@@ -1,10 +1,12 @@
 #include <Boot/SystemInfo.h>
 #include <Trap/Clock.h>
-#include <Trap/Interrupt.h>
+#include <Trap/Interrupt.hpp>
 #include <Trap/Trap.hpp>
 #include <Library/Kout.hpp>
 #include <Process/Process.hpp>
 #include <Memory/VirtualMemory.hpp>
+#include <Resources.hpp>
+#include <File/FileSystem.hpp>
 
 extern "C"
 {
@@ -14,7 +16,38 @@ extern "C"
 	void *__gxx_personality_v0=0;
 };//??
 
+void* operator new(long unsigned int size)
+{
+	return Kmalloc(size);
+}
+
+void operator delete(void *p,long unsigned int size)
+{
+	Kfree(p);
+}
+
 using namespace POS;
+
+class A
+{
+	public:
+		int x=-1;
+		
+		A(int _x):x(_x)
+		{
+			kout<<"Construct A "<<x<<endl;
+		}
+		
+		A()
+		{
+			kout<<"Construct A "<<x<<endl;
+		}
+		
+		~A()
+		{
+			kout<<"Deconstruct A "<<x<<endl;
+		}
+};
 
 int KernelThreadTest(void *data)
 {
@@ -46,31 +79,49 @@ int KernelThreadTest2(void *data)
 
 void TestFuncs()
 {
-	if (1)
+	if (0)
 	{
-		Process *proc=POS_PM.AllocProcess();
-		proc->Init(Process::F_Kernel|Process::F_AutoDestroy);
-		proc->SetStack(nullptr,KernelStackSize);
-		proc->SetVMS(VirtualMemorySpace::Kernel());
-		proc->Start(KernelThreadTest,proc);
+		char ch=Getchar();
+		kout<<"ch "<<(int)ch<<endl;
 	}
 	
-	if (1)
+	if (0)
 	{
-		Process *proc=POS_PM.AllocProcess();
-		proc->Init(Process::F_Kernel|Process::F_AutoDestroy);
-		proc->SetStack(nullptr,KernelStackSize);
-		proc->SetVMS(VirtualMemorySpace::Kernel());
-		proc->Start(KernelThreadTest2,proc);
+		char s[100];
+		int len=Getline(s,100);
+		s[minN(len,99)]=0;
+		kout<<"User input: "<<s<<endl;
 	}
 	
-	if (1)
+	if (0)
+	{
+		kout[Test]<<"KmallocTest..."<<endl;
+		int *p=(int*)Kmalloc(4096);
+		kout[Test]<<"KmallocTest OK."<<endl;
+		kout[Test]<<"KfreeTest..."<<endl;
+		Kfree(p);
+		kout[Test]<<"KfreeTest OK."<<endl;
+	}
+	
+	if (0) CreateKernelThread(KernelThreadTest,nullptr);
+	if (1) CreateKernelThread(KernelThreadTest2,nullptr);
+	if (1) CreateInnerUserImgProcess((PtrInt)GetResourceBegin(Hello_img),(PtrInt)GetResourceEnd(Hello_img));
+	if (0) CreateInnerUserImgProcess((PtrInt)GetResourceBegin(Count1_100_img),(PtrInt)GetResourceEnd(Count1_100_img));
+	
+	
+	if (0)
 	{
 		for (int i=10000;i<=20000;i+=100)
 			(*(char*)i)=i;
 	}
 	
-	if (1)
+	if (0)
+	{
+		A *a=new A(10);
+		delete a;
+	}
+	
+	if (0)
 	{
 		kout[Info]<<"   Kout Info Text"<<endl;
 		kout[Warning]<<"Kout Warning Text"<<endl;
@@ -88,6 +139,7 @@ int main()
 	POS_PMM.Init();
 	VirtualMemorySpace::InitStatic();
 	POS_PM.Init();
+	VFSM.Init();
 	InterruptEnable();
 	
 	TestFuncs();

@@ -39,7 +39,7 @@ all: build
 
 
 QEMU=qemu-system-riscv64
-QEMUFLAGS=-machine virt -m 128M -nographic -bios SBI/opensbi_qemu.elf -device loader,file=Build/kernel.bin,addr=0x80200000
+QEMUFLAGS=-machine virt -m 128M -nographic -bios SBI/rustsbi-qemu -device loader,file=Build/kernel.bin,addr=0x80200000
 run:dir build
 	riscv64-unknown-elf-objcopy -O binary Build/kernel.elf Build/kernel.bin
 	
