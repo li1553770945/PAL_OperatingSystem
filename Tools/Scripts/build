@@ -15,10 +15,8 @@ riscv64-unknown-elf-g++ -nostdlib -fno-exceptions -fno-rtti -c Kernel/Library/Ko
 riscv64-unknown-elf-g++ -nostdlib -fno-exceptions -fno-rtti -c Kernel/Library/String/Convert.cpp     -o Build/Kernel/Convert.o           -I"Include" -mcmodel=medany 
 riscv64-unknown-elf-g++ -nostdlib -fno-exceptions -fno-rtti -c Kernel/Library/String/StringTools.cpp -o Build/Kernel/StringTools.o       -I"Include" -mcmodel=medany 
 riscv64-unknown-elf-g++ -nostdlib -fno-exceptions -fno-rtti -c Kernel/Library/KernelMonitor.cpp      -o Build/Kernel/KernelMonitor.o     -I"Include" -mcmodel=medany 
-riscv64-unknown-elf-g++ -nostdlib -fno-exceptions -fno-rtti -c Kernel/File/FileSystem.cpp            -o Build/Kernel/FileSystem.o        -I"Include" -mcmodel=medany 
-riscv64-unknown-elf-g++ -nostdlib -fno-exceptions -fno-rtti -c Kernel/Library/libcpp.cpp             -o Build/Kernel/libcpp.o            -I"Include" -mcmodel=medany
-riscv64-unknown-elf-g++ -nostdlib -fno-exceptions -fno-rtti -c Kernel/File/FAT32.cpp                 -o Build/Kernel/FAT32.o            -I"Include" -mcmodel=medany 
-
+riscv64-unknown-elf-g++ -nostdlib -fno-exceptions -fno-rtti -c Kernel/File/FileSystem.cpp            -o Build/kernel/FileSystem.o        -I"Include" -mcmodel=medany 
+riscv64-unknown-elf-g++ -nostdlib -fno-exceptions -fno-rtti -c Kernel/Library/libcpp.cpp             -o Build/kernel/libcpp.o            -I"Include" -mcmodel=medany 
 rm Build/Kernel.img
 riscv64-unknown-elf-ld -o Build/Kernel/kernel.elf -T Linker/kernel.ld Build/Kernel/*.o --format=binary Build/*.img --format=default
 riscv64-unknown-elf-objcopy Build/Kernel/kernel.elf --strip-all -O binary Build/Kernel.img

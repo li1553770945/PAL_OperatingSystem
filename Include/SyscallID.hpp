@@ -7,7 +7,9 @@ enum SyscallID
 	SYS_Getchar=2,
 	SYS_Getputchar=3,
 	SYS_Exit=4,
-	SYS_Clone=5
+	SYS_Clone=5,
+	SYS_Fork=6,
+	SYS_GetPID=7
 };
 
 #endif

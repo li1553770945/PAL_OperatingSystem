@@ -4,36 +4,59 @@
 #include <Trap/Interrupt.hpp>
 using namespace POS;
 
-int Syscall_Putchar(char ch)
-{
-	Putchar(ch);
-	return 0;
-}
+inline void Syscall_Putchar(char ch)
+{Putchar(ch);}
 
-int Syscall_Getchar()
-{
-	return Getchar();
-}
+inline char Syscall_Getchar()
+{return Getchar();}
 
-int Syscall_Getputchar()
-{
-	return Getputchar();
-}
+inline char Syscall_Getputchar()
+{return Getputchar();}
 
-int Syscall_Exit(int re)
+void Syscall_Exit(int re)
 {
 	Process *cur=POS_PM.Current();
 	cur->Exit(re);
 	POS_PM.Schedule();
 	kout[Fault]<<"Syscall_Exit: Reached unreachable branch!"<<endl;
-	return ERR_Unknown;
 }
 
-int Syscall_Clone(Uint64 flags,PtrInt stack,PID faPID,Uint64 tls,PID childPID)
+PID Syscall_Clone(Uint64 flags,PtrInt stack,PID faPID,Uint64 tls,PID childPID)
 {
-	kout[Fault]<<"Syscall_Clone is not usable!"<<endl;
-	return -1;
+	kout[Fault]<<"Syscall_Clone is not usable yet!"<<endl;
+	return Process::InvalidPID;
 }
+
+PID Syscall_Fork(TrapFrame *tf)
+{
+	Process *cur=POS_PM.Current();
+	while (1)
+	{
+		ErrorType err=ForkServer.RequestFork(cur,tf);
+//		kout[Debug]<<"ERRRRRRRRRRRRRRRRRRRRRRRRRRR "<<err<<endl;
+		if (err==ERR_None)
+//		{
+//			Process *c=POS_PM.Current();
+//			kout[Debug]<<"OKKKKKKKKKKKKKKKKKKKK "<<c->GetPID()<<endl;
+//			register volatile RegisterData sp asm("sp");
+//			kout[Debug]<<"CurrentSP "<<(void*)sp<<endl;
+//			kout[Debug]<<"## "<<&err<<endl;
+//			if (c==cur)
+				return 0;
+//			else
+//			{
+//				kout[Fault]<<"???"<<endl;
+//			}
+//			return cur==c?0:c->GetPID();//??
+//		}
+		else if (err!=ERR_BusyForking)
+			return Process::InvalidPID;
+//		kout[Fault]<<"Request again??"<<endl;
+	}
+}
+
+inline  PID Syscall_GetPID()
+{return POS_PM.Current()->GetPID();}
 
 ErrorType TrapFunc_Syscall(TrapFrame *tf)
 {
@@ -55,6 +78,15 @@ ErrorType TrapFunc_Syscall(TrapFrame *tf)
 			break;
 		case SYS_Clone:
 			tf->reg.a0=Syscall_Clone(tf->reg.a0,tf->reg.a1,tf->reg.a2,tf->reg.a3,tf->reg.a4);
+			break;
+		case SYS_Fork:
+			Syscall_Fork(tf);
+//			kout<<"TF "<<tf<<endl;
+//			kout<<DataWithSizeUnited(tf,sizeof(TrapFrame),sizeof(RegisterData))<<endl;
+//			kout<<"SP EPC "<<(void*)tf->reg.sp<<" "<<(void*)tf->epc+4<<endl;
+			break;
+		case SYS_GetPID:
+			tf->reg.a0=Syscall_GetPID();
 			break;
 		default:
 		{

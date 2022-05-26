@@ -148,6 +148,13 @@ class PageTable
 			return kaddr>>i&m;
 		}
 		
+		static inline unsigned VPN(PtrInt kaddr,unsigned n)
+		{
+			unsigned i=PageSizeBit+n*PageTableEntryCountBit,
+					 m=(1<<PageTableEntryCountBit)-1;
+			return kaddr>>i&m;
+		}
+		
 		inline static PageTable* Boot()
 		{return boot_page_table_sv39;}
 		
@@ -158,6 +165,9 @@ class PageTable
 		{return (void*)((Uint64)this-PhymemVirmemOffset());}
 
 		inline Entry& operator [] (int i)
+		{return entries[i];}
+		
+		inline const Entry& operator [] (int i) const
 		{return entries[i];}
 		
 		inline ErrorType InitAsPDT()
@@ -208,7 +218,7 @@ class VirtualMemoryRegion:public POS::LinkTableT <VirtualMemoryRegion>
 			   End;
 		Uint32 Flags;
 		
-		ErrorType CopyMemory(PageTable *src,int level);
+		ErrorType CopyMemory(PageTable &pt,const PageTable &src,int level,Uint64 l=0);//Only copy valid area of this and target.
 		
 	public:
 		inline PageTableEntryType ToPageEntryFlags()
@@ -226,6 +236,12 @@ class VirtualMemoryRegion:public POS::LinkTableT <VirtualMemoryRegion>
 			else re|=PageTable::Entry::Mask<PageTable::Entry::U>();
 			return re;
 		}
+		
+		inline bool Intersect(PtrInt l,PtrInt r) const
+		{return r>Start&&End>l;}
+		
+		inline bool In(PtrInt l,PtrInt r) const//[l,r)
+		{return Start<=l&&r<=End;}
 		
 		inline bool In(PtrInt p)
 		{return Start<=p&&p<End;}
@@ -256,9 +272,10 @@ class VirtualMemorySpace:protected SpinLock
 		PageTable *PDT;
 		Uint32 SharedCount;
 		
-		VirtualMemoryRegion* CopyVMR();
+//		VirtualMemoryRegion* CopyVMR();
 		ErrorType ClearVMR();
-
+		ErrorType CreatePDT();
+		
 		static ErrorType InitForBoot();
 		static ErrorType InitForKernel();
 		

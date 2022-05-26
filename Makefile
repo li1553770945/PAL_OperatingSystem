@@ -3,6 +3,7 @@ K=Kernel
 L=Linker
 B=Build
 T=Test
+U=User
 
 TOOLPREFIX=riscv64-unknown-elf-
 CXX=$(TOOLPREFIX)g++ #编译器，会自动使用这个根据.o文件列表编译.c文件
@@ -10,15 +11,19 @@ LD=$(TOOLPREFIX)ld
 AS=$(CXX)
 INC_DIR=Include
 
-CXXFLAGS=-c -nostdlib  -mcmodel=medany #编译选项
+CXXFLAGS=-c -nostdlib  -mcmodel=medany  -fno-exceptions -fno-rtti #编译选项
 LDFLAGS=  #连接选项
 
-SOURCE=$(wildcard ./*cpp  $(K)/Boot/*.cpp $(K)/Library/*.cpp $(K)/Library/String/*.cpp $(K)/Memory/*.cpp $(K)/Process/*.cpp $(K)/Trap/*.cpp $(T)/*.cpp) 
+SOURCE=$(wildcard ./*cpp  $(K)/Boot/*.cpp $(K)/Library/*.cpp $(K)/Library/String/*.cpp $(K)/Memory/*.cpp $(K)/Process/*.cpp \
+$(K)/Trap/*.cpp $(K)/File/*.cpp $(T)/*.cpp)  
+
+USER_SOURCE = $(wildcard $(U)/*.cpp $(U)/Library/*.cpp)
 AS_SOURCE=
 
 OBJ_DIR = Build
 INCLUDE = -I Include
 OBJECTS=$(patsubst %.cpp,%.o,$(SOURCE))
+USER_OBJECTS=$(patsubst %.cpp,%.o,$(USER_SOURCE))
 
 %.o:%.cpp
 	$(CXX) $(INCLUDE) $(CXXFLAGS) $< -o $(B)/$(notdir $@) 
@@ -32,7 +37,10 @@ as:
 dir:
 	@if [ ! -d "./$(B)" ]; then mkdir $(B); fi
 
-build: dir $(OBJECTS) as
+user:
+	./Tools/Scripts/userBuild.sh
+
+build: dir user $(OBJECTS) as
 	$(LD) $(LDFLAGS) -o $(B)/kernel.elf -T$(L)/link.ld $(wildcard $(B)/*.o)  $(LDFLAGS)
 
 all: build

@@ -266,7 +266,6 @@ namespace POS
 			{
 				if (Precheck())
 				{
-					Puts("Data:");
 					const int size=3;
 					char buffer[size];
 					for (unsigned long long i=0;i<x.size;++i)
@@ -279,6 +278,16 @@ namespace POS
 							Putchar(' ');
 						}
 					}
+				}
+				return *this;
+			}
+			
+			inline KOUT& operator << (const DataWithSizeUnited &x)
+			{
+				if (Precheck())
+				{
+					for (Uint64 s=0,i=0;s<x.size;s+=x.unitSize,++i)
+						*this<<i<<": "<<DataWithSize(x.data+s,x.unitSize)<<"\n";
 				}
 				return *this;
 			}

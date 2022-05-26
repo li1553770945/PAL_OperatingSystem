@@ -29,7 +29,7 @@ ErrorType PageTable::Destroy(const int level)
 				ASSERT(page,"PageTable::Destroy: page is nullptr!");
 				if (--page->ref==0)
 				{
-					kout[Test]<<"Free page "<<page<<" addr "<<(void*)(entries[i].Get<Entry::PPN>()<<PageSizeBit)<<endl;
+//					kout[Test]<<"Free page "<<page<<" addr "<<(void*)(entries[i].Get<Entry::PPN>()<<PageSizeBit)<<endl;
 					POS_PMM.FreePage(page);
 				}
 			}
@@ -39,10 +39,49 @@ ErrorType PageTable::Destroy(const int level)
 	return ERR_Todo;
 }
 
-ErrorType VirtualMemoryRegion::CopyMemory(PageTable *src,int level)
+ErrorType VirtualMemoryRegion::CopyMemory(PageTable &pt,const PageTable &src,int level,Uint64 l)
 {
-	ASSERTEX(level>=0,"VirtualMemoryRegion::CopyMemory level "<<level<<" <0!");
-	
+	ASSERTEX(level>=0,"VirtualMemoryRegion::CopyMemory of "<<this<<" from "<<src<<" level "<<level<<" <0!");
+	if (Flags&VM_Kernel)
+	{
+		kout[Warning]<<"VirtualMemoryRegion::CopyMemory kernel region don't need copy?"<<endl;
+		return ERR_None;
+	}
+	for (int i=0;i<PageTable::PageTableEntryCount;++i,l+=PageSizeN[level])
+		if (src[i].Valid()&&Intersect(l,l+PageSizeN[level]))
+			if (src[i].IsPageTable())
+			{
+				PageTable *srcNxt=src[i].GetPageTable(),
+						  *ptNxt=nullptr;
+				if (!pt[i].Valid())
+				{
+					ptNxt=(PageTable*)POS_PMM.AllocPage(1)->KAddr();
+					ASSERTEX(ptNxt,"VirtualMemoryRegion::CopyMemory: Cannot allocate ptNxt in VMR "<<this);
+					ASSERTEX(((PtrInt)ptNxt&(PageSize-1))==0,"ptNxt "<<ptNxt<<" in "<<this<<" is not aligned to 4k!");
+					ptNxt->Init();
+					pt[i].SetPageTable(ptNxt);
+				}
+				CopyMemory(*ptNxt,*srcNxt,level-1,l);
+			}
+			else if (level==0)
+			{
+				Page *srcPage=src[i].GetPage();
+				if (Flags&VM_Shared|Flags&VM_Kernel)
+				{
+					++srcPage->ref;
+					pt[i].SetPage(srcPage,ToPageEntryFlags());
+				}
+				else
+				{
+					Page *page=POS_PMM.AllocPage(1);
+					ASSERTEX(page,"VirtualMemoryRegion::CopyMemory: Cannot allocate page in VMR "<<this);
+					ASSERTEX(((PtrInt)page->PAddr()&(PageSize-1))==0,"page->Paddr() "<<page->PAddr()<<" is not aligned to 4k!");
+					ASSERTEX(!pt[i].Valid(),"VirtualMemoryRegion::CopyMemory: pt[i] is valid!");
+					MemcpyT<char>((char*)page->KAddr(),(const char*)srcPage->KAddr(),PageSize);
+					pt[i].SetPage(page,ToPageEntryFlags());
+				}
+			}
+			else kout[Warning]<<"VirtualMemoryRegion::CopyMemory copy huge page is not usable!"<<endl;
 	return ERR_Todo;
 }
 
@@ -59,7 +98,7 @@ ErrorType VirtualMemoryRegion::Init(PtrInt start,PtrInt end,PtrInt flags)
 
 ErrorType VirtualMemorySpace::ClearVMR()
 {
-	kout[Test]<<"VirtualMemorySpace::ClearVMR "<<this<<endl;
+//	kout[Test]<<"VirtualMemorySpace::ClearVMR "<<this<<endl;
 	while (VmrHead.Nxt())
 		RemoveVMR(VmrHead.Nxt(),1);
 	return ERR_None;
@@ -87,6 +126,8 @@ void VirtualMemorySpace::InsertVMR(VirtualMemoryRegion *vmr)
 	vmr->VMS=this;
 	if (VmrHead.Nxt()==nullptr)
 		VmrHead.NxtInsert(vmr);
+	else if (VmrCache!=nullptr&&VmrCache->Nxt()==nullptr&&VmrCache->End<=vmr->Start)
+		VmrCache->NxtInsert(vmr);
 	else
 	{
 		VirtualMemoryRegion *v=VmrHead.Nxt();
@@ -113,17 +154,18 @@ void VirtualMemorySpace::RemoveVMR(VirtualMemoryRegion *vmr,bool FreeVmr)
 	ASSERT(vmr,"VirtualMemorySpace::RemoveVMR: vmr is nullptr!");
 	if (VmrCache==vmr)
 		VmrCache=nullptr;
+	//<<Invalidate vmr's Page valid bit...
 	vmr->Remove();
 	--VmrCount;
 	if (FreeVmr)
 		Kfree(vmr);
 }
 
-VirtualMemoryRegion* VirtualMemorySpace::CopyVMR()
-{
-//	VirtualMemoryRegion *vmrs=(VirtualMemoryRegion*)Kmalloc(sizeof(VirtualMemoryRegion)*);
-	return nullptr;
-}
+//VirtualMemoryRegion* VirtualMemorySpace::CopyVMR()
+//{
+////	VirtualMemoryRegion *vmrs=(VirtualMemoryRegion*)Kmalloc(sizeof(VirtualMemoryRegion)*);
+//	return nullptr;
+//}
 
 ErrorType VirtualMemorySpace::InitForBoot()
 {
@@ -194,9 +236,18 @@ void VirtualMemorySpace::Enter()
 	asm volatile("sfence.vma");//Needed??
 }
 
+ErrorType VirtualMemorySpace::CreatePDT()
+{
+	PDT=(PageTable*)POS_PMM.AllocPage(1)->KAddr();
+	ASSERTEX(((PtrInt)PDT&(PageSize-1))==0,"PDT "<<PDT<<" in VMS "<<this<<" is not aligned to 4k!");
+	PDT->InitAsPDT();
+	return ERR_None;
+}
+
 ErrorType VirtualMemorySpace::Create(int type)
 {
 	kout[Test]<<"VirtualMemorySpace::Create "<<this<<" "<<type<<endl;
+	CreatePDT();
 	auto kernelvmr=KmallocT<VirtualMemoryRegion>();
 	kernelvmr->Init((PtrInt)kernelstart,PhysicalMemoryVirtualEnd(),VirtualMemoryRegion::VM_KERNEL);
 	InsertVMR(kernelvmr);
@@ -209,17 +260,23 @@ ErrorType VirtualMemorySpace::Create(int type)
 		default:
 			kout[Fault]<<"VirtualMemorySpace::Create unknown type VMS "<<type<<endl;
 	}
-	PDT=(PageTable*)POS_PMM.AllocPage(1)->KAddr();
-	ASSERT(((PtrInt)PDT&(PageSize-1))==0,"PDT is not aligned to 4k!");
-	PDT->InitAsPDT();
 	return ERR_None;
 }
 
 ErrorType VirtualMemorySpace::CreateFrom(VirtualMemorySpace *vms)
 {
-	kout[Warning]<<"VirtualMemorySpace::CopyFrom if not usable!"<<endl;
-	
-	VirtualMemoryRegion *p,*q=nullptr;
+	kout[Test]<<"VirtualMemorySpace::CreateFrom "<<vms<<", this is "<<this<<endl;
+	CreatePDT();
+	VirtualMemoryRegion *p=vms->VmrHead.Nxt(),*q=nullptr;
+	while (p)
+	{
+		q=KmallocT<VirtualMemoryRegion>();
+		ASSERTEX(q,"VirtualMemorySpace::CreateFrom failed to allocate VMR!");
+		q->Init(p->Start,p->End,p->Flags);
+		InsertVMR(q);
+		q->CopyMemory(*PDT,*vms->PDT,2);
+		p=p->Nxt();
+	}
 	return ERR_Todo;
 }
 
@@ -235,7 +292,7 @@ ErrorType VirtualMemorySpace::SolvePageFault(TrapFrame *tf)
 		if (!e2.Valid())
 		{
 			pt2=(PageTable*)POS_PMM.AllocPage(1)->KAddr();
-			kout[Test]<<"pt2 "<<pt2<<endl;
+//			kout[Test]<<"pt2 "<<pt2<<endl;
 			ASSERT(pt2,"VirtualMemorySpace::SolvePageFault: Cannot Kmalloc pt2!");
 			ASSERT(((PtrInt)pt2&(PageSize-1))==0,"pt2 is not aligned to 4k!");
 			pt2->Init();
@@ -248,7 +305,7 @@ ErrorType VirtualMemorySpace::SolvePageFault(TrapFrame *tf)
 		if (!e1.Valid())
 		{
 			pt1=(PageTable*)POS_PMM.AllocPage(1)->KAddr();
-			kout[Test]<<"pt1 "<<pt1<<endl;
+//			kout[Test]<<"pt1 "<<pt1<<endl;
 			ASSERT(pt1,"VirtualMemorySpace::SolvePageFault: Cannot Kmalloc pt1!");
 			ASSERT(((PtrInt)pt1&(PageSize-1))==0,"pt1 is not aligned to 4k!");
 			pt1->Init();
@@ -261,7 +318,7 @@ ErrorType VirtualMemorySpace::SolvePageFault(TrapFrame *tf)
 		if (!e0.Valid())
 		{
 			pg0=POS_PMM.AllocPage(1);
-			kout[Test]<<"pg0 "<<pg0<<endl;
+//			kout[Test]<<"pg0 "<<pg0<<endl;
 			ASSERT(pg0,"VirtualMemorySpace::SolvePageFault: Cannot allocate Page pg0!");
 			ASSERT(((PtrInt)pg0->PAddr()&(PageSize-1))==0,"pg0->Paddr() is not aligned to 4k!");
 			MemsetT<char>((char*)pg0->KAddr(),0,PageSize);//Needed??

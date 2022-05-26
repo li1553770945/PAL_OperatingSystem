@@ -190,6 +190,14 @@ namespace POS
 			DataWithSize(void *_data,Uint64 _size):data(_data),size(_size) {}
 	};
 	
+	class DataWithSizeUnited:public DataWithSize
+	{
+		public:
+			Uint64 unitSize;
+			
+			DataWithSizeUnited(void *_data,Uint64 _size,Uint64 _unitsize):DataWithSize(_data,_size),unitSize(_unitsize) {}
+	};
+	
 	template <typename T> inline bool GetBitMask(T tar,unsigned i)
 	{return (tar>>i)&1;}
 	

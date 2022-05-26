@@ -41,6 +41,7 @@ extern ProcessManager POS_PM;
 class Process
 {
 	friend class ProcessManager;
+	friend class ForkServerClass;
 	public:
 		enum
 		{
@@ -55,9 +56,9 @@ class Process
 		
 		enum
 		{
-			F_Kernel=1<<0,
-			F_AutoDestroy=1<<1,
-			F_GeneratedStack=1<<2,
+			F_Kernel		=1ull<<0,
+			F_AutoDestroy	=1ull<<1,
+			F_GeneratedStack=1ull<<2,
 		};
 		
 		enum
@@ -101,19 +102,22 @@ class Process
 		VirtualMemorySpace *VMS;//if nullptr,means using kernel common area
 		Uint64 flags;
 		char *Name;
-		Uint32 Namespace;//0 means default
+		Uint32 Namespace;//0 means default,unused yet
 		int ReturnedValue;
 		
 		ErrorType InitForKernelProcess0();
+		ErrorType CopyOthers(Process *src);
+		ErrorType Start(TrapFrame *tf);//fork returned by this
 		
 	public:
-		ErrorType Rest();
+		ErrorType Rest();//Hand out CPU and schedule other Process
 		ErrorType Run();
 		ErrorType Exit(int re);
 		ErrorType Start(int (*func)(void*),void *funcdata);
 		ErrorType Start(PtrInt addr);
 		ErrorType SetVMS(VirtualMemorySpace *vms);
 		ErrorType SetStack(void *stack,Uint32 size);//if stack is nullptr, means auto create.
+//		ErrorType CopyStackContext(Process *src);
 		ErrorType SetName(char *name);
 		
 		inline const char* GetName() const
@@ -133,14 +137,32 @@ class Process
 		
 		//ClockTime GetXXXTime();
 //		ErrorType Fork();//Reserved... It is not usable
-
+		
 		ErrorType Init(Uint64 _flags);
 		ErrorType Destroy();
 };
 
+class ForkServerClass
+{
+	protected:
+		Process *ThisProcess;
+		Process *CurrentRequestingProcess;
+		TrapFrame *CurrentRequestingProcessTrapFrame;
+		SpinLock lock;
+		
+		static int ForkServerFunc(void *funcdata);
+		
+	public:
+		ErrorType RequestFork(Process *proc,TrapFrame *tf);
+		ErrorType Init();
+		ErrorType Destroy();
+};
+extern ForkServerClass ForkServer;
+
 PID CreateKernelThread(int (*func)(void*),void *funcdata=nullptr,Uint64 flags=Process::F_AutoDestroy);
 PID CreateKernelProcess(int (*func)(void*),void *funcdata=nullptr,Uint64 flags=Process::F_AutoDestroy);
 PID CreateInnerUserImgProcess(PtrInt start,PtrInt end,Uint64 flags=Process::F_AutoDestroy);
+#define CreateInnerUserImgProcessWithName(imgName) CreateInnerUserImgProcess((PtrInt)GetResourceBegin(imgName),(PtrInt)GetResourceEnd(imgName))
 /*
 	F_Kernel is not set in CreateKernelXXX because it will be auto added;
 	if F_AutoDestroy is set, it will return UnknownPID(but acctually exist valid PID)

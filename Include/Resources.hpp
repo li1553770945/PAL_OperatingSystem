@@ -11,6 +11,7 @@
 
 ResourceDeclare(Hello_img);
 ResourceDeclare(Count1_100_img);
+ResourceDeclare(ForkTest_img);
 
 #define GetResourceBegin(name)	(_binary_Build_##name##_start)
 #define GetResourceEnd(name)	(_binary_Build_##name##_end)

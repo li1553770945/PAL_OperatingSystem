@@ -7,24 +7,8 @@
 #include <Memory/VirtualMemory.hpp>
 #include <Resources.hpp>
 #include <File/FileSystem.hpp>
-
-extern "C"
-{
-	void *__dso_handle=0;
-	void *__cxa_atexit=0;
-	void *_Unwind_Resume=0;
-	void *__gxx_personality_v0=0;
-};//??
-
-void* operator new(long unsigned int size)
-{
-	return Kmalloc(size);
-}
-
-void operator delete(void *p,long unsigned int size)
-{
-	Kfree(p);
-}
+#include <File/StupidFileSystem.hpp>
+#include <Library/String/SysStringTools.hpp>
 
 using namespace POS;
 
@@ -79,6 +63,7 @@ int KernelThreadTest2(void *data)
 
 void TestFuncs()
 {
+//	kout.SwitchTypeOnoff(Test,0);
 	if (0)
 	{
 		char ch=Getchar();
@@ -104,10 +89,10 @@ void TestFuncs()
 	}
 	
 	if (0) CreateKernelThread(KernelThreadTest,nullptr);
-	if (1) CreateKernelThread(KernelThreadTest2,nullptr);
-	if (1) CreateInnerUserImgProcess((PtrInt)GetResourceBegin(Hello_img),(PtrInt)GetResourceEnd(Hello_img));
-	if (0) CreateInnerUserImgProcess((PtrInt)GetResourceBegin(Count1_100_img),(PtrInt)GetResourceEnd(Count1_100_img));
-	
+	if (0) CreateKernelThread(KernelThreadTest2,nullptr);
+	if (1) CreateInnerUserImgProcessWithName(Hello_img);
+	if (0) CreateInnerUserImgProcessWithName(Count1_100_img);
+	if (0) CreateInnerUserImgProcessWithName(ForkTest_img);
 	
 	if (0)
 	{
@@ -129,6 +114,36 @@ void TestFuncs()
 		kout[Debug]<<"  Kout Debut Text"<<endl;
 		kout[Test]<<"   Kout Test Text"<<endl;
 	}
+	
+	if (1)
+	{
+		VirtualFileSystem *vfs=new StupidFileSystem();
+		vfs->CreateDirectory("/Dir1");
+		vfs->CreateFile("/Dir1/File1");
+		vfs->CreateFile("/Dir1/File2");
+		vfs->CreateDirectory("/Dir2");
+		vfs->CreateDirectory("/Dir3");
+		vfs->CreateDirectory("/Dir3/Dir4");
+		vfs->CreateFile("/Dir3/Dir4/File3");
+		auto Printfs=[](auto &self,auto *vfs,const char *path,int dep=0)->void
+		{
+			kout<<dep<<": "<<path<<endl;
+			char *buffer[16];
+			int cnt=vfs->GetAllFileIn(path,buffer,16);
+			for (int i=0;i<cnt;++i)
+			{
+				char *child=strSplice(path,"/",buffer[i]);
+				self(self,vfs,child,dep+1);
+				Kfree(child);
+				Kfree(buffer[i]);
+			}
+			if (cnt==16)
+				kout<<dep<<": ..."<<endl;
+		};
+		kout<<"StupidFileSystem Test:"<<endl;
+		Printfs(Printfs,vfs,"/");
+		delete vfs;
+	}
 }
 
 int main()
@@ -139,6 +154,7 @@ int main()
 	POS_PMM.Init();
 	VirtualMemorySpace::InitStatic();
 	POS_PM.Init();
+	ForkServer.Init();
 	VFSM.Init();
 	InterruptEnable();
 	

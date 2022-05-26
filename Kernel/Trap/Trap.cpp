@@ -7,6 +7,26 @@
 #include <Memory/VirtualMemory.hpp>
 #include <Trap/Syscall.hpp>
 
+static const char* TrapExceptionCodeName[16]=
+{
+	"ExceptionCode_InstructionAddressMisaligned" ,
+	"ExceptionCode_InstructionAccessFault"       ,
+	"ExceptionCode_IllegalInstruction"           ,
+	"ExceptionCode_BreakPoint"                   ,
+	"ExceptionCode_LoadAddressMisaligned"        ,
+	"ExceptionCode_LoadAccessFault"              ,
+	"ExceptionCode_StoreAddressMisaligned"       ,
+	"ExceptionCode_StoreAccessFault"             ,
+	"ExceptionCode_UserEcall"	                 ,
+	"ExceptionCode_SupervisorEcall"              ,
+	"ExceptionCode_HypervisorEcall"              ,
+	"ExceptionCode_MachineEcall"                 ,
+	"ExceptionCode_InstructionPageFault"         ,
+	"ExceptionCode_LoadPageFault"                ,
+	"ExceptionCode_14"                           ,
+	"ExceptionCode_StorePageFault"
+};
+
 extern "C"
 {
 	void Trap(TrapFrame *tf)
@@ -44,6 +64,7 @@ extern "C"
 			default:
 				kout[Fault]<<"Unknown exception:"<<endline
 						   <<"  casue   :"<<(void*)tf->cause<<endline
+						   <<"  name    :"<<TrapExceptionCodeName[tf->cause]<<endline
 						   <<"  badvaddr:"<<(void*)tf->badvaddr<<endline
 						   <<"  epc     :"<<(void*)tf->epc<<endline
 						   <<"  status  :"<<(void*)tf->status<<endl;
@@ -51,7 +72,9 @@ extern "C"
 		if (err!=0)
 		{
 			kout[Fault]<<"TrapFunc failed:"<<endline
-					   <<"  cause   :"<<(void*)tf->cause<<endline
+					   <<"  cause   :"<<(void*)tf->cause<<endline;
+			if (tf->cause>0)
+				   kout<<"  name    :"<<TrapExceptionCodeName[tf->cause]<<endline
 					   <<"  vaddr   :"<<(void*)tf->badvaddr<<endline
 				       <<"  epc     :"<<(void*)tf->epc<<endline
 				       <<"  status  :"<<(void*)tf->status<<endline

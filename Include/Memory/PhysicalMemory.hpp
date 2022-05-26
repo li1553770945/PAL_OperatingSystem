@@ -6,6 +6,8 @@
 
 constexpr Uint32 PageSizeBit=12,
 				 PageSize=1<<PageSizeBit;
+
+constexpr Uint64 PageSizeN[3]{PageSize,PageSize*512,PageSize*512*512};
 					   
 constexpr Uint64 PhysicalVirtualMemoryOffset=0xFFFFFFFF40000000ull,
 				 PhysicalKernelStartAddr=0x80200000ull;
@@ -130,7 +132,10 @@ inline void* Kmalloc(Uint64 size)
 {return POS_PMM.Alloc(size);}
 
 inline void Kfree(void *addr)
-{POS_PMM.Free(addr);}
+{
+	if (addr)
+		POS_PMM.Free(addr);
+}
 
 template <typename T> inline T* KmallocT()
 {return (T*)POS_PMM.Alloc(sizeof(T));}
