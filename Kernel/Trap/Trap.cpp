@@ -41,7 +41,10 @@ extern "C"
 				if (ClockTick%100==0)//Test
 					kout<<LightGray<<"*"<<Reset;
 				if (ClockTick%1000==0)
+				{
+//					kout[Debug]<<DataWithSizeUnited(tf,sizeof(TrapFrame),sizeof(RegisterData))<<endl;
 					POS_PM.Schedule();
+				}
 				break;
 			default:
 				kout[Warning]<<"Unknown interrupt:"<<endline
@@ -56,6 +59,8 @@ extern "C"
 			case ExceptionCode_UserEcall:
 				err=TrapFunc_Syscall(tf);
 				break;
+			case ExceptionCode_LoadAccessFault:
+			case ExceptionCode_StoreAccessFault:
 			case ExceptionCode_InstructionPageFault:
 			case ExceptionCode_LoadPageFault:
 			case ExceptionCode_StorePageFault:
@@ -87,6 +92,8 @@ extern "C"
 
 void POS_InitTrap()
 {
+	set_csr(sie,MIP_SSIP);
+	set_csr(sie,MIP_SEIP);
 	write_csr(sscratch,0);
 	write_csr(stvec,&__alltraps);
 }

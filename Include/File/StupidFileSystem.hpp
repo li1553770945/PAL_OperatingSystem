@@ -58,7 +58,7 @@ class StupidFileNode:public FileNode
 		StupidFileNode* FindChild(const char *s)
 		{
 			for (StupidFileNode *u=child;u;u=u->nxt)
-				if (POS::strComp(s,Name)==0)
+				if (POS::strComp(s,u->Name)==0)
 					return u;
 			return nullptr;
 		}
@@ -239,13 +239,15 @@ class StupidFileSystem:public VirtualFileSystem
 			return re;
 		}
 		
-		virtual int GetAllFileIn(const char *path,char *result[],int bufferSize)
+		virtual int GetAllFileIn(const char *path,char *result[],int bufferSize,int skipCnt)
 		{
 			StupidFileNode *u=FindSFN(path);
 			int re=0;
 			if (u!=nullptr)
 				for (StupidFileNode *v=u->child;v&&re<bufferSize;v=v->nxt)
-					result[re++]=POS::strDump(v->Name);
+					if (skipCnt==0)
+						result[re++]=POS::strDump(v->Name);
+					else --skipCnt;
 			return re;
 		}
 		
@@ -304,6 +306,12 @@ class StupidFileSystem:public VirtualFileSystem
 		{
 			using namespace POS;
 			kout[Fault]<<"StupidFileSystem::Delete is not usable yet!"<<endl;
+		}
+		
+		virtual FileNode* GetNextFile(const char *base)
+		{
+			using namespace POS;
+			kout[Fault]<<"StupidFileSystem::GetNextFile is not usable yet!"<<endl;
 		}
 		
 		virtual FileNode* Open(const char *path)

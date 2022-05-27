@@ -24,7 +24,8 @@ int FAT32::ReadRawData(Uint64 lba,Uint64 offset, Uint64 size, unsigned char* buf
 	POS::MemcpyT(buffer, buffer_temp + offset, size);
 	return  ERR_None;
 }
-int FAT32::Init()
+
+ErrorType FAT32::Init()
 {
 	kout << "initing fat32 file system..." << endl;
 	if (file.Init() != 0)
@@ -56,7 +57,7 @@ int FAT32::Init()
 	FAT1Lba = DBRLba + Dbr.BPB_rsvd_sec_cnt; //FAT1 = DBR + 保留扇区
 	FAT2Lba = FAT1Lba + Dbr.BPB_section_per_FAT_area; //FAT2 = FAT1 + FAT区大小
 	RootLba = FAT1Lba + Dbr.BPB_section_per_FAT_area * Dbr.BPB_FAT_num;
-	kout <<"FAT1_lba:" << FAT1Lba << " FAT2_lba:" << FAT2Lba << endl;
+	kout  <<"FAT1_lba:" << FAT1Lba << " FAT2_lba:" << FAT2Lba << endl;
 	kout  << "root lba:" << RootLba << endl;
 	return ERR_None;
 }
@@ -402,7 +403,7 @@ ErrorType FAT32FileNode::Read(void* dst, Uint64 pos, Uint64 size)
 		if (CurCluster == CLUSTEREND)
 		{
 			kout[Error] << "try to read FAT32 from cluster end"<<endl;
-			return ERR_SystemError;
+			return ERR_InvalidClusterNumInFAT32;
 		}
 		Uint64 section_has_read = ReadSize % (SECTIONSIZE);//当前扇区已读字节
 		Uint64 section_need_read_size;//当前扇区需要读取的字节

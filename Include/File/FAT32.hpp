@@ -2,22 +2,25 @@
 #define POS_FAT32_HPP
 
 #include "FileSystem.hpp"
+#include "../HAL/Drivers/_sdcard.h"
 
 
-#undef CreateFile
-#undef CreateDirectory
+//#undef CreateFile
+//#undef CreateDirectory
 
-class FileBaseSystem {
+class FileBaseSystem {//Test
 	 ;
 public:
 	int Init()
 	{
 		// disk = CreateFileA("\\\\.\\PhysicalDrive2", GENERIC_READ , FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 		// return (disk == INVALID_HANDLE_VALUE);
-
+		return 0;
 	}
 	bool Read(Uint64 pos, unsigned char* buffer)
 	{
+		sdcard_read_sector((Sector*)buffer,pos);
+		return 1;
 		// memset(buffer, 0, 512);
 		// LARGE_INTEGER li;
 		// li.QuadPart = pos * 0x200;//0x200 = 512,求出扇区的 字节地址，通过设置读取的地址和长度进行read
@@ -70,10 +73,13 @@ public:
 	bool IsExist(const char* path);
 
 public:
-	int Init();
+	ErrorType Init();
 	const char* FileSystemName() override;
 
-	
+	FAT32()
+	{
+		ASSERTEX(Init()==0,"Failed to init FAT32 filesystem "<<this);
+	}
 };
 
 

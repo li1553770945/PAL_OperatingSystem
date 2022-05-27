@@ -73,5 +73,6 @@ class InterruptStackAutoSaverBlockController:public InterruptStackSaver
 };
 
 #define ISAS for (InterruptStackAutoSaverBlockController isasbc;isasbc.f;isasbc.f=0)//??
+#define ISASBC InterruptStackAutoSaverBlockController isasbc;//??
 
 #endif

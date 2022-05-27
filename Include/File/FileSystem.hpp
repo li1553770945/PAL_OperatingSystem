@@ -107,6 +107,9 @@ class FileNode
 			--RefCount;
 		}
 		
+		inline const char* GetName() const
+		{return Name;}
+		
 		virtual ~FileNode()
 		{
 			SetFileName(nullptr,0);

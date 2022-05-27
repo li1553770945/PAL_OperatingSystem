@@ -1,6 +1,8 @@
 #ifndef POS_TYPES_H
 #define POS_TYPES_H
 
+#define PlatformIsBigEndian 0
+
 using Sint8=signed char;
 using Sint16=signed short;
 using Sint32=signed int;

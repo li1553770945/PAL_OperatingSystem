@@ -7,6 +7,7 @@
 #include <Riscv.h>
 #include <SyscallID.hpp>
 #include <Library/String/SysStringTools.hpp>
+#include <Config.h>
 
 #include "../../Include/Process/Process.hpp"
 
@@ -95,23 +96,6 @@ ErrorType ProcessManager::Destroy()
 	for (int i=0;i<MaxProcessCount;++i)
 		if (Processes[i].stat!=0)
 			Processes[i].Destroy();
-	return ERR_None;
-}
-
-ErrorType Process::InitForKernelProcess0()
-{
-	stat=S_Running;
-	RunningTime=0;
-	CountingBase=RunningTime=StartedTime=SleepingTime=WaitingTime=0;
-	Stack=bootstack;
-	StackSize=KernelStackSize;
-	fa=pre=nxt=child=nullptr;
-	POS::MemsetT<RegisterData>((RegisterData*)&context,0,sizeof(context)/sizeof(RegisterData));
-//	tf=nullptr;
-	VMS=VirtualMemorySpace::Boot();
-	flags=F_Kernel;
-	Name="PAL_OperatingSystem BootProcess";
-	Namespace=0;
 	return ERR_None;
 }
 
@@ -266,6 +250,25 @@ ErrorType Process::SetName(char *name)
 	return ERR_None;
 }
 
+ErrorType Process::InitForKernelProcess0()
+{
+	stat=S_Running;
+	RunningTime=0;
+	CountingBase=RunningTime=StartedTime=SleepingTime=WaitingTime=0;
+	Stack=bootstack;
+	StackSize=KernelStackSize;
+	fa=pre=nxt=child=nullptr;
+	POS::MemsetT<RegisterData>((RegisterData*)&context,0,sizeof(context)/sizeof(RegisterData));
+//	tf=nullptr;
+	VMS=VirtualMemorySpace::Boot();
+	flags=F_Kernel;
+	Name="PAL_OperatingSystem BootProcess";
+	Namespace=0;
+	SemWaitingLink.SetData(this);
+	SemWaitingTargetTime=0;
+	return ERR_None;
+}
+
 ErrorType Process::Init(Uint64 _flags)
 {
 	ASSERT(stat==0,"Process::Init: stat is not 0");
@@ -281,6 +284,8 @@ ErrorType Process::Init(Uint64 _flags)
 	flags=_flags;
 	Name=nullptr;
 	Namespace=0;
+	SemWaitingLink.SetData(this);
+	SemWaitingTargetTime=0;
 	return ERR_None;
 }
 
@@ -297,6 +302,7 @@ ErrorType Process::Destroy()
 	if (flags&F_GeneratedStack)
 		Kfree(Stack);
 	Stack=nullptr;
+	SemWaitingLink.Remove();//What about Lock protect??
 	stat=S_None;
 	PM->FreeProcess(this);
 	return ERR_None;
@@ -412,10 +418,18 @@ PID CreateInnerUserImgProcess(PtrInt start,PtrInt end,Uint64 flags)
 
 	{//Test...
 		vms->Enter();
+		#ifdef QEMU
 		write_csr(sstatus,read_csr(sstatus)|SSTATUS_SUM);
+		#else
+		write_csr(sstatus,read_csr(sstatus)&~SSTATUS_SUM);
+		#endif
 		MemcpyT<char>((char*)InnerUserProcessLoadAddr,(const char*)start,loadsize);
 //		kout<<DataWithSize((void*)InnerUserProcessLoadAddr,loadsize)<<endl;
+		#ifdef QEMU
 		write_csr(sstatus,read_csr(sstatus)&~SSTATUS_SUM);
+		#else
+		write_csr(sstatus,read_csr(sstatus)|SSTATUS_SUM);
+		#endif
 		vms->Leave();
 	}
 

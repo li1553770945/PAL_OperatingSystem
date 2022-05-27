@@ -108,10 +108,29 @@ namespace POS
 	
 	template <typename T> void MemcpyT(T *dst,const T *src,unsigned long long count)
 	{
-		if (dst==nullptr||src==nullptr||count==0) return;
+		if (dst==nullptr||src==nullptr||dst==src||count==0) return;
 		T *end=dst+count;
 		while (dst!=end)
 			*dst++=*src++;
+	}
+	
+	template <typename T> void MemmoveT(T *dst,const T *src,unsigned long long count)
+	{
+		if (dst==nullptr||src==nullptr||dst==src||count==0) return;
+		if (dst<src)
+		{
+			T *end=dst+count;
+			while (dst!=end)
+				*dst++=*src++;
+		}
+		else
+		{
+			T *start=dst;
+			dst+=count;
+			src+=count;
+			do *--dst=*--src;
+			while (dst!=start);
+		}
 	}
 	
 	template <typename T> T* OperateForAll(T *src,unsigned long long count,void(*func)(T&))
@@ -206,6 +225,40 @@ namespace POS
 	
 	template <typename T> inline void SetBitMask0(T &tar,unsigned i)
 	{tar&=~(1ull<<i);}
+	
+	template <typename T> T EndianSwitch(T x)
+	{
+		char *b=(char*)&x;
+		for (int i=(sizeof(x)>>1)-1;i>=0;--i)
+			Swap(b[i],b[sizeof(x)-i-1]);
+		return x;
+	}
+	
+#if PlatformIsBigEndian == 0
+	template <typename T> inline T ToLittleEndian(T x)
+	{return x;}
+	
+	template <typename T> inline T ToBigEndian(T x)
+	{return EndianSwitch(x);}
+	
+	template <typename T> inline T LittleEndianToThis(T x)
+	{return x;}
+	
+	template <typename T> inline T BigEndianToThis(T x)
+	{return EndianSwitch(x);}
+#else
+	template <typename T> inline T ToLittleEndian(T x)
+	{return EndianSwitch(x);}
+	
+	template <typename T> inline T ToBigEndian(T x)
+	{return x;}
+	
+	template <typename T> inline T LittleEndianToThis(T x)
+	{return EndianSwitch(x);}
+	
+	template <typename T> inline T BigEndianToThis(T x)
+	{return x;}
+#endif
 };
 
 #endif

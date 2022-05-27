@@ -1,57 +1,9 @@
 #ifndef POS_SYNCHRONIZE_HPP
 #define POS_SYNCHRONIZE_HPP
 
-class SpinLock
-{
-	protected:
-		volatile bool lock;
-		
-	public:
-		inline bool TryLock()
-		{
-			
-			return 0;
-		}
-		
-		inline void Unlock()
-		{
-			
-		}
-		
-		inline void Lock()
-		{
-			
-		}
-		
-		inline void Init()
-		{lock=0;}
-		
-//	typedef volatile bool lock_t;
-//
-//	static inline void
-//	lock_init(lock_t *lock) {
-//	    *lock = 0;
-//	}
-//	
-//	static inline bool
-//	try_lock(lock_t *lock) {
-//	    return !test_and_set_bit(0, lock);
-//	}
-//	
-//	static inline void
-//	lock(lock_t *lock) {
-//	    while (!try_lock(lock)) {
-//	        schedule();
-//	    }
-//	}
-//	
-//	static inline void
-//	unlock(lock_t *lock) {
-//	    if (!test_and_clear_bit(0, lock)) {
-//	        panic("Unlock failed.\n");
-//	    }
-//	}
-};
+#include "Process.hpp"
+#include "../Trap/Interrupt.hpp"
+#include "../Trap/Clock.h"
 
 class Mutex
 {
@@ -80,5 +32,110 @@ class Mutex
 			
 		}
 };
+
+class Semaphore
+{
+	public:
+		enum:Uint64
+		{
+			TryWait=0,
+			KeepWait=(Uint64)-1
+		};
+		enum:unsigned
+		{
+			SignalAll=0,
+			SignalOne=1
+		};
+		
+	protected:
+		POS::LinkTable <Process> Head,Tail;
+		int value=0;
+		
+		inline void LockProcess()
+		{POS_PM.lock.Lock();}
+		
+		inline void UnlockProcess()
+		{POS_PM.lock.Unlock();}
+		
+	public:
+		inline bool Wait(Uint64 timeOut=KeepWait)
+		{
+			InterruptStackSaver iss;
+			iss.Save();
+			LockProcess();
+			--value;
+			bool re=1;
+			if (value<0)
+				if (timeOut==TryWait)
+					re=0,++value;
+				else
+				{
+					Process *proc=POS_PM.Current();
+					Tail.PreInsert(&proc->SemWaitingLink);
+					proc->SemWaitingTargetTime=GetClockTime()+timeOut;
+					proc->stat=Process::S_Sleeping;
+					
+					UnlockProcess();
+					iss.Restore();
+					
+					POS_PM.Schedule();
+					
+					iss.Save();
+					LockProcess();
+				}
+			UnlockProcess();
+			iss.Restore();
+			return re;
+		}
+		
+		inline void Signal(unsigned n=SignalOne)
+		{
+			ISASBC;
+			LockProcess();
+			if (n==SignalAll)
+				n=POS::maxN(-value,0);
+			value+=n;
+			while ((Sint64)n-->0)
+			{
+				POS::LinkTable <Process> &p=*Head.Nxt();
+				if (!p.NxtEmpty())
+				{
+					if (p()->stat==Process::S_Sleeping)
+					{
+						p()->stat=Process::S_Ready;
+						p()->SemWaitingTargetTime=0;
+					}
+					p.Remove();
+				}
+				else break;
+			}
+			using namespace POS;
+			UnlockProcess();
+		}
+		
+		inline int Value()
+		{
+			ISASBC;
+			LockProcess();
+			int re=value;
+			UnlockProcess();
+			return re;
+		}
+		
+		~Semaphore()
+		{
+			Signal(SignalAll);
+		}
+		
+		Semaphore(int initValue):value(initValue)
+		{
+			Head.NxtInsert(&Tail);
+		}
+		
+		Semaphore(const Semaphore&)=delete;
+		Semaphore(const Semaphore&&)=delete;
+		Semaphore& operator = (const Semaphore&)=delete;
+		Semaphore& operator = (const Semaphore&&)=delete;
+}; 
 
 #endif

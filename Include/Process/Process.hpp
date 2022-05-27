@@ -6,6 +6,8 @@
 #include "../Trap/Trap.hpp"
 #include "../Memory/PhysicalMemory.hpp"
 #include "../Memory/VirtualMemory.hpp"
+#include "../Library/DataStructure/LinkTable.hpp"
+#include "SpinLock.hpp"
 
 const unsigned MaxProcessCount=128;
 const Uint64 KernelStackSize=PageSize*4;
@@ -13,15 +15,24 @@ const PtrInt InnerUserProcessLoadAddr=0x800020,
 			 InnerUserProcessStackSize=PageSize*4,
 			 InnerUserProcessStackAddr=0x80000000-InnerUserProcessStackSize;
 
+inline RegisterData GetCPUID()
+{
+	RegisterData id;
+	asm volatile("mv %0,tp":"=r"(id));
+	return id;
+}
+
 class Process;
 
 class ProcessManager
 {
 	friend class Process;
+	friend class Semaphore;
 	protected:
 		static Process Processes[MaxProcessCount];//temp for test...
 		static Process *CurrentProcess;
 		static Uint32 ProcessCount;
+		SpinLock lock;
 		
 	public:
 		Process* GetProcess(PID id);
@@ -42,6 +53,7 @@ class Process
 {
 	friend class ProcessManager;
 	friend class ForkServerClass;
+	friend class Semaphore;
 	public:
 		enum
 		{
@@ -104,6 +116,8 @@ class Process
 		char *Name;
 		Uint32 Namespace;//0 means default,unused yet
 		int ReturnedValue;
+		POS::LinkTable <Process> SemWaitingLink;
+		ClockTime SemWaitingTargetTime;
 		
 		ErrorType InitForKernelProcess0();
 		ErrorType CopyOthers(Process *src);

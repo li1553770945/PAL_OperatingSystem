@@ -1,5 +1,4 @@
 OUTPUT_ARCH("riscv")
-OUTPUT_FORMAT("elf64-littleriscv")
 ENTRY(_start)
 
 SECTIONS

@@ -4,11 +4,11 @@
 #include "../Types.hpp"
 #include "../Library/DataStructure/LinkTable.hpp"
 #include "../Library/TemplateTools.hpp"
-#include "../Process/Synchronize.hpp"
 #include "PhysicalMemory.hpp"
 #include "../Trap/Trap.hpp"
 #include "../Library/Kout.hpp"
 #include "../Riscv.h"
+#include "../Process/SpinLock.hpp"
 
 class PageTable;
 
@@ -203,11 +203,13 @@ class VirtualMemoryRegion:public POS::LinkTableT <VirtualMemoryRegion>
 			VM_Stack=1<<3,
 			VM_Kernel=1<<4,
 			VM_Shared=1<<5,
+			VM_Device=1<<6,
 			
 			VM_RW=VM_Read|VM_Write,
 			VM_RWX=VM_RW|VM_Exec,
 			VM_KERNEL=VM_Kernel|VM_RWX,
 			VM_USERSTACK=VM_RW|VM_Stack,
+			VM_MMIO=VM_RW|VM_Kernel|VM_Device,
 			
 			VM_TEST=VM_Kernel|VM_RW|VM_Shared//??
 		};

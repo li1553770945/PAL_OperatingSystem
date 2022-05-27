@@ -172,12 +172,19 @@ ErrorType VirtualMemorySpace::InitForBoot()
 	kout[Info]<<"Initing Boot VirtualMemorySpace..."<<endl;
 	BootVMS=KmallocT<VirtualMemorySpace>();
 	BootVMS->Init();
-	auto vmr=KmallocT<VirtualMemoryRegion>();
-	vmr->Init((PtrInt)kernelstart,PhysicalMemoryVirtualEnd(),VirtualMemoryRegion::VM_KERNEL);
-	BootVMS->InsertVMR(vmr);
+	{
+		auto vmr=KmallocT<VirtualMemoryRegion>();
+		vmr->Init((PtrInt)kernelstart,PhysicalMemoryVirtualEnd(),VirtualMemoryRegion::VM_KERNEL);
+		BootVMS->InsertVMR(vmr);
+	}
 //	{
-//		vmr=KmallocT<VirtualMemoryRegion>();
+//		auto vmr=KmallocT<VirtualMemoryRegion>();
 //		vmr->Init(10000,20000,VirtualMemoryRegion::VM_TEST);//Test region for pagefault...
+//		BootVMS->InsertVMR(vmr);
+//	}
+//	{//??
+//		auto vmr=KmallocT<VirtualMemoryRegion>();
+//		vmr->Init(PhymemVirmemOffset(),PhymemVirmemOffset()+0x80000000,VirtualMemoryRegion::VM_MMIO);
 //		BootVMS->InsertVMR(vmr);
 //	}
 	BootVMS->PDT=PageTable::Boot();
@@ -233,7 +240,7 @@ void VirtualMemorySpace::Enter()
 	kout[Test]<<"VirtualMemorySpace::Enter: "<<this<<endl;
 	CurrentVMS=this;
 	lcr3((Uint64/*??!*/)PDT->PAddr());//??
-	asm volatile("sfence.vma");//Needed??
+	asm volatile("sfence.vma");
 }
 
 ErrorType VirtualMemorySpace::CreatePDT()
@@ -326,6 +333,7 @@ ErrorType VirtualMemorySpace::SolvePageFault(TrapFrame *tf)
 		}
 		else kout[Fault]<<"VirtualMemorySpace::SolvePageFault: Page exist, however page fault!"<<endl;
 		asm volatile("sfence.vma");//Test usage... Need improve!
+//		asm volatile("sfence.vm");
 	}
 	kout[Test]<<"SolvePageFault OK"<<endl;
 	return ERR_None;
