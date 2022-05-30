@@ -19,6 +19,7 @@ extern "C"
 };
 #include <HAL/Drivers/_sdcard.h>
 #include <File/FAT32.hpp>
+#include <Process/ELF.hpp>
 //#include <HAL/DeviceTreeBlob.hpp>
 
 using namespace POS;
@@ -107,6 +108,20 @@ int SDTest(void*)
 void TestFuncs()
 {
 //	kout.SwitchTypeOnoff(Test,0);
+	
+	if (1)
+	{
+		kout[Test]<<"PhysicalMemorySize:          "<<(void*)PhysicalMemorySize()<<endl;
+		kout[Test]<<"PhysicalMemoryPhysicalStart: "<<(void*)PhysicalMemoryPhysicalStart()<<endl;
+		kout[Test]<<"PhymemVirmemOffset:          "<<(void*)PhymemVirmemOffset()<<endl;
+		kout[Test]<<"PhysicalMemoryVirtualEnd:    "<<(void*)PhysicalMemoryVirtualEnd()<<endl;
+		kout[Test]<<"FreeMemBase:                 "<<(void*)FreeMemBase()<<endl;
+		kout[Test]<<"kernelstart:                 "<<(void*)kernelstart<<endl;
+		kout[Test]<<"kernelend:                   "<<(void*)kernelend<<endl;
+		kout[Test]<<"bootstack:                   "<<(void*)bootstack<<endl;
+		kout[Test]<<"bootstacktop:                "<<(void*)bootstacktop<<endl;
+	}
+	
 	if (0)
 	{
 		char ch=Getchar();
@@ -141,7 +156,7 @@ void TestFuncs()
 	
 	if (0) CreateKernelThread(KernelThreadTest,nullptr);
 	if (0) CreateKernelThread(KernelThreadTest2,nullptr);
-	if (0) CreateInnerUserImgProcessWithName(Hello_img);
+	if (1) CreateInnerUserImgProcessWithName(Hello_img);
 	if (0) CreateInnerUserImgProcessWithName(Count1_100_img);
 	if (0) CreateInnerUserImgProcessWithName(ForkTest_img);
 	
@@ -177,16 +192,23 @@ void TestFuncs()
 	{
 		kout<<dep<<": "<<path<<endl;
 		char *buffer[16];
-		int cnt=vfs->GetAllFileIn(path,buffer,16);
-		for (int i=0;i<cnt;++i)
+		int skip=0;
+		ISAS
+		while (1)
 		{
-			char *child=strSplice(path,"/",buffer[i]);
-			self(self,vfs,child,dep+1);
-			Kfree(child);
-			Kfree(buffer[i]);
+			int cnt=vfs->GetAllFileIn(path,buffer,16,skip);
+			for (int i=0;i<cnt;++i)
+			{
+				char *child=strSplice(path,dep==0?"":"/",buffer[i]);
+				if (buffer[i][0]!='.')//??
+					self(self,vfs,child,dep+1);
+				Kfree(child);
+				Kfree(buffer[i]);
+			}
+			if (cnt<16)
+				break;
+			else skip+=16;
 		}
-		if (cnt==16)
-			kout<<dep<<": ..."<<endl;
 	};
 	
 	if (0)
@@ -219,33 +241,103 @@ void TestFuncs()
 		
 	if (0)
 	{
-		VirtualFileSystem *vfs=new FAT32();
 		kout<<"FAT32 Test:"<<endl;
-		FileNode * node1 =vfs->Open("/LS");
-		FileNode * node2 =vfs->Open("/pos/main.cpp");
-		kout[Debug]<<node1<<" "<<node2<<endl;
-		char *buffer=new char[10000];
-		MemsetT<char>(buffer,0,sizeof(buffer));
-		kout[Debug]<<node2->Read(buffer,0,node2->Size())<<endl;
-		kout[Debug]<<buffer<<endl;
-		delete[] buffer;
-//		Printfs(Printfs,vfs,"/");
-		kout<<"FAT32 Test OK"<<endl;
+		VirtualFileSystem *vfs=new FAT32();
+		Printfs(Printfs,vfs,"/");
 		delete vfs;
+		kout<<"FAT32 Test OK"<<endl;
+	}
+	
+	if (0)
+	{
+		kout<<"Test ELF ..."<<endl;
+		VirtualFileSystem *vfs=new FAT32();
+		FileNode *node=vfs->Open("/dir/TEST.elf");
+		if (!node)
+			kout[Fault]<<"Cannot open /dir/TEST.elf"<<endl;
+		FileHandle *file=new FileHandle(node);
+		CreateProcessFromELF(file);
+		delete file;
+		delete node;
+		delete vfs;
+		kout<<"Test ELF OK"<<endl;
+	}
+	
+	auto RunAllFile=[](auto &self,auto *vfs,const char *path,int dep=0)->void
+	{
+		kout<<dep<<": "<<path<<" "<<(void*)*((Uint64*)vfs)<<endl;
+		char *buffer[16];
+		int skip=0;
+		while (1)
+		{
+			kout[Debug]<<"A "<<(void*)*((Uint64*)vfs)<<endl;
+			int cnt=vfs->GetAllFileIn(path,buffer,16,skip);
+			kout[Debug]<<"KKKKKK"<<endl;
+			for (int i=0;i<cnt;++i)
+			{
+				RegisterData sp,s0;
+				asm volatile("sd sp,%0":"=m"(sp)::"memory");
+				asm volatile("sd s0,%0":"=m"(s0)::"memory");
+				kout[Debug]<<"B "<<(void*)sp<<" "<<(void*)*((Uint64*)vfs)<<endl;
+//				kout<<LightYellow<<DataWithSizeUnited((void*)0xFFFFFFFFC0043C00,0x400,32)<<endl;
+				char *child=strSplice(path,dep==0?"":"/",buffer[i]);
+				kout[Debug]<<"B1 "<<child<<" "<<(void*)s0<<" "<<(void*)(s0-248)<<" "<<(Uint64*)*(Uint64*)(s0-248)<<" "<<(Uint64*)(*(Uint64*)(*(Uint64*)(s0-248))+64)<<endl;
+				if (buffer[i][0]!='.')
+				{
+					kout[Debug]<<"B21 "<<vfs<<" "<<(void*)*((Uint64*)vfs-1)<<" "<<(void*)*((Uint64*)vfs)<<endl;
+					kout[Debug]<<"B22 "<<endl;
+					FileNode *node=vfs->Open(child);
+					kout[Debug]<<"B23 "<<endl;
+					kout[Debug]<<"C "<<node<<" "<<(void*)*((Uint64*)vfs)<<endl;
+					if (!node)
+						kout[Error]<<"Cannot open file "<<child<<endl;
+					else if (node->IsDir())
+						self(self,vfs,child,dep+1);
+					else
+					{
+						kout[Info]<<"Run "<<child<<" "<<(void*)*((Uint64*)vfs)<<endl; 
+						FileHandle *file=new FileHandle(node);
+						CreateProcessFromELF(file);
+						kout[Debug]<<"D "<<(void*)*((Uint64*)vfs)<<endl;
+						delete file;
+						kout[Debug]<<"E "<<(void*)*((Uint64*)vfs)<<endl;
+					}
+					delete node;
+					kout[Debug]<<"F "<<(void*)*((Uint64*)vfs)<<endl;
+				}
+				Kfree(child);
+				Kfree(buffer[i]);
+				kout[Debug]<<"G "<<(void*)*((Uint64*)vfs)<<endl;
+			}
+			kout[Debug]<<"H "<<(void*)*((Uint64*)vfs)<<endl;
+			if (cnt<16)
+				break;
+			else skip+=16;
+		}
+	};
+	
+	if (1)
+	{
+//		kout.SwitchTypeOnoff(Test,0);
+//		kout.SwitchTypeOnoff(Debug,0);
+		kout<<"Test all suits..."<<endl;
+		VirtualFileSystem *vfs=new FAT32();
+		RunAllFile(RunAllFile,vfs,"/");
+		delete vfs;
+		kout<<"Test all suits OK"<<endl;
+		// kout.SwitchTypeOnoff(Debug,1);
+		// kout.SwitchTypeOnoff(Test,1);
 	}
 }
 
-int main(RegisterData hartID,RegisterData DTB)
+int main()
 {
 	PrintSystemInfo();
 	POS_InitClock();
 	POS_InitTrap();
 	POS_PMM.Init();
-	kout<<"A"<<endl;
 	VirtualMemorySpace::InitStatic();
-	kout<<"B"<<endl;
 	POS_PM.Init();
-	kout<<"C"<<endl;
 	ForkServer.Init();
 //	PrintDeviceTree((void*)DTB+PhymemVirmemOffset()+PhysicalMemoryPhysicalStart());
 	
@@ -271,8 +363,10 @@ int main(RegisterData hartID,RegisterData DTB)
 	auto DeadLoop=[Sleep](const char *str)
 	{
 		while (1)
+		{
 			Sleep(1e8),
 			kout<<DarkGray<<str<<Reset;
+		}
 	};
 	DeadLoop(".");
 	return 0;

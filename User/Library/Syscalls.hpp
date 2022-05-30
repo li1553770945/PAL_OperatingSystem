@@ -4,7 +4,7 @@
 #include <SyscallID.hpp>
 #include <Types.hpp>
 
-inline int POS_Syscall(RegisterData ID,
+inline RegisterData POS_Syscall(RegisterData ID,
 					   RegisterData a0=0,
 					   RegisterData a1=0,
 					   RegisterData a2=0,
@@ -12,7 +12,7 @@ inline int POS_Syscall(RegisterData ID,
 					   RegisterData a4=0,
 					   RegisterData a5=0)
 {
-	int re;
+	RegisterData re;
 	asm volatile
 	(
 		"ld a0, %1\n"

@@ -1,6 +1,6 @@
 #ifndef POS_STRINGTOOLS_HPP
 #define POS_STRINGTOOLS_HPP
-
+#include  <Types.hpp>
 namespace POS
 {
 	void strCopy(char *dst,const char *src);
@@ -13,6 +13,9 @@ namespace POS
 	
 	template <typename ...Ts> inline unsigned long long strLen(const char *src,const Ts *...others)
 	{return strLen(src)+strLen(others...);}
+
+		Uint64  UnicodeToUtf8(char* out, Uint32 utf[], Uint32 int_len);
+
 };
 
 #endif

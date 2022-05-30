@@ -1,11 +1,13 @@
 #include <Memory/PhysicalMemory.hpp>
 #include <Library/Kout.hpp>
 #include <Library/Math.hpp>
+#include <Error.hpp>
 using namespace POS;
 
-Page * Page::DismantleNext()
+Page * Page::DismantleNext()//把下一个节点拆下来
 {
     Page * next = this->next;
+    // kout[Debug]<<"Page::DismantleNext next "<<(void*)next->addr<<endl;
     if(next==nullptr)
     {
         //panic("DismantleNext Failed");
@@ -14,16 +16,19 @@ Page * Page::DismantleNext()
     this->next = next->next;
     if(next->next)
         next->next->pre = this;
-
+    next->pre = nullptr;
+    next->next = nullptr;
     return next;
 }
-Page * Page::Dismantle()
+Page * Page::Dismantle() //把自己拆下来
 {
     this->pre->next = this->next;
     if(this->next)
     {
         this->next->pre = this->pre;
     }
+    this->pre = nullptr;
+    this->next = nullptr;
     return this;
 }
 void Page::AddNext(Page * next)
@@ -53,6 +58,7 @@ void PhysicalMemoryManager::Free(void *p)
 ErrorType PhysicalMemoryManager::Init()
 {
     kout[Info]<<"Initing PhysicalMemoryManager..."<<endl;
+    MemsetT<Uint64>((Uint64*)FreeMemBase(),0,(PhysicalMemoryVirtualEnd()-FreeMemBase())/sizeof(Uint64));//Init free memory to 0 in k210
     int code = zone.Init();
     if(code)
     {
@@ -159,6 +165,7 @@ int Zone::Init()
 }
 Page * Zone::AllocPage(Uint64 need_page_num)
 {
+	kout[Debug]<<"Zone::AllocPage "<<need_page_num<<endl;
     int order = klog2(need_page_num);
     if((int)kpow2(order) != need_page_num)
     {
@@ -175,6 +182,8 @@ Page * Zone::AllocPage(Uint64 need_page_num)
     }while(++cur_order<=max_order);
     if(cur_order > max_order)
     {
+    	kout[Debug]<<"################## "<<need_page_num<<" "<<cur_order<<endl;
+        Panic("Zone::AllocPage no enough memory");
         return nullptr;
     }
     
@@ -187,10 +196,16 @@ Page * Zone::AllocPage(Uint64 need_page_num)
     Page * cur_page = free_area[order].head.DismantleNext();
 //    kout[Test]<<"Zone::AllocPage: "<<cur_page->index<<" "<<cur_page->order<<endl;
     cur_page->flags = 1;
+	kout[Debug]<<"Zone::AllocPage "<<cur_page<<" "<<order<<" "<<(void*)cur_page->addr<<" OK"<<endl;
     return cur_page;
 }
 void Zone::FreePage(Page * p)
 {
+    if(p==nullptr)
+    {
+        return;
+    }
+	kout[Debug]<<"Zone::FreePage: "<<p<<" "<<p->index<<endl;
 //    kout[Test]<<"Zone::FreePage: "<<p<<" "<<p->index<<endl;
     free_area[p->order].head.AddNext(p);
     p->flags = 0;
@@ -256,10 +271,10 @@ Page * Zone::QueryPage(int index,Uint64 addr)
     }
     if(page[index].order==0)
     {
-        // kout<<"panic page not find"<<endl;
+        Panic("Page not find");
         return nullptr;
         //panic("can't find page");
-    }
+    } 
     Uint64 mid_addr = page[index].addr + kpow2(page[index].order-1)*page_size;
     if(addr<mid_addr)
     {
@@ -270,7 +285,7 @@ Page * Zone::QueryPage(int index,Uint64 addr)
         return QueryPage(index*2+1,addr);
     }
 }
-Page * Zone::GetPageFromAddr(void* addr)//根据物理地址和大小拿到对应的
+Page * Zone::GetPageFromAddr(void* addr)//根据物理地址拿到对应的页用于free
 {   
     Page * p = QueryPage(1,(Uint64)addr);
     return p;

@@ -379,7 +379,7 @@ void sdcard_read_sector(Sector *sec, int sectorno) {
 	// enter critical section!
 //	acquiresleep(&sdcard_lock);
 	semSDCard->Wait();
-
+	
 	sd_send_cmd(SD_CMD17, address, 0);
 	result = sd_get_response_R1();
 
@@ -408,6 +408,7 @@ void sdcard_read_sector(Sector *sec, int sectorno) {
 //	releasesleep(&sdcard_lock);
 	semSDCard->Signal();
 	// leave critical section!
+	kout[Test]<<"SDCard read sector "<<(void*)sectorno<<" OK "<<endl;
 }
 
 void sdcard_write_sector(const Sector *sec, int sectorno) {

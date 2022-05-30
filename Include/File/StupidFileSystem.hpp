@@ -384,4 +384,32 @@ StupidFileNode::StupidFileNode(StupidFileSystem *_sfs):FileNode(_sfs),SFS(_sfs)
 	FileNode::SetFileName(Name,1);
 }
 
+class TestMemFileNode:public FileNode
+{
+	protected:
+		PtrInt Begin,End,Size;
+		
+	public:
+		virtual ErrorType Read(void *dst,Uint64 pos,Uint64 size)
+		{
+			if (pos>=Size||pos+size>=Size)
+				return ERR_FileOperationOutofRange;
+			for (Uint64 i=0;i<size;++i)
+				((char*)dst)[i]=((char*)Begin)[pos+i];
+			return ERR_None;
+		}
+		
+		virtual ErrorType Write(void *src,Uint64 pos,Uint64 size)
+		{
+			return ERR_Unknown;
+		}
+		
+		TestMemFileNode(PtrInt begin,PtrInt end):Begin(begin),End(end),Size(end-begin)
+		{
+			using namespace POS;
+			kout[Debug]<<"  This function is used for test ELF temporaryly!"<<endl;
+			kout[Warning]<<"This function is used for test ELF temporaryly!"<<endl;
+		}
+};
+
 #endif

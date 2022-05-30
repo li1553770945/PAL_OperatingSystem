@@ -3,7 +3,8 @@
 
 #include "FileSystem.hpp"
 #include "../HAL/Drivers/_sdcard.h"
-
+#include <Library/TemplateTools.hpp>
+#include <Library/DataStructure/PAL_Tuple.hpp>
 
 //#undef CreateFile
 //#undef CreateDirectory
@@ -62,24 +63,29 @@ public:
 	Uint32 FAT2Lba;
 	Uint32 RootLba;//数据区(根目录)起始lba
 	FileBaseSystem file;
+
+
+	FAT32();
 	FileNode* LoadShortFileInfoFromBuffer(unsigned char* buffer);
 	Uint64 GetOffsetFromCluster(Uint64 cluster);
 	Uint64 GetLbaFromCluster(Uint64 cluster);
 	FileNode * GetFileNodesFromCluster(Uint64 cluster);//读取cluster开始的目录对应的所有目录项
-	Uint64 GetFATContentFromCluster(Uint64 cluster);//读取cluster对应的FAT表中内容
+	Uint64 GetFATContentFromCluster(Uint64 cluster);//读取cluster对应的FAT表中内容(自动将读取的内容转换为小端)
+	Uint64 SetFATContentFromCluster(Uint64 cluster,Uint64 content);//设置cluster对应的FAT表中内容为content(自动将content转换为大端)
 	int ReadRawData(Uint64 lba, Uint64 offset, Uint64 size, unsigned char* buffer);//从lba偏移offset字节的位置读取size字节大小的数据
-	FileNode* FindFileByNameFromCluster(Uint64 cluster, const char* name);
+	FileNode* FindFileByNameFromCluster(Uint64 cluster, const char* name);//从cluster寻找一个file，cluster对应的必须是目录项所在的位置
 	FileNode* FindFileByPath(const char* path);
 	bool IsExist(const char* path);
+	Uint64 GetFreeCluster();//返回一个空闲簇的簇号
+	PAL_DS::Doublet<Uint64,Uint64> GetContentLbaAndOffsetFromPath();//得到文件所在目录项的位置，例如要删除文件就要把文件对应目录项设置为E5
+	PAL_DS::Doublet<Uint64, Uint64> GetFreeLbaAndOffsetFromPath();//得到Path中下一个空白的位置用于放置目录项
+
 
 public:
-	ErrorType Init();
+	int Init();
 	const char* FileSystemName() override;
 
-	FAT32()
-	{
-		ASSERTEX(Init()==0,"Failed to init FAT32 filesystem "<<this);
-	}
+	
 };
 
 
@@ -88,9 +94,8 @@ class FAT32FileNode :public FileNode {
 public:
 	virtual ErrorType Read(void* dst, Uint64 pos, Uint64 size) override;
 	virtual ErrorType Write(void* src, Uint64 pos, Uint64 size) override;
-
+	PAL_DS::Doublet <Uint64, Uint64>  GetCLusterAndLba(Uint64 pos);
 	Uint64 FirstCluster; //起始簇号
-	Uint64 CurCluster;//当前簇号（读取导致的向后偏移）
 	FAT32FileNode* nxt;
 	bool IsDir; //是否是文件夹
 	Uint64 ReadSize;//已经读取的数据大小

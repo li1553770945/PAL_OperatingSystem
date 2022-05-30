@@ -15,6 +15,10 @@ KernelThreadEntry2:
 
 .globl UserThreadEntry
 UserThreadEntry:
+	beqz s0,UserThreadEntry2
+	move a0,s1
+	jalr s0
+UserThreadEntry2:
 	j __trapret
 
 .globl ProcessSwitchContext

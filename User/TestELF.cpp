@@ -3,7 +3,6 @@
 
 int main()
 {
-	for (int i=1;i<=100;Loop(3e7),++i)
-		cout<<"Count1-100: "<<i<<endl;
+	puts("TestELF: Test ELF!\n");
 	return 0;
 }

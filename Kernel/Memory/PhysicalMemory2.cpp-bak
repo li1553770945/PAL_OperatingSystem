@@ -33,6 +33,7 @@ Page* PhysicalMemoryManager::AllocPage(unsigned long long count)
         }
         p = p->nxt;
     }
+    kout[Error]<<"PhysicalMemoryManager::AllocPage "<<count<<" failed!"<<endl;
     return nullptr;
 }
 
@@ -111,9 +112,9 @@ ErrorType PhysicalMemoryManager::Init()
     return ERR_None;
 }
 
-PhysicalMemoryManager::~PhysicalMemoryManager() {}
-
-PhysicalMemoryManager::PhysicalMemoryManager() {}
+//PhysicalMemoryManager::~PhysicalMemoryManager() {}
+//
+//PhysicalMemoryManager::PhysicalMemoryManager() {}
 
 const char* PhysicalMemoryManager::Name()  const
 {return "POS_DefaultPMM";}

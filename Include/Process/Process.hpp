@@ -23,6 +23,7 @@ inline RegisterData GetCPUID()
 }
 
 class Process;
+class Semaphore;
 
 class ProcessManager
 {
@@ -71,6 +72,7 @@ class Process
 			F_Kernel		=1ull<<0,
 			F_AutoDestroy	=1ull<<1,
 			F_GeneratedStack=1ull<<2,
+			F_OutsideName	=1ull<<3
 		};
 		
 		enum
@@ -88,8 +90,9 @@ class Process
 		enum:PID
 		{
 			
+			AnyPID    =(PID)-3,
 			UnknownPID=(PID)-2,
-			InvalidPID=(PID)-1
+			InvalidPID=(PID)-1,
 		};
 		
 	protected:
@@ -118,6 +121,7 @@ class Process
 		int ReturnedValue;
 		POS::LinkTable <Process> SemWaitingLink;
 		ClockTime SemWaitingTargetTime;
+		Semaphore *WaitSem;
 		
 		ErrorType InitForKernelProcess0();
 		ErrorType CopyOthers(Process *src);
@@ -127,12 +131,19 @@ class Process
 		ErrorType Rest();//Hand out CPU and schedule other Process
 		ErrorType Run();
 		ErrorType Exit(int re);
-		ErrorType Start(int (*func)(void*),void *funcdata);
-		ErrorType Start(PtrInt addr);
+		ErrorType Start(int (*func)(void*),void *funcdata,PtrInt userStartAddr=0);
 		ErrorType SetVMS(VirtualMemorySpace *vms);
 		ErrorType SetStack(void *stack,Uint32 size);//if stack is nullptr, means auto create.
 //		ErrorType CopyStackContext(Process *src);
-		ErrorType SetName(char *name);
+		ErrorType SetName(char *name,bool outside);
+		ErrorType SetFa(Process *_fa);
+		Process* GetQuitingChild(PID cid=AnyPID);//??
+		
+		inline Semaphore *GetWaitSem()//Temporaryly use...
+		{return WaitSem;}
+		
+		inline Process* GetFa()
+		{return fa;}
 		
 		inline const char* GetName() const
 		{return Name;}

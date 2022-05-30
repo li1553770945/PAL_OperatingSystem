@@ -1,0 +1,1 @@
+riscv64-unknown-elf-objdump -S $1 | grep $2 $3 $4

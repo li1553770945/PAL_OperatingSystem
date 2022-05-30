@@ -7,44 +7,16 @@
 #include "../Library/String/SysStringTools.hpp"
 #include "../Library/Kout.hpp"
 
+class FileHandle;
 class FileNode;
 class VirtualFileSystem;
+class VirtualFileSystemManager;
 
 inline const char * InvalidFileNameCharacter()
 {return "/\\:*?\"<>|";}
 
 inline bool IsValidFileNameCharacter(char ch)
 {return POS::NotInSet(ch,'/','\\',':','*','?','\"','<','>','|');}
-
-class FileHandle
-{
-	public:
-		enum
-		{
-			F_Read	=1ull<<0,
-			F_Write	=1ull<<1,
-			F_Seek	=1ull<<2,
-			F_Size	=1ull<<3
-		};
-	
-		enum
-		{
-			Seek_Beg=0,
-			Seek_Cur,
-			Seek_End,
-		};
-	
-	protected:
-		FileNode *file;
-		Uint64 Flags;
-		
-	public:
-		Sint64 Read(void *dst,Uint64 size);
-		Sint64 Write(void *src,Uint64 size);
-		ErrorType Seek(Uint64 pos);
-		Uint64 Size();
-		ErrorType Close();
-};
 
 class FileNode
 {
@@ -99,16 +71,24 @@ class FileNode
 		{
 			//...
 			++RefCount;
+			return ERR_None;
 		}
 		
 		virtual inline ErrorType Unref(FileHandle *f)
 		{
 			//...
 			--RefCount;
+			return ERR_None;
 		}
 		
 		inline const char* GetName() const
 		{return Name;}
+		
+		inline Uint64 GetAttributes() const
+		{return Attributes;}
+		
+		inline bool IsDir() const
+		{return Attributes&A_Dir;}
 		
 		virtual ~FileNode()
 		{
@@ -116,6 +96,85 @@ class FileNode
 		}
 		
 		FileNode(VirtualFileSystem *_vfs=nullptr):Vfs(_vfs) {}
+};
+
+class FileHandle
+{
+	public:
+		enum
+		{
+			F_Read	=1ull<<0,
+			F_Write	=1ull<<1,
+			F_Seek	=1ull<<2,
+			F_Size	=1ull<<3
+		};
+	
+		enum
+		{
+			Seek_Beg=0,
+			Seek_Cur,
+			Seek_End,
+		};
+	
+	protected:
+		FileNode *file=nullptr;
+		Uint64 Pos=0;
+		Uint64 Flags=0;
+		
+	public:
+		inline Sint64 Read(void *dst,Uint64 size)//Need improve...
+		{
+			if (!(Flags&F_Read))
+				return -ERR_InvalidFileHandlePermission;
+			auto err=file->Read(dst,Pos,size);
+			if (err)
+				return -err;
+			else return Pos+=size,size;
+		}
+		
+		inline Sint64 Write(void *src,Uint64 size)
+		{
+			if (!(Flags&F_Write))
+				return -ERR_InvalidFileHandlePermission;
+			auto err=file->Write(src,Pos,size);
+			if (err)
+				return -err;
+			else return Pos+=size,size;
+		}
+		
+		inline ErrorType Seek(Sint64 pos,Uint8 base=Seek_Beg)
+		{
+			if (!(Flags&F_Seek))
+				return -ERR_InvalidFileHandlePermission;
+			switch (base)
+			{
+				case Seek_Beg: Pos=pos;  		break;
+				case Seek_Cur: Pos+=pos; 		break;
+				case Seek_End: Pos=file->Size();break;//??
+				default:	return ERR_InvalidParameter;
+			}
+			return ERR_None;
+		}
+		
+		inline Uint64 Size()
+		{
+			if (!(Flags&F_Size))
+				return -ERR_InvalidFileHandlePermission;
+			return file->Size();
+		}
+		
+		ErrorType Close()
+		{
+			file->Unref(this);
+			file=nullptr;
+			return ERR_None;
+		}
+		
+		FileHandle(FileNode *filenode,Uint64 flags=F_Read|F_Write|F_Seek|F_Size):Flags(flags)
+		{
+			file=filenode;
+			file->Ref(this);
+		}
 };
 
 class VirtualFileSystemManager

@@ -1,0 +1,87 @@
+#ifndef POS_PHYSICALMEMORY_HPP
+#define POS_PHYSICALMEMORY_HPP
+
+#include "../Types.hpp"
+#include "../Error.hpp"
+
+constexpr Uint32 PageSizeBit=12,
+				 PageSize=1<<PageSizeBit;
+				 
+constexpr Uint64 PageSizeN[3]{PageSize,PageSize*512,PageSize*512*512};
+				 
+constexpr Uint64 PhysicalVirtualMemoryOffset=0xFFFFFFFF40000000ull,
+				 PhysicalKernelStartAddr=0x80020000ull;
+
+inline Uint64 PhysicalMemorySize()
+{return 0x600000;}
+
+inline Uint64 PhysicalMemoryPhysicalStart()
+{return 0x80000000;}
+
+inline Uint64 PhymemVirmemOffset()
+{return PhysicalVirtualMemoryOffset;}
+
+inline Uint64 PhysicalMemoryVirtualEnd()
+{return PhymemVirmemOffset()+PhysicalMemoryPhysicalStart()+PhysicalMemorySize();}
+
+extern "C"
+{
+	extern char kernelstart[];
+	extern char kernelend[];
+	extern char freememstart[];
+	extern char bootstack[];
+	extern char bootstacktop[];
+	
+	inline Uint64 FreeMemBase()
+	{return (Uint64)freememstart;}
+};
+
+struct Page
+{
+	Uint64 flags,
+		   num,//The pages managed by this struct after this
+		   ref;//How many page entry referred to it.
+	Page *pre,
+		 *nxt;
+	
+	inline Uint64 Index() const
+	{return ((Uint64)this-FreeMemBase())/sizeof(Page);}
+	
+	inline void* KAddr() const
+	{return (void*)(FreeMemBase()+Index()*PageSize);}
+	
+	inline void* PAddr() const
+	{return (void*)(FreeMemBase()+Index()*PageSize-PhymemVirmemOffset());}
+};
+
+class PhysicalMemoryManager
+{
+	protected:
+		Page head;
+		Page *PagesEndAddr;
+		Uint64 PageCount;
+		
+		void MergePage(Page *p);
+		
+	public:
+		const char* Name() const;
+		Page* GetPageFromAddr(void *addr);
+		Page* AllocPage(Uint64 count);
+		void Free(Page *p);
+		ErrorType Init();
+		
+		inline void FreePage(Page *p)
+		{Free(p);}
+		
+//		~PhysicalMemoryManager();
+//		PhysicalMemoryManager();
+};
+extern PhysicalMemoryManager POS_PMM;
+
+void* Kmalloc(Uint64 size);
+void  Kfree(void *);
+
+template <typename T> inline T* KmallocT()
+{return (T*)Kmalloc(sizeof(T));}
+
+#endif

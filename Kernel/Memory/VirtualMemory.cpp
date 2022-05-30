@@ -182,11 +182,11 @@ ErrorType VirtualMemorySpace::InitForBoot()
 //		vmr->Init(10000,20000,VirtualMemoryRegion::VM_TEST);//Test region for pagefault...
 //		BootVMS->InsertVMR(vmr);
 //	}
-//	{//??
-//		auto vmr=KmallocT<VirtualMemoryRegion>();
-//		vmr->Init(PhymemVirmemOffset(),PhymemVirmemOffset()+0x80000000,VirtualMemoryRegion::VM_MMIO);
-//		BootVMS->InsertVMR(vmr);
-//	}
+	{
+		auto vmr=KmallocT<VirtualMemoryRegion>();
+		vmr->Init(PhymemVirmemOffset(),PhymemVirmemOffset()+0x80000000,VirtualMemoryRegion::VM_MMIO);
+		BootVMS->InsertVMR(vmr);
+	}
 	BootVMS->PDT=PageTable::Boot();
 	BootVMS->SharedCount=1;
 	kout[Info]<<"Init BootVMS "<<BootVMS<<" OK"<<endl;
@@ -238,9 +238,16 @@ void VirtualMemorySpace::Enter()
 	if (this==CurrentVMS)
 		return;
 	kout[Test]<<"VirtualMemorySpace::Enter: "<<this<<endl;
+	kout[Debug]<<"AAAA"<<endl;
 	CurrentVMS=this;
+	kout[Debug]<<"AAAB"<<endl;
+
 	lcr3((Uint64/*??!*/)PDT->PAddr());//??
+	kout[Debug]<<"AAAC"<<endl;
+
 	asm volatile("sfence.vma");
+	kout[Debug]<<"AAAD"<<endl;
+
 }
 
 ErrorType VirtualMemorySpace::CreatePDT()
@@ -255,9 +262,16 @@ ErrorType VirtualMemorySpace::Create(int type)
 {
 	kout[Test]<<"VirtualMemorySpace::Create "<<this<<" "<<type<<endl;
 	CreatePDT();
-	auto kernelvmr=KmallocT<VirtualMemoryRegion>();
-	kernelvmr->Init((PtrInt)kernelstart,PhysicalMemoryVirtualEnd(),VirtualMemoryRegion::VM_KERNEL);
-	InsertVMR(kernelvmr);
+	{
+		auto vmr=KmallocT<VirtualMemoryRegion>();
+		vmr->Init((PtrInt)kernelstart,PhysicalMemoryVirtualEnd(),VirtualMemoryRegion::VM_KERNEL);
+		InsertVMR(vmr);
+	}
+	{
+		auto vmr=KmallocT<VirtualMemoryRegion>();
+		vmr->Init(PhymemVirmemOffset(),PhymemVirmemOffset()+0x80000000,VirtualMemoryRegion::VM_MMIO);
+		InsertVMR(vmr);
+	}
 	switch (type)
 	{
 		case VMS_Default:	break;

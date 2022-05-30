@@ -2,6 +2,7 @@
 #include <Library/Kout.hpp>
 #include <Process/Process.hpp>
 #include <Trap/Interrupt.hpp>
+#include <Process/Synchronize.hpp>
 using namespace POS;
 
 inline void Syscall_Putchar(char ch)
@@ -19,12 +20,6 @@ void Syscall_Exit(int re)
 	cur->Exit(re);
 	POS_PM.Schedule();
 	kout[Fault]<<"Syscall_Exit: Reached unreachable branch!"<<endl;
-}
-
-PID Syscall_Clone(Uint64 flags,PtrInt stack,PID faPID,Uint64 tls,PID childPID)
-{
-	kout[Fault]<<"Syscall_Clone is not usable yet!"<<endl;
-	return Process::InvalidPID;
 }
 
 PID Syscall_Fork(TrapFrame *tf)
@@ -55,8 +50,53 @@ PID Syscall_Fork(TrapFrame *tf)
 	}
 }
 
-inline  PID Syscall_GetPID()
+inline PID Syscall_GetPID()
 {return POS_PM.Current()->GetPID();}
+
+inline RegisterData Syscall_Write(int fd,void *dst,Uint64 size)
+{
+//	kout[Warning]<<"Currently Syscall_Write can only use fd == 1!"<<endl;
+	if (fd!=1)
+	{
+		kout[Error]<<"Currently Syscall_Write can only use fd == 1, while fd is "<<fd<<endl;
+		return (RegisterData)-1;
+	}
+	Process *proc=POS_PM.Current();
+	VirtualMemorySpace *vms=proc->GetVMS();
+	vms->EnableAccessUser();
+	for (int i=0;i<size;++i)
+		Putchar(*(char*)(dst+i));
+	vms->DisableAccesUser();
+	return size;
+}
+
+inline PID Syscall_Wait4(PID cid,int *status,int options)
+{
+	constexpr int WNOHANG=1;
+	Process *proc=POS_PM.Current();
+	while (1)//??
+	{
+		Process *child=proc->GetQuitingChild(cid==-1?Process::AnyPID:cid);
+		if (child!=nullptr)
+		{
+			PID re=proc->GetPID();
+			proc->Destroy();
+			return re;
+		}
+		else if (options&WNOHANG)
+			return -1;
+		else proc->GetWaitSem()->Wait();
+	}
+}
+
+inline PID Syscall_GetPPID()
+{
+	Process *proc=POS_PM.Current();
+	Process *fa=proc->GetFa();
+	if (fa==nullptr)
+		return Process::InvalidPID;
+	else return fa->GetPID();
+}
 
 ErrorType TrapFunc_Syscall(TrapFrame *tf)
 {
@@ -76,19 +116,57 @@ ErrorType TrapFunc_Syscall(TrapFrame *tf)
 		case SYS_Exit:
 			Syscall_Exit(tf->reg.a0);
 			break;
-		case SYS_Clone:
-			tf->reg.a0=Syscall_Clone(tf->reg.a0,tf->reg.a1,tf->reg.a2,tf->reg.a3,tf->reg.a4);
-			break;
 		case SYS_Fork:
 			Syscall_Fork(tf);
-//			kout<<"TF "<<tf<<endl;
-//			kout<<DataWithSizeUnited(tf,sizeof(TrapFrame),sizeof(RegisterData))<<endl;
-//			kout<<"SP EPC "<<(void*)tf->reg.sp<<" "<<(void*)tf->epc+4<<endl;
 			break;
 		case SYS_GetPID:
 			tf->reg.a0=Syscall_GetPID();
 			break;
+		
+		case	SYS_getcwd		:
+		case	SYS_pipe2		:
+		case	SYS_dup			:
+		case	SYS_dup3		:
+		case	SYS_chdir		:
+		case	SYS_openat		:
+		case	SYS_close		:
+		case	SYS_getdents64	:
+		case	SYS_read		:
+			goto Default;
+		case	SYS_write		:
+			tf->reg.a0=Syscall_Write(tf->reg.a0,(void*)tf->reg.a1,tf->reg.a2);
+			break;
+		case	SYS_linkat		:
+		case	SYS_unlinkat	:
+		case	SYS_mkdirat		:
+		case	SYS_umount2		:
+		case	SYS_mount		:
+		case	SYS_fstat		:
+		case	SYS_clone		:
+		case	SYS_execve		:
+			goto Default;
+		case	SYS_wait4		:
+			tf->reg.a0=Syscall_Wait4(tf->reg.a0,(int*)tf->reg.a1,tf->reg.a2);
+			break;
+		case	SYS_exit		:
+			Syscall_Exit(tf->reg.a0);
+			break;
+		case	SYS_getppid		:
+			tf->reg.a0=Syscall_GetPPID();
+			break;
+		case	SYS_getpid		:
+			tf->reg.a0=Syscall_GetPID();
+			break;
+		case	SYS_brk			:
+		case	SYS_munmap		:
+		case	SYS_mmap		:
+		case	SYS_times		:
+		case	SYS_uname		:
+		case	SYS_sched_yeild	:
+		case	SYS_gettimeofday:
+		case	SYS_nanosleep	:
 		default:
+		Default:
 		{
 			Process *cur=POS_PM.Current();
 			if (cur->IsKernelProcess())

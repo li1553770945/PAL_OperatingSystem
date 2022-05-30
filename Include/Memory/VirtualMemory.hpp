@@ -9,6 +9,7 @@
 #include "../Library/Kout.hpp"
 #include "../Riscv.h"
 #include "../Process/SpinLock.hpp"
+#include "../Config.h"
 
 class PageTable;
 
@@ -174,8 +175,8 @@ class PageTable
 		{
 			using namespace POS;
 			kout[Test]<<"PageTable::InitAsPDT "<<this<<endl;
-			POS::MemsetT(entries,Entry(0),PageTableEntryCount-1);
-			entries[PageTableEntryCount-1]=(*Boot())[PageTableEntryCount-1];//??
+			POS::MemsetT(entries,Entry(0),PageTableEntryCount-3);
+			POS::MemcpyT(&entries[PageTableEntryCount-3],&(*Boot())[PageTableEntryCount-3],3);//??
 			return ERR_None;
 		}
 		
@@ -291,6 +292,24 @@ class VirtualMemorySpace:protected SpinLock
 		inline static VirtualMemorySpace* Kernel()
 		{return KernelVMS;}
 		
+		inline static void EnableAccessUser()
+		{
+			#ifdef QEMU
+			write_csr(sstatus,read_csr(sstatus)|SSTATUS_SUM);
+			#else
+			write_csr(sstatus,read_csr(sstatus)&~SSTATUS_SUM);
+			#endif
+		}
+		
+		inline static void DisableAccesUser()
+		{
+			#ifdef QEMU
+			write_csr(sstatus,read_csr(sstatus)&~SSTATUS_SUM);
+			#else
+			write_csr(sstatus,read_csr(sstatus)|SSTATUS_SUM);
+			#endif
+		}
+		
 		static ErrorType InitStatic();
 		
 		VirtualMemoryRegion* FindVMR(PtrInt p);
@@ -303,7 +322,10 @@ class VirtualMemorySpace:protected SpinLock
 		void Enter();
 		
 		inline void Leave()
-		{KernelVMS->Enter();}
+		{
+			if (CurrentVMS==this)
+				KernelVMS->Enter();
+		}
 		
 		ErrorType SolvePageFault(TrapFrame *tf);
 		ErrorType Create(int type=VMS_Default);

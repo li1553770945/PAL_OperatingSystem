@@ -120,8 +120,8 @@ _restore_context:
 
     .globl __alltraps
 __alltraps:
-    SAVE_ALL
-
+	SAVE_ALL
+	
     move  a0, sp
     jal Trap
     # sp should be the same as before "jal trap"

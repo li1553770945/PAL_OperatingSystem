@@ -42,6 +42,7 @@ extern "C"
 					kout<<LightGray<<"*"<<Reset;
 				if (ClockTick%1000==0)
 				{
+//					kout[Debug]<<(void*)tf->epc<<" "<<(void*)tf->badvaddr<<endl;
 //					kout[Debug]<<DataWithSizeUnited(tf,sizeof(TrapFrame),sizeof(RegisterData))<<endl;
 					POS_PM.Schedule();
 				}

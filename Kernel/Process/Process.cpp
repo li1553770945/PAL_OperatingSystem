@@ -8,6 +8,7 @@
 #include <SyscallID.hpp>
 #include <Library/String/SysStringTools.hpp>
 #include <Config.h>
+#include <Process/Synchronize.hpp>
 
 #include "../../Include/Process/Process.hpp"
 
@@ -64,6 +65,7 @@ Process* ProcessManager::AllocProcess()
 		if (Processes[i].stat==Process::S_None)
 		{
 			++ProcessCount;
+			Processes[i].stat=Process::S_Initing;
 			return &Processes[i];
 		}
 	return nullptr;
@@ -80,6 +82,7 @@ ErrorType ProcessManager::FreeProcess(Process *proc)
 
 ErrorType ProcessManager::Init()
 {
+	MemsetT<char>((char*)&Processes,0,sizeof(Processes));
 	for (int i=0;i<MaxProcessCount;++i)
 	{
 		Processes[i].PM=this;
@@ -137,10 +140,12 @@ ErrorType Process::Exit(int re)
 	VMS->Leave();
 	stat=S_Quiting;
 	//Signal fa...
+	if (!(flags&F_AutoDestroy)&&fa!=nullptr)
+		fa->WaitSem->Signal();
 	return ERR_None;
 }
 
-ErrorType Process::Start(int (*func)(void*),void *funcdata)
+ErrorType Process::Start(int (*func)(void*),void *funcdata,PtrInt userStartAddr)
 {
 	ASSERT(VMS!=nullptr,"Process::Start: VMS is nullptr!");
 	ASSERT(Stack!=nullptr,"Process::Start: Stack is nullptr!");
@@ -157,18 +162,14 @@ ErrorType Process::Start(int (*func)(void*),void *funcdata)
 		TrapFrame *tf=(TrapFrame*)(Stack+StackSize)-1;
 		context.ra   =(RegisterData)UserThreadEntry;
     	context.sp   =(RegisterData)tf;
-    	tf->reg.sp	 =(RegisterData)InnerUserProcessStackAddr+InnerUserProcessStackSize;
-		tf->epc      =(RegisterData)func;
+    	context.s[0] =(RegisterData)func;
+    	context.s[1] =(RegisterData)funcdata;
+    	tf->reg.sp	 =(RegisterData)InnerUserProcessStackAddr/*??*/+InnerUserProcessStackSize-32;
+		tf->epc      =(RegisterData)userStartAddr;
 		tf->status   =(RegisterData)((read_csr(sstatus)|SSTATUS_SPIE)&~SSTATUS_SPP&~SSTATUS_SIE);//??
 	}
 	stat=S_Ready;
 	return ERR_None;
-}
-
-ErrorType Process::Start(PtrInt addr)
-{
-	kout[Warning]<<"Process::Start is testing!"<<endl;
-	return Start((int(*)(void*))addr,nullptr);
 }
 
 ErrorType Process::SetVMS(VirtualMemorySpace *vms)
@@ -242,17 +243,57 @@ ErrorType Process::CopyOthers(Process *src)
 	return ERR_None;
 }
 
-ErrorType Process::SetName(char *name)
+ErrorType Process::SetName(char *name,bool outside)
 {
-	if (Name!=nullptr)
+	if (Name!=nullptr&&(flags&F_OutsideName))
 		Kfree(Name);
-	Name=name;
+	if (outside)
+	{
+		Name=name;
+		flags|=F_OutsideName;
+	}
+	else
+	{
+		Name=strDump(name);
+		flags&=~F_OutsideName;
+	}
 	return ERR_None;
+}
+
+ErrorType Process::SetFa(Process *_fa)
+{
+	ISAS
+	{
+		if (F_AutoDestroy&&_fa!=nullptr)
+			flags&=~F_AutoDestroy;//Remove the auto destroy flag for process with parent.
+		if (fa!=nullptr)
+		{
+			if (fa->child==this)
+				fa->child=nxt;
+			else pre->nxt=nxt;
+			if (nxt!=nullptr)
+				nxt->pre=pre;
+			pre=nxt=fa=nullptr;
+		}
+		fa=_fa;
+		nxt=fa->child;
+		fa->child=this;
+		if (nxt!=nullptr)
+			nxt->pre=this;
+	}
+	return ERR_None;
+}
+
+Process* Process::GetQuitingChild(PID cid)
+{
+	ISAS for (Process *p=child;p;p=p->nxt)
+		if (p->stat==S_Quiting&&InThisSet(cid,AnyPID,p->ID))
+			return p;
+	return nullptr;
 }
 
 ErrorType Process::InitForKernelProcess0()
 {
-	stat=S_Running;
 	RunningTime=0;
 	CountingBase=RunningTime=StartedTime=SleepingTime=WaitingTime=0;
 	Stack=bootstack;
@@ -262,17 +303,19 @@ ErrorType Process::InitForKernelProcess0()
 //	tf=nullptr;
 	VMS=VirtualMemorySpace::Boot();
 	flags=F_Kernel;
-	Name="PAL_OperatingSystem BootProcess";
+	Name=nullptr;
+	SetName("PAL_OperatingSystem BootProcess",1);
 	Namespace=0;
 	SemWaitingLink.SetData(this);
 	SemWaitingTargetTime=0;
+	WaitSem=new Semaphore(0);
+	stat=S_Running;
 	return ERR_None;
 }
 
 ErrorType Process::Init(Uint64 _flags)
 {
-	ASSERT(stat==0,"Process::Init: stat is not 0");
-	stat=S_Initing;
+	ASSERT(stat==S_Initing,"Process::Init: stat is not 0");
 	RunningTime=0;
 	CountingBase=RunningTime=StartedTime=SleepingTime=WaitingTime=0;
 	Stack=nullptr;
@@ -286,6 +329,7 @@ ErrorType Process::Init(Uint64 _flags)
 	Namespace=0;
 	SemWaitingLink.SetData(this);
 	SemWaitingTargetTime=0;
+	WaitSem=new Semaphore(0);
 	return ERR_None;
 }
 
@@ -303,7 +347,9 @@ ErrorType Process::Destroy()
 		Kfree(Stack);
 	Stack=nullptr;
 	SemWaitingLink.Remove();//What about Lock protect??
-	stat=S_None;
+	delete WaitSem;
+	WaitSem=nullptr;
+	SetName(nullptr,1);
 	PM->FreeProcess(this);
 	return ERR_None;
 }
@@ -418,18 +464,10 @@ PID CreateInnerUserImgProcess(PtrInt start,PtrInt end,Uint64 flags)
 
 	{//Test...
 		vms->Enter();
-		#ifdef QEMU
-		write_csr(sstatus,read_csr(sstatus)|SSTATUS_SUM);
-		#else
-		write_csr(sstatus,read_csr(sstatus)&~SSTATUS_SUM);
-		#endif
+		vms->EnableAccessUser();
 		MemcpyT<char>((char*)InnerUserProcessLoadAddr,(const char*)start,loadsize);
-//		kout<<DataWithSize((void*)InnerUserProcessLoadAddr,loadsize)<<endl;
-		#ifdef QEMU
-		write_csr(sstatus,read_csr(sstatus)&~SSTATUS_SUM);
-		#else
-		write_csr(sstatus,read_csr(sstatus)|SSTATUS_SUM);
-		#endif
+		MemsetT<char>((char*)InnerUserProcessStackAddr,0,InnerUserProcessStackSize);//!!??
+		vms->DisableAccesUser();
 		vms->Leave();
 	}
 
@@ -437,7 +475,7 @@ PID CreateInnerUserImgProcess(PtrInt start,PtrInt end,Uint64 flags)
 	proc->Init(flags);
 	proc->SetStack(nullptr,KernelStackSize);
 	proc->SetVMS(vms);
-	proc->Start(InnerUserProcessLoadAddr);
+	proc->Start(nullptr,nullptr,InnerUserProcessLoadAddr);
 	kout[Test]<<"CreateInnerUserImgProcess "<<(void*)start<<" "<<(void*)end<<" with PID "<<proc->GetPID()<<endl;
 	return flags&Process::F_AutoDestroy?Process::UnknownPID:proc->GetPID();
 }
