@@ -43,8 +43,8 @@ user:
 build: dir user $(OBJECTS) as
 	$(LD) $(LDFLAGS) -o $(B)/kernel.elf -T$(L)/link.ld $(wildcard $(B)/*.o)  $(LDFLAGS)
 
-all: build
-
+all: 
+	bash ./Tools/Scripts/all.sh
 
 QEMU=qemu-system-riscv64
 QEMUFLAGS=-machine virt -m 128M -nographic -bios SBI/rustsbi-qemu -device loader,file=Build/kernel.bin,addr=0x80200000
