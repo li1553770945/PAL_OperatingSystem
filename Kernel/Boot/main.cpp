@@ -159,7 +159,7 @@ int RunAllTestSuits(void*)
 		}
 	};
 	
-//	kout.SetEnableEffect(0);
+	kout.SetEnableEffect(0);
 	kout.SwitchTypeOnoff(Warning,0);
 	kout.SwitchTypeOnoff(Test,0);
 //	kout.SwitchTypeOnoff(Debug,0);
