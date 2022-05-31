@@ -10,7 +10,7 @@ extern "C"
 //	void *__cxa_atexit=0;
 //	void *_Unwind_Resume=0;
 //	void *__gxx_personality_v0=0;
-//	void *__cxa_pure_virtual=0;
+	void *__cxa_pure_virtual=0;
 //????
 	
 	void* memset(void *_dst,int _Val,size_t _Size)
