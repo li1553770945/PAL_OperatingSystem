@@ -160,10 +160,7 @@ FileNode* FAT32::GetNextFile(const char* base)
 }
 FileNode* FAT32::Open(const char* path)
 {
-	kout[Debug]<<"FAT32 Open "<<path<<" "<<this<<" "<<(void*)*((Uint64*)this)<<endl;
-	FileNode *re=FindFileByPath(path);
-	kout[Debug]<<"FAT32 Open OK "<<(void*)*((Uint64*)this)<<endl;
-	return re;
+	return FindFileByPath(path);
 }
 ErrorType FAT32::Close(FileNode* p)
 {
@@ -171,10 +168,8 @@ ErrorType FAT32::Close(FileNode* p)
 }
 FileNode* FAT32::LoadShortFileInfoFromBuffer(unsigned char * buffer) //从第lba扇区偏移offset的位置读取文件头信息
 {
-	kout[Debug]<<"LSF1 "<<(void*)*((Uint64*)this)<<endl;
 	if (buffer[0] == 0x00 || buffer[0] == 0xE5)//如果这个位置已经被删除或没有数据则返回Null
 	{
-	kout[Debug]<<"LSF2 "<<(void*)*((Uint64*)this)<<endl;
 		return nullptr;
 	}
 	
@@ -183,15 +178,12 @@ FileNode* FAT32::LoadShortFileInfoFromBuffer(unsigned char * buffer) //从第lba
 	{
 		return nullptr;
 	}*/
-	kout[Debug]<<"LSF3 "<<(void*)*((Uint64*)this)<<endl;
 	FAT32FileNode* node = new FAT32FileNode(this);
-	kout[Debug]<<"LSF4 "<<(void*)*((Uint64*)this)<<endl;
 	node->IsDir = attr & (1 << 4);
 	Uint16 file_name_length = 0; //获取文件名
 	for (int i = 0; i < 8; i++)
 	{
 		
-	kout[Debug]<<"LSF5 "<<(void*)*((Uint64*)this)<<endl;
 		if (buffer[i] == 0x20)
 		{
 			break;
@@ -199,41 +191,32 @@ FileNode* FAT32::LoadShortFileInfoFromBuffer(unsigned char * buffer) //从第lba
 		file_name_length++;
 	}
 
-	kout[Debug]<<"LSF6 "<<(void*)*((Uint64*)this)<<endl;
 	Uint16 extend_name_length = 0;
 	unsigned char* file_name;
 	int total_length;
 	for (int i = 0x08; i < 0x0B; i++)//读取拓展名
 	{
-	kout[Debug]<<"LSF7 "<<(void*)*((Uint64*)this)<<endl;
 		if (buffer[i] == 0x20)
 		{
 			break;
 		}
 		extend_name_length++;
 	}
-	kout[Debug]<<"LSF8 "<<(void*)*((Uint64*)this)<<endl;
 	if (!node->IsDir&&extend_name_length!=0)//不是文件夹，且有拓展名
 	{
 		
-	kout[Debug]<<"LSF9 "<<(void*)*((Uint64*)this)<<endl;
 		total_length = file_name_length + extend_name_length + 1;
 		file_name = new unsigned char[total_length + 1];
 		POS::MemcpyT(file_name, buffer, file_name_length);
-	kout[Debug]<<"LSF10 "<<(void*)*((Uint64*)this)<<endl;
 		file_name[file_name_length] = '.';
 		POS::MemcpyT(file_name + file_name_length + 1, buffer + 0x08, extend_name_length);
 	}
 	else
 	{
-	kout[Debug]<<"LSF11 "<<(void*)*((Uint64*)this)<<" "<<file_name_length<<endl;
 		total_length = file_name_length;
-	kout[Debug]<<"LSF11.1 "<<(void*)*((Uint64*)this)<<endl;
 		file_name = new unsigned char[total_length + 1];
-	kout[Debug]<<"LSF11.2 "<<(void*)*((Uint64*)this)<<" "<<file_name<<" "<<buffer<<endl;
 		POS::MemcpyT(file_name, buffer, file_name_length);
 	}
-	kout[Debug]<<"LSF12 "<<(void*)*((Uint64*)this)<<" "<<file_name<<" "<<this<<endl;
 
 	//1. 此值为18H时，文件名和扩展名都小写。
 	//2. 此值为10H时，文件名大写而扩展名小写。
@@ -250,7 +233,6 @@ FileNode* FAT32::LoadShortFileInfoFromBuffer(unsigned char * buffer) //从第lba
 			}
 		}
 	}
-	kout[Debug]<<"LSF13 "<<(void*)*((Uint64*)this)<<endl;
 	if (buffer[0x0C] == 0x10 || buffer[0x0C] == 0x18)
 	{
 		for (int i = file_name_length + 1; i <total_length; i++)
@@ -261,17 +243,13 @@ FileNode* FAT32::LoadShortFileInfoFromBuffer(unsigned char * buffer) //从第lba
 			}
 		}
 	}
-	kout[Debug]<<"LSF14 "<<(void*)*((Uint64*)this)<<endl;
 	file_name[total_length] = '\0';
 
-	kout[Debug]<<"LSF15 "<<(void*)*((Uint64*)this)<<endl;
 	node->SetFileName((char*)file_name,false);
 	node->nxt = nullptr;
-	kout[Debug]<<"LSF16 "<<(void*)*((Uint64*)this)<<" "<<node->GetName()<<endl;
 	node->FileSize = (buffer[0x1F] << 24) | (buffer[0x1E] << 16) | (buffer[0x1D] << 8) | (buffer[0x1C]);//获取文件大小
 	node->FirstCluster = (buffer[0x15] << 24) | (buffer[0x14] << 16) | (buffer[0x1B] << 8) | (buffer[0x1A]);
-	//delete [] file_name; 移植的时候记得加上
-	kout[Debug]<<"LSF17 "<<(void*)*((Uint64*)this)<<endl;
+	delete [] file_name;
 	return node;
 
 }
@@ -344,85 +322,69 @@ Uint64 FAT32::GetFATContentFromCluster(Uint64 cluster)
 }
 FileNode* FAT32::FindFileByNameFromCluster(Uint64 cluster, const char* name)
 {
-	kout[Debug]<<"FF1 "<<(void*)*((Uint64*)this)<<endl;
 	FAT32FileNode* result;
 	Uint64 lba = GetLbaFromCluster(cluster);
 	for (Uint32 i = 0; i < Dbr.BPBSectionPerClus; i++)
 	{
-	kout[Debug]<<"FF2 "<<(void*)*((Uint64*)this)<<endl;
 		unsigned char buffer[SECTIONSIZE];
 		ReadRawData(lba + i, 0, 512, buffer);
-	kout[Debug]<<"FF3 "<<(void*)*((Uint64*)this)<<endl;
 		for (Uint32 j = 0; j < SECTIONSIZE / 32; j++)
 		{
-	kout[Debug]<<"FF4 "<<(void*)*((Uint64*)this)<<endl;
 			unsigned char temp[32];
 			POS::MemcpyT(temp, buffer + j * 32, 32);
 			if (temp[0] == 0x00) //遇到目录结尾
 			{
-	kout[Debug]<<"FF5 "<<(void*)*((Uint64*)this)<<endl;
 				return nullptr;
 			}
 			Uint16 attr = temp[11];
 			if (attr == 0x0F)//长目录项
 			{
-	kout[Debug]<<"FF6 "<<(void*)*((Uint64*)this)<<endl;
 				result = new FAT32FileNode(this, 2);
 				result->Name = new char;
 				result->Name[0] = 0;
 			}
 			else //短目录项
 			{
-	kout[Debug]<<"FF7 "<<(void*)*((Uint64*)this)<<endl;
 				result = (FAT32FileNode*)LoadShortFileInfoFromBuffer(temp);
 			}
 			if (result != nullptr)
 			{
-	kout[Debug]<<"FF8 "<<(void*)*((Uint64*)this)<<endl;
 				if (POS::strComp(name, result->Name) == 0)
 				{
-	kout[Debug]<<"FF9 "<<(void*)*((Uint64*)this)<<endl;
 					return result;
 				}
+				else delete result;
 			}
 		}
 	}
-	kout[Debug]<<"FF10 "<<(void*)*((Uint64*)this)<<endl;
 	Uint64 nxt = GetFATContentFromCluster(cluster);
 	if (nxt != CLUSTEREND)
 	{
-	kout[Debug]<<"FF11 "<<(void*)*((Uint64*)this)<<endl;
 		return FindFileByNameFromCluster(nxt,name);
 	}
 	else
 	{
-	kout[Debug]<<"FF12 "<<(void*)*((Uint64*)this)<<endl;
 		return nullptr;
 	}
 }
 FileNode* FAT32::FindFileByPath(const char* path)
 {
-	kout[Debug]<<"F1 "<<(void*)*((Uint64*)this)<<endl;
 	if (POS::strLen(path) == 0)
 	{
-	kout[Debug]<<"F3 "<<(void*)*((Uint64*)this)<<endl;
 		return nullptr;
 	}
 	if (path[0] != '/')
 	{
 		kout[Info] << "now this system only support absolute path,which means begin with /";
-	kout[Debug]<<"F4 "<<(void*)*((Uint64*)this)<<endl;
 		return nullptr;
 	}
 	if (POS::strLen(path) == 1)
 	{
 		FAT32FileNode* node = new FAT32FileNode(this, 2);
 		node->IsDir = true;
-	kout[Debug]<<"F5 "<<(void*)*((Uint64*)this)<<endl;
 		return node;
 	}
 
-	kout[Debug]<<"F10 "<<(void*)*((Uint64*)this)<<endl;
 
 	FAT32FileNode* node = new FAT32FileNode(this, 2);
 	Uint64 index, last_index = 1;
@@ -432,7 +394,7 @@ FileNode* FAT32::FindFileByPath(const char* path)
 		{
 			if (index == last_index)
 			{
-	kout[Debug]<<"F6 "<<(void*)*((Uint64*)this)<<endl;
+				delete node;
 				return nullptr;
 			}
 			char* temp = new char[(Uint32)(index - last_index + 1ull)];
@@ -443,38 +405,29 @@ FileNode* FAT32::FindFileByPath(const char* path)
 			node = (FAT32FileNode*)FindFileByNameFromCluster(node->FirstCluster,temp);
 			if (node == nullptr)
 			{
-	kout[Debug]<<"F7 "<<(void*)*((Uint64*)this)<<endl;
+				delete temp;
 				return nullptr;
 			}
 			delete[] temp;
 			delete last_node;
 			if (index != POS::strLen(path) && node->IsDir == false)
 			{
-	kout[Debug]<<"F8 "<<(void*)*((Uint64*)this)<<endl;
+				delete node;
 				return nullptr;
 			}
 			last_index = index + 1;
 		}
 	}
-	kout[Debug]<<"F9 "<<(void*)*((Uint64*)this)<<endl;
 	if (last_index < POS::strLen(path)) //最后一个section
 	{
-	kout[Debug]<<"F10 "<<(void*)*((Uint64*)this)<<endl;
 		char* temp = new char[(Uint32)(POS::strLen(path)- last_index + 1)];
-	kout[Debug]<<"F11 "<<(void*)*((Uint64*)this)<<endl;
 		POS::MemcpyT(temp, path + last_index, POS::strLen(path) - last_index);
-	kout[Debug]<<"F12 "<<(void*)*((Uint64*)this)<<endl;
 		temp[POS::strLen(path) - last_index] = '\0';
-	kout[Debug]<<"F13 "<<(void*)*((Uint64*)this)<<endl;
 		FAT32FileNode* last_node = node;
-	kout[Debug]<<"F14 "<<(void*)*((Uint64*)this)<<endl;
 		node = (FAT32FileNode*)FindFileByNameFromCluster(node->FirstCluster, temp);
-	kout[Debug]<<"F15 "<<(void*)*((Uint64*)this)<<endl;
 		delete[] temp;
-	kout[Debug]<<"F16 "<<(void*)*((Uint64*)this)<<endl;
 		delete last_node;
 	}
-	kout[Debug]<<"F2 "<<(void*)*((Uint64*)this)<<endl;
 	return node;
 }
 bool FAT32::IsExist(const char* path)
@@ -513,8 +466,9 @@ ErrorType FAT32FileNode::Read(void* dst, Uint64 pos, Uint64 size)
 	FAT32* vfs = (FAT32*)Vfs;
 	Uint64 total_has_read_size = 0;//可能要跨扇区、簇读取，这是本次（该函数执行完一次）总数据量
 	Uint64 bytes_per_cluster = SECTIONSIZE * vfs->Dbr.BPBSectionPerClus;
-	if (size + ReadSize > FileSize)
+	if (pos>=FileSize||size + pos >= FileSize)
 	{
+		kout[Error]<<"File operation out of range! size "<<size<<", pos "<<pos<<", filesize "<<FileSize<<endl;
 		return ERR_FileOperationOutofRange;
 	}
 	if (size == 0)

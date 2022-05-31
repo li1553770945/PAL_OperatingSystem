@@ -87,7 +87,8 @@ namespace POS
 			unsigned EnabledType=0xFFFFFFFF;
 			unsigned CurrentType=31;
 			unsigned RegisteredType=0;
-			bool CurrentTypeOn=1;
+			bool CurrentTypeOn=1,
+				 EnableEffect=1;
 			
 			inline bool Precheck()
 			{return CurrentTypeOn;}
@@ -129,15 +130,24 @@ namespace POS
 				if (onoff)
 					EnabledType|=1u<<type;
 				else EnabledType&=~(1u<<type);
-				SwitchCurrentType(CurrentType);
+				SwitchCurrentType(NoneKoutType);
+			}
+			
+			inline void SetEnabledType(unsigned en)
+			{
+				EnabledType=en;
+				SwitchCurrentType(NoneKoutType);
 			}
 			
 			inline bool GetTypeOnoff(unsigned char type)
 			{return EnabledType&1<<type;}
 			
+			inline void SetEnableEffect(bool on)
+			{EnableEffect=on;}
+			
 			inline KOUT& operator << (KoutEffect effect)
 			{
-				if (Precheck())
+				if (Precheck()&&EnableEffect)
 					*this<<"\e["<<(int)effect<<"m";
 				return *this;
 			}

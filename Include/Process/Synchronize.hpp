@@ -82,6 +82,10 @@ class Semaphore
 					
 					iss.Save();
 					LockProcess();
+					if (GetClockTime()>=proc->SemWaitingTargetTime)
+						re=0,++value;//??
+					proc->SemWaitingLink.Remove();//?? It may reach here because of timeout etc...
+					proc->SemWaitingTargetTime=0;
 				}
 			UnlockProcess();
 			iss.Restore();
@@ -101,11 +105,7 @@ class Semaphore
 				if (!p.NxtEmpty())
 				{
 					if (p()->stat==Process::S_Sleeping)
-					{
 						p()->stat=Process::S_Ready;
-						p()->SemWaitingTargetTime=0;
-					}
-					p.Remove();
 				}
 				else break;
 			}

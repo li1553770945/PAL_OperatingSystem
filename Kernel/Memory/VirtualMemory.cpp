@@ -61,16 +61,14 @@ ErrorType VirtualMemoryRegion::CopyMemory(PageTable &pt,const PageTable &src,int
 					ptNxt->Init();
 					pt[i].SetPageTable(ptNxt);
 				}
+				else ptNxt=pt[i].GetPageTable();
 				CopyMemory(*ptNxt,*srcNxt,level-1,l);
 			}
 			else if (level==0)
 			{
 				Page *srcPage=src[i].GetPage();
 				if (Flags&VM_Shared|Flags&VM_Kernel)
-				{
-					++srcPage->ref;
 					pt[i].SetPage(srcPage,ToPageEntryFlags());
-				}
 				else
 				{
 					Page *page=POS_PMM.AllocPage(1);
@@ -82,7 +80,7 @@ ErrorType VirtualMemoryRegion::CopyMemory(PageTable &pt,const PageTable &src,int
 				}
 			}
 			else kout[Warning]<<"VirtualMemoryRegion::CopyMemory copy huge page is not usable!"<<endl;
-	return ERR_Todo;
+	return ERR_None;
 }
 
 ErrorType VirtualMemoryRegion::Init(PtrInt start,PtrInt end,PtrInt flags)
@@ -238,16 +236,9 @@ void VirtualMemorySpace::Enter()
 	if (this==CurrentVMS)
 		return;
 	kout[Test]<<"VirtualMemorySpace::Enter: "<<this<<endl;
-	kout[Debug]<<"AAAA"<<endl;
 	CurrentVMS=this;
-	kout[Debug]<<"AAAB"<<endl;
-
 	lcr3((Uint64/*??!*/)PDT->PAddr());//??
-	kout[Debug]<<"AAAC"<<endl;
-
-	asm volatile("sfence.vma");
-	kout[Debug]<<"AAAD"<<endl;
-
+	asm volatile("sfence.vma \n fence.i \n fence");
 }
 
 ErrorType VirtualMemorySpace::CreatePDT()
@@ -281,6 +272,7 @@ ErrorType VirtualMemorySpace::Create(int type)
 		default:
 			kout[Fault]<<"VirtualMemorySpace::Create unknown type VMS "<<type<<endl;
 	}
+	kout[Test]<<"VirtualMemorySpace::Create "<<this<<" OK"<<endl;
 	return ERR_None;
 }
 
@@ -298,6 +290,7 @@ ErrorType VirtualMemorySpace::CreateFrom(VirtualMemorySpace *vms)
 		q->CopyMemory(*PDT,*vms->PDT,2);
 		p=p->Nxt();
 	}
+	kout[Test]<<"VirtualMemorySpace::CreateFrom "<<vms<<", OK this is "<<this<<endl;
 	return ERR_Todo;
 }
 
@@ -346,7 +339,7 @@ ErrorType VirtualMemorySpace::SolvePageFault(TrapFrame *tf)
 			e0.SetPage(pg0,vmr->ToPageEntryFlags());
 		}
 		else kout[Fault]<<"VirtualMemorySpace::SolvePageFault: Page exist, however page fault!"<<endl;
-		asm volatile("sfence.vma");//Test usage... Need improve!
+		asm volatile("sfence.vma \n fence.i \n fence");//Test usage... Need improve!
 //		asm volatile("sfence.vm");
 	}
 	kout[Test]<<"SolvePageFault OK"<<endl;
@@ -374,7 +367,7 @@ ErrorType VirtualMemorySpace::Destroy()
 	if (PDT!=nullptr)
 		PDT->Destroy(2);//??
 	kout[Test]<<"VirtualMemorySpace::Destroy "<<this<<" OK"<<endl;
-	return ERR_Todo;
+	return ERR_None;
 }
 
 ErrorType TrapFunc_FageFault(TrapFrame *tf)

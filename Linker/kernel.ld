@@ -8,7 +8,7 @@ SECTIONS
 	
 	.text :
 	{
-		textstart = .;
+		PROVIDE(textstart = .);
 		*(.text.entry)
 		*(.text .text.*)
 		PROVIDE(textend = .);
@@ -16,29 +16,26 @@ SECTIONS
 	
 	.rodata : 
 	{
-		rodatastart = .;
+		PROVIDE(rodatastart = .);
 		*(.srodata .srodata.* .rodata .rodata.*)
-		rodataend = .;
+		PROVIDE(rodataend = .);
 	}
 	. = ALIGN(4k);
 
 	.data :
 	{
-		datastart = .;
+		PROVIDE(datastart = .);
 		*(.data .data.*)
 		PROVIDE(dataend = .);
 	}
 
 	.bss :
 	{
-		bssstart = .;
+		PROVIDE(bssstart = .);
 		*(.sbss .sbss.* .bss .bss.*)
-		bssend = .;
+		PROVIDE(bssend = .);
 	}
-	.all :
-	{
-		*(* .* *. *.*)
-	}
+	
 	PROVIDE(kernelend = .);
 	. = ALIGN(4k);
 	PROVIDE(freememstart = .);

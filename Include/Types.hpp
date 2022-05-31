@@ -18,9 +18,10 @@ using RegisterData=Uint64;
 using ClockTime=Uint64;
 using TickType=Uint64;
 using ErrorType=Sint32;
-using PID=Uint32;
-using TID=Uint32;
+using PID=Sint32;
+//using TID=Sint32;
 using PtrInt=Uint64;//The UintXX of void*
+using PtrSInt=Sint64;
 using PageTableEntryType=Uint64;
 
 #endif

@@ -55,6 +55,7 @@ class Process
 	friend class ProcessManager;
 	friend class ForkServerClass;
 	friend class Semaphore;
+	friend PID Syscall_Clone(TrapFrame *tf,Uint64 flags,void *stack,PID ppid,Uint64 tls,PID cid);//??
 	public:
 		enum
 		{
@@ -67,7 +68,7 @@ class Process
 			S_Quiting
 		};
 		
-		enum
+		enum:Uint64
 		{
 			F_Kernel		=1ull<<0,
 			F_AutoDestroy	=1ull<<1,
@@ -119,13 +120,13 @@ class Process
 		char *Name;
 		Uint32 Namespace;//0 means default,unused yet
 		int ReturnedValue;
-		POS::LinkTable <Process> SemWaitingLink;
-		ClockTime SemWaitingTargetTime;
-		Semaphore *WaitSem;
+		POS::LinkTable <Process> SemWaitingLink;//Processes waiting in a Semaphore
+		ClockTime SemWaitingTargetTime;//Waiting Semaphore timeout+basetime
+		Semaphore *WaitSem;//Used for this process to wait for something such as child process
 		
 		ErrorType InitForKernelProcess0();
 		ErrorType CopyOthers(Process *src);
-		ErrorType Start(TrapFrame *tf);//fork returned by this
+		ErrorType Start(TrapFrame *tf,bool IsNew);//fork returned by this
 		
 	public:
 		ErrorType Rest();//Hand out CPU and schedule other Process
@@ -141,6 +142,9 @@ class Process
 		
 		inline Semaphore *GetWaitSem()//Temporaryly use...
 		{return WaitSem;}
+		
+		inline int GetReturnedValue() const
+		{return ReturnedValue;}
 		
 		inline Process* GetFa()
 		{return fa;}
@@ -167,7 +171,7 @@ class Process
 		ErrorType Destroy();
 };
 
-class ForkServerClass
+class ForkServerClass//Outdated...
 {
 	protected:
 		Process *ThisProcess;

@@ -1,5 +1,5 @@
 #include <Library/String/StringTools.hpp>
-#include <Types.hpp>
+
 namespace POS
 {
 	void strCopy(char *dst,const char *src)
@@ -79,41 +79,5 @@ namespace POS
 		while (src[re]!=0)
 			++re;
 		return re;
-	}
-
-	Uint64 UnicodeToUtf8(char* out, Uint32 utf[], Uint32 int_len)
-	{
-		Uint64 char_len = 0;
-		for (int i = 0; i < int_len; i++)
-		{
-			if (utf[i] <= 0x7F) {
-				// Plain ASCII
-				out[char_len++] = (char)utf[i];
-			}
-			else if (utf[i] <= 0x07FF) {
-				// 2-byte unicode
-				out[char_len++] = (char)(((utf[i] >> 6) & 0x1F) | 0xC0);
-				out[char_len++] = (char)(((utf[i] >> 0) & 0x3F) | 0x80);
-			}
-			else if (utf[i] <= 0xFFFF) {
-				// 3-byte unicode
-				out[char_len++] = (char)(((utf[i] >> 12) & 0x0F) | 0xE0);
-				out[char_len++] = (char)(((utf[i] >> 6) & 0x3F) | 0x80);
-				out[char_len++] = (char)(((utf[i] >> 0) & 0x3F) | 0x80);
-			}
-			else if (utf[i] <= 0x10FFFF) {
-				// 4-byte unicode
-				out[char_len++] = (char)(((utf[i] >> 18) & 0x07) | 0xF0);
-				out[char_len++] = (char)(((utf[i] >> 12) & 0x3F) | 0x80);
-				out[char_len++] = (char)(((utf[i] >> 6) & 0x3F) | 0x80);
-				out[char_len++] = (char)(((utf[i] >> 0) & 0x3F) | 0x80);
-			}
-			else {
-				// error 
-				return 0;
-			}
-		}
-		out[char_len] = 0;
-		return char_len;
 	}
 };

@@ -367,7 +367,7 @@ void sdcard_read_sector(Sector *sec, int sectorno) {
 //	#ifdef DEBUG
 //	printf("sdcard_read_sector()\n");
 //	#endif
-	kout[Test]<<"SDCard read sector "<<(void*)sectorno<<" to "<<buf<<endl;
+//	kout[Test]<<"SDCard read sector "<<(void*)sectorno<<" to "<<buf<<endl;
 
 	if (is_standard_sd) {
 		address = sectorno << 9;
@@ -408,7 +408,7 @@ void sdcard_read_sector(Sector *sec, int sectorno) {
 //	releasesleep(&sdcard_lock);
 	semSDCard->Signal();
 	// leave critical section!
-	kout[Test]<<"SDCard read sector "<<(void*)sectorno<<" OK "<<endl;
+//	kout[Test]<<"SDCard read sector "<<(void*)sectorno<<" OK "<<endl;
 }
 
 void sdcard_write_sector(const Sector *sec, int sectorno) {
@@ -420,7 +420,7 @@ void sdcard_write_sector(const Sector *sec, int sectorno) {
 //	#ifdef DEBUG
 //	printf("sdcard_write_sector()\n");
 //	#endif
-	kout[Test]<<"SDCard write sector "<<(void*)sectorno<<" from "<<buf<<endl;
+//	kout[Test]<<"SDCard write sector "<<(void*)sectorno<<" from "<<buf<<endl;
 
 	if (is_standard_sd) {
 		address = sectorno << 9;

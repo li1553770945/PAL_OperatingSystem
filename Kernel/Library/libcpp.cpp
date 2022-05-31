@@ -12,7 +12,7 @@ extern "C"
 //	void *__gxx_personality_v0=0;
 //	void *__cxa_pure_virtual=0;
 //????
-
+	
 	void* memset(void *_dst,int _Val,size_t _Size)
 	{
 		MemsetT<char>((char*)_dst,_Val,_Size);

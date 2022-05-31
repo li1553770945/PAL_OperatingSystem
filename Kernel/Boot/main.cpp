@@ -105,11 +105,82 @@ int SDTest(void*)
 	return 0;
 }
 
+char *KernelTextRemember=nullptr;
+void CmpKernelText()
+{
+	MemcpyT<char>(KernelTextRemember,kernelstart,rodataend-kernelstart);
+	for (char *i=KernelTextRemember,*j=kernelstart;j<rodataend;++i,++j)
+		if (*i!=*j)
+			kout[Fault]<<"Kernel text segment differs in "<<i<<endl;
+	kout[Test]<<"KernelTextSegment maybe OK"<<endl;
+}
+
+int RunAllTestSuits(void*)
+{
+	auto RunAllFile=[](auto &self,auto *vfs,const char *path,int dep=0)->void
+	{
+		kout<<dep<<": "<<path<<endl;
+		char *buffer[16];
+		int skip=0;
+		while (1)
+		{
+			int cnt=vfs->GetAllFileIn(path,buffer,16,skip);
+			for (int i=0;i<cnt;++i)
+			{
+				char *child=strSplice(path,dep==0?"":"/",buffer[i]);
+				if (buffer[i][0]!='.')
+				{
+					FileNode *node=vfs->Open(child);
+					if (!node)
+						kout[Error]<<"Cannot open file "<<child<<endl;
+					else if (node->IsDir())
+						self(self,vfs,child,dep+1);
+					else
+					{
+						kout[Info]<<"Run "<<child<<endl; 
+						FileHandle *file=new FileHandle(node);
+						PID id=CreateProcessFromELF(file,0);
+						if (id>0)
+						{
+							Process *proc=POS_PM.Current(); 
+							while (proc->GetQuitingChild(id)==nullptr)
+								proc->GetWaitSem()->Wait();
+						}
+						delete file;
+					}
+					delete node;
+				}
+				Kfree(child);
+				Kfree(buffer[i]);
+			}
+			if (cnt<16)
+				break;
+			else skip+=16;
+		}
+	};
+	
+//	kout.SetEnableEffect(0);
+	kout.SwitchTypeOnoff(Warning,0);
+	kout.SwitchTypeOnoff(Test,0);
+//	kout.SwitchTypeOnoff(Debug,0);
+//	kout.SetEnabledType(0);
+	kout<<"Test all suits..."<<endl;
+	VirtualFileSystem *vfs=new FAT32();
+	RunAllFile(RunAllFile,vfs,"/");
+	delete vfs;
+	kout<<"Test all suits OK"<<endl;
+//	kout.SetEnabledType(-1);
+	kout.SwitchTypeOnoff(Debug,1);
+	kout.SwitchTypeOnoff(Test,1);
+	kout.SwitchTypeOnoff(Warning,1);
+	return 0;
+}
+
 void TestFuncs()
 {
 //	kout.SwitchTypeOnoff(Test,0);
 	
-	if (1)
+	if (0)
 	{
 		kout[Test]<<"PhysicalMemorySize:          "<<(void*)PhysicalMemorySize()<<endl;
 		kout[Test]<<"PhysicalMemoryPhysicalStart: "<<(void*)PhysicalMemoryPhysicalStart()<<endl;
@@ -117,9 +188,26 @@ void TestFuncs()
 		kout[Test]<<"PhysicalMemoryVirtualEnd:    "<<(void*)PhysicalMemoryVirtualEnd()<<endl;
 		kout[Test]<<"FreeMemBase:                 "<<(void*)FreeMemBase()<<endl;
 		kout[Test]<<"kernelstart:                 "<<(void*)kernelstart<<endl;
+		kout[Test]<<"textstart:                   "<<(void*)textstart<<endl;
+		kout[Test]<<"textend:                     "<<(void*)textend<<endl;
+		kout[Test]<<"rodatastart:                 "<<(void*)rodatastart<<endl;
+		kout[Test]<<"rodataend:                   "<<(void*)rodataend<<endl;
+		kout[Test]<<"datastart:                   "<<(void*)datastart<<endl;
+		kout[Test]<<"dataend:                     "<<(void*)dataend<<endl;
+		kout[Test]<<"bssstart:                    "<<(void*)bssstart<<endl;
+		kout[Test]<<"bssend:                      "<<(void*)bssend<<endl;
 		kout[Test]<<"kernelend:                   "<<(void*)kernelend<<endl;
 		kout[Test]<<"bootstack:                   "<<(void*)bootstack<<endl;
 		kout[Test]<<"bootstacktop:                "<<(void*)bootstacktop<<endl;
+	}
+	
+	VirtualMemorySpace::EnableAccessUser();
+	
+	if (0)
+	{
+		KernelTextRemember=(char*)Kmalloc(rodataend-kernelstart);
+		MemcpyT<char>(KernelTextRemember,kernelstart,rodataend-kernelstart);
+		CmpKernelText();
 	}
 	
 	if (0)
@@ -156,8 +244,7 @@ void TestFuncs()
 	
 	if (0) CreateKernelThread(KernelThreadTest,nullptr);
 	if (0) CreateKernelThread(KernelThreadTest2,nullptr);
-	if (1) CreateInnerUserImgProcessWithName(Hello_img);
-	kout[Debug]<<"CreateInnerUserImgProcessWithName OK"<<endl;
+	if (0) CreateInnerUserImgProcessWithName(Hello_img);
 	if (0) CreateInnerUserImgProcessWithName(Count1_100_img);
 	if (0) CreateInnerUserImgProcessWithName(ForkTest_img);
 	
@@ -173,6 +260,15 @@ void TestFuncs()
 		sem.Wait();
 		kout<<"MainTest: Wait Semaphore OK"<<endl;
 	}
+	
+	if (0)
+		CreateKernelThread([](void*)->int
+		{
+			kout<<"MainTest: Test sleep using Semaphore... Time: "<<GetClockTime()/Timer_1ms<<"ms"<<endl;
+			Semaphore sem(0);
+			sem.Wait(Timer_1ms*234);
+			kout<<"MainTest: Test sleep using Semaphore OK. Time: "<<GetClockTime()/Timer_1ms<<"ms. Semaphore value: "<<sem.Value()<<endl;
+		},nullptr);
 	
 	if (0)
 	{
@@ -257,81 +353,21 @@ void TestFuncs()
 		if (!node)
 			kout[Fault]<<"Cannot open /dir/TEST.elf"<<endl;
 		FileHandle *file=new FileHandle(node);
-		CreateProcessFromELF(file);
+		CreateProcessFromELF(file,Process::F_AutoDestroy);
 		delete file;
 		delete node;
 		delete vfs;
 		kout<<"Test ELF OK"<<endl;
 	}
 	
-	auto RunAllFile=[](auto &self,auto *vfs,const char *path,int dep=0)->void
-	{
-		kout<<dep<<": "<<path<<" "<<(void*)*((Uint64*)vfs)<<endl;
-		char *buffer[16];
-		int skip=0;
-		while (1)
-		{
-			kout[Debug]<<"A "<<(void*)*((Uint64*)vfs)<<endl;
-			int cnt=vfs->GetAllFileIn(path,buffer,16,skip);
-			kout[Debug]<<"KKKKKK"<<endl;
-			for (int i=0;i<cnt;++i)
-			{
-				RegisterData sp,s0;
-				asm volatile("sd sp,%0":"=m"(sp)::"memory");
-				asm volatile("sd s0,%0":"=m"(s0)::"memory");
-				kout[Debug]<<"B "<<(void*)sp<<" "<<(void*)*((Uint64*)vfs)<<endl;
-//				kout<<LightYellow<<DataWithSizeUnited((void*)0xFFFFFFFFC0043C00,0x400,32)<<endl;
-				char *child=strSplice(path,dep==0?"":"/",buffer[i]);
-				kout[Debug]<<"B1 "<<child<<" "<<(void*)s0<<" "<<(void*)(s0-248)<<" "<<(Uint64*)*(Uint64*)(s0-248)<<" "<<(Uint64*)(*(Uint64*)(*(Uint64*)(s0-248))+64)<<endl;
-				if (buffer[i][0]!='.')
-				{
-					kout[Debug]<<"B21 "<<vfs<<" "<<(void*)*((Uint64*)vfs-1)<<" "<<(void*)*((Uint64*)vfs)<<endl;
-					kout[Debug]<<"B22 "<<endl;
-					FileNode *node=vfs->Open(child);
-					kout[Debug]<<"B23 "<<endl;
-					kout[Debug]<<"C "<<node<<" "<<(void*)*((Uint64*)vfs)<<endl;
-					if (!node)
-						kout[Error]<<"Cannot open file "<<child<<endl;
-					else if (node->IsDir())
-						self(self,vfs,child,dep+1);
-					else
-					{
-						kout[Info]<<"Run "<<child<<" "<<(void*)*((Uint64*)vfs)<<endl; 
-						FileHandle *file=new FileHandle(node);
-						CreateProcessFromELF(file);
-						kout[Debug]<<"D "<<(void*)*((Uint64*)vfs)<<endl;
-						delete file;
-						kout[Debug]<<"E "<<(void*)*((Uint64*)vfs)<<endl;
-					}
-					delete node;
-					kout[Debug]<<"F "<<(void*)*((Uint64*)vfs)<<endl;
-				}
-				Kfree(child);
-				Kfree(buffer[i]);
-				kout[Debug]<<"G "<<(void*)*((Uint64*)vfs)<<endl;
-			}
-			kout[Debug]<<"H "<<(void*)*((Uint64*)vfs)<<endl;
-			if (cnt<16)
-				break;
-			else skip+=16;
-		}
-	};
-	
 	if (1)
 	{
-//		kout.SwitchTypeOnoff(Test,0);
-//		kout.SwitchTypeOnoff(Debug,0);
-		kout<<"Test all suits..."<<endl;
-		VirtualFileSystem *vfs=new FAT32();
-		RunAllFile(RunAllFile,vfs,"/");
-		delete vfs;
-		kout<<"Test all suits OK"<<endl;
-		// kout.SwitchTypeOnoff(Debug,1);
-		// kout.SwitchTypeOnoff(Test,1);
+		PID id=CreateKernelThread(RunAllTestSuits,nullptr,0);
+		Process *proc=POS_PM.Current(); 
+		while (proc->GetQuitingChild(id)==nullptr)
+			proc->GetWaitSem()->Wait();
 	}
 }
-extern "C" void __cxa_pure_virtual() { while (1); }
-
 
 int main()
 {
@@ -355,10 +391,7 @@ int main()
 	kout[Info]<<"SDCard init..."<<endl;
 	sdcard_init();
 	kout[Info]<<"Drivers init OK"<<endl;
-	kout[Debug]<<"kernel end:"<<POS_PMM.zone.end_addr<<endl;
-	kout[Debug]<<"page_need_memory:"<<POS_PMM.zone.page_need_memory<<endl;
-	kout[Debug]<<"free_memory_start_addr:"<<POS_PMM.zone.free_memory_start_addr<<endl;
-	kout[Debug]<<"valid_page_num:"<<POS_PMM.zone.valid_page_num<<endl;
+	
 	VFSM.Init();
 	InterruptEnable();
 	

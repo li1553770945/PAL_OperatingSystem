@@ -9,6 +9,7 @@
 #include <Library/String/SysStringTools.hpp>
 #include <Config.h>
 #include <Process/Synchronize.hpp>
+#include <Trap/Clock.h>
 
 #include "../../Include/Process/Process.hpp"
 
@@ -25,9 +26,12 @@ void ProcessManager::Schedule()
 	if (CurrentProcess!=nullptr&&ProcessCount>=2)
 	{
 //		kout[Test]<<"ProcessManager::Schedule: Start schedule, CurrentProcess "<<CurrentProcess->ID<<", TotalProcess "<<ProcessCount<<endl;
-		for (int i=1,p=CurrentProcess->ID;i<MaxProcessCount;++i)
+		int i,p;
+		for (i=1,p=CurrentProcess->ID;i<MaxProcessCount;++i)
 		{
 			Process *tar=&Processes[(i+p)%MaxProcessCount];
+			if (tar->stat==Process::S_Sleeping&&tar->SemWaitingTargetTime!=0&&GetClockTime()>=tar->SemWaitingTargetTime)
+				tar->stat=Process::S_Ready;
 			if (tar->stat==Process::S_Ready)
 			{
 				kout[Test]<<"Switch from "<<CurrentProcess->ID<<" to "<<tar->ID<<endl;
@@ -39,6 +43,8 @@ void ProcessManager::Schedule()
 				tar->Destroy();
 		}
 //		kout[Test]<<"ProcessManager::Schedule: Schedule complete, CurrentProcess "<<CurrentProcess->ID<<", TotalProcess "<<ProcessCount<<endl;
+		if (i==MaxProcessCount&&p!=0)
+			kout[Fault]<<"Scheduler failed to switch!"<<endl;
 	}
 	else ASSERT(CurrentProcess!=nullptr,"ProcessManager::Schedule: CurrentProcess is nullptr!");
 }
@@ -138,10 +144,9 @@ ErrorType Process::Exit(int re)
 	kout[Test]<<"Process::Exit: re "<<re<<" PID "<<ID<<endl;
 	ReturnedValue=re;
 	VMS->Leave();
-	stat=S_Quiting;
-	//Signal fa...
 	if (!(flags&F_AutoDestroy)&&fa!=nullptr)
 		fa->WaitSem->Signal();
+	stat=S_Quiting;
 	return ERR_None;
 }
 
@@ -167,6 +172,7 @@ ErrorType Process::Start(int (*func)(void*),void *funcdata,PtrInt userStartAddr)
     	tf->reg.sp	 =(RegisterData)InnerUserProcessStackAddr/*??*/+InnerUserProcessStackSize-32;
 		tf->epc      =(RegisterData)userStartAddr;
 		tf->status   =(RegisterData)((read_csr(sstatus)|SSTATUS_SPIE)&~SSTATUS_SPP&~SSTATUS_SIE);//??
+//		tf->status   =(RegisterData)((read_csr(sstatus)|SSTATUS_SPP|SSTATUS_SPIE)&~SSTATUS_SIE);//??
 	}
 	stat=S_Ready;
 	return ERR_None;
@@ -217,13 +223,19 @@ ErrorType Process::SetStack(void *stack,Uint32 size)
 //	return ERR_None;
 //}
 
-ErrorType Process::Start(TrapFrame *tf)//It is not a good way...
+ErrorType Process::Start(TrapFrame *tf,bool IsNew)//It is not a good way...
 {
-	MemcpyT<RegisterData>((RegisterData*)((TrapFrame*)(Stack+StackSize)-1),(const RegisterData*)tf,sizeof(TrapFrame)/sizeof(RegisterData));
-	tf           =(TrapFrame*)(Stack+StackSize)-1;
-	tf->epc+=4;
-	context.ra   =(RegisterData)UserThreadEntry;
-	context.sp   =(RegisterData)tf;
+	if (!IsNew)
+	{
+		MemcpyT<RegisterData>((RegisterData*)((TrapFrame*)(Stack+StackSize)-1),(const RegisterData*)tf,sizeof(TrapFrame)/sizeof(RegisterData));
+		tf=(TrapFrame*)(Stack+StackSize)-1;
+		tf->epc+=4;
+	}
+	tf->reg.a0=0;//??
+	context.ra=(RegisterData)UserThreadEntry;
+	context.sp=(RegisterData)tf;
+	context.s[0]=0;
+	context.s[1]=0;
 	return ERR_None;
 }
 
@@ -234,12 +246,12 @@ ErrorType Process::CopyOthers(Process *src)
 	StartedTime=src->StartedTime;
 	SleepingTime=src->SleepingTime;
 	WaitingTime=src->WaitingTime;
-	//<<Set parent relationship...
+	SetFa(src->fa);//??
 	flags=src->flags;//??
 	if (Name==nullptr)//??
 		Name=strDump(src->Name);
 	Namespace=src->Namespace;
-	stat=src->stat;
+//	stat=src->stat;
 	return ERR_None;
 }
 
@@ -270,16 +282,20 @@ ErrorType Process::SetFa(Process *_fa)
 		{
 			if (fa->child==this)
 				fa->child=nxt;
-			else pre->nxt=nxt;
+			else if (pre!=nullptr)
+				pre->nxt=nxt;
 			if (nxt!=nullptr)
 				nxt->pre=pre;
 			pre=nxt=fa=nullptr;
 		}
-		fa=_fa;
-		nxt=fa->child;
-		fa->child=this;
-		if (nxt!=nullptr)
-			nxt->pre=this;
+		if (_fa!=nullptr)
+		{
+			fa=_fa;
+			nxt=fa->child;
+			fa->child=this;
+			if (nxt!=nullptr)
+				nxt->pre=this;
+		}
 	}
 	return ERR_None;
 }
@@ -306,6 +322,7 @@ ErrorType Process::InitForKernelProcess0()
 	Name=nullptr;
 	SetName("PAL_OperatingSystem BootProcess",1);
 	Namespace=0;
+	SemWaitingLink.Init();
 	SemWaitingLink.SetData(this);
 	SemWaitingTargetTime=0;
 	WaitSem=new Semaphore(0);
@@ -327,6 +344,7 @@ ErrorType Process::Init(Uint64 _flags)
 	flags=_flags;
 	Name=nullptr;
 	Namespace=0;
+	SemWaitingLink.Init();
 	SemWaitingLink.SetData(this);
 	SemWaitingTargetTime=0;
 	WaitSem=new Semaphore(0);
@@ -347,6 +365,7 @@ ErrorType Process::Destroy()
 		Kfree(Stack);
 	Stack=nullptr;
 	SemWaitingLink.Remove();//What about Lock protect??
+	SemWaitingLink.Init();
 	delete WaitSem;
 	WaitSem=nullptr;
 	SetName(nullptr,1);
@@ -382,8 +401,9 @@ int ForkServerClass::ForkServerFunc(void *funcdata)
 				nproc->SetVMS(nvms);
 //				nproc->CopyStackContext(proc);
 				nproc->SetStack(nullptr,proc->StackSize);
-				nproc->Start(This->CurrentRequestingProcessTrapFrame);
+				nproc->Start(This->CurrentRequestingProcessTrapFrame,0);
 				nproc->CopyOthers(proc);
+				nproc->stat=Process::S_Ready;
 				This->CurrentRequestingProcessTrapFrame->reg.a0=nproc->ID;
 				This->CurrentRequestingProcess=nullptr;
 				This->CurrentRequestingProcessTrapFrame=nullptr;
@@ -434,6 +454,8 @@ PID CreateKernelThread(int (*func)(void*),void *funcdata,Uint64 flags)
 	proc->Init(flags);
 	proc->SetStack(nullptr,KernelStackSize);
 	proc->SetVMS(VirtualMemorySpace::Kernel());
+	if (!(flags&Process::F_AutoDestroy))
+		proc->SetFa(POS_PM.Current());
 	proc->Start(func,funcdata);
 	return flags&Process::F_AutoDestroy?Process::UnknownPID:proc->GetPID();
 }
@@ -467,7 +489,7 @@ PID CreateInnerUserImgProcess(PtrInt start,PtrInt end,Uint64 flags)
 		vms->EnableAccessUser();
 		MemcpyT<char>((char*)InnerUserProcessLoadAddr,(const char*)start,loadsize);
 		MemsetT<char>((char*)InnerUserProcessStackAddr,0,InnerUserProcessStackSize);//!!??
-		vms->DisableAccesUser();
+		vms->DisableAccessUser();
 		vms->Leave();
 	}
 
@@ -475,6 +497,8 @@ PID CreateInnerUserImgProcess(PtrInt start,PtrInt end,Uint64 flags)
 	proc->Init(flags);
 	proc->SetStack(nullptr,KernelStackSize);
 	proc->SetVMS(vms);
+	if (!(flags&Process::F_AutoDestroy))
+		proc->SetFa(POS_PM.Current());
 	proc->Start(nullptr,nullptr,InnerUserProcessLoadAddr);
 	kout[Test]<<"CreateInnerUserImgProcess "<<(void*)start<<" "<<(void*)end<<" with PID "<<proc->GetPID()<<endl;
 	return flags&Process::F_AutoDestroy?Process::UnknownPID:proc->GetPID();

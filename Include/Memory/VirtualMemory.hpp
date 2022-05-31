@@ -27,6 +27,7 @@ class PageTable
 			
 			enum:unsigned
 			{
+				//Format: Length|Index
 				V=1<<IndexBits|0,
 				R=1<<IndexBits|1,
 				W=1<<IndexBits|2,
@@ -121,7 +122,7 @@ class PageTable
 			inline Page* GetPage() const
 			{return POS_PMM.GetPageFromAddr(GetPPN_KAddr());}
 			
-			inline void SetPage(Page *pg,unsigned flags)
+			inline void SetPage(Page *pg,PageTableEntryType flags)
 			{
 				++pg->ref;
 				Set<FLAGS>(flags);
@@ -174,7 +175,7 @@ class PageTable
 		inline ErrorType InitAsPDT()
 		{
 			using namespace POS;
-			kout[Test]<<"PageTable::InitAsPDT "<<this<<endl;
+//			kout[Test]<<"PageTable::InitAsPDT "<<this<<endl;
 			POS::MemsetT(entries,Entry(0),PageTableEntryCount-3);
 			POS::MemcpyT(&entries[PageTableEntryCount-3],&(*Boot())[PageTableEntryCount-3],3);//??
 			return ERR_None;
@@ -183,7 +184,7 @@ class PageTable
 		inline ErrorType Init()
 		{
 			using namespace POS;
-			kout[Test]<<"PageTable::Init "<<this<<endl;
+//			kout[Test]<<"PageTable::Init "<<this<<endl;
 			POS::MemsetT(entries,Entry(0),PageTableEntryCount);
 			return ERR_None;
 		}
@@ -301,8 +302,9 @@ class VirtualMemorySpace:protected SpinLock
 			#endif
 		}
 		
-		inline static void DisableAccesUser()
+		inline static void DisableAccessUser()
 		{
+			return;//To fix the bug forked process cannot run!!(Reason??)
 			#ifdef QEMU
 			write_csr(sstatus,read_csr(sstatus)&~SSTATUS_SUM);
 			#else

@@ -127,8 +127,9 @@ inline int Thread_CreateProcessFromELF(void *userdata)
 	{
 		ELF_ProgramHeader64 ph{0};
 		file->Seek(d->header.phoff+i*d->header.phentsize,FileHandle::Seek_Beg);
-		if (file->Read(&ph,sizeof(ph))!=sizeof(ph))
-			kout[Fault]<<"Failed to read elf program header "<<file<<endl;
+		Sint64 err=file->Read(&ph,sizeof(ph));
+		if (err!=sizeof(ph))
+			kout[Fault]<<"Failed to read elf program header "<<file<<" ,error code "<<-err<<endl;
 		bool continue_flag=0;
 		switch (ph.type)
 		{
@@ -160,8 +161,9 @@ inline int Thread_CreateProcessFromELF(void *userdata)
 		MemsetT<char>((char*)ph.vaddr,0,ph.memsize);
 		
 		file->Seek(ph.offset,FileHandle::Seek_Beg);
-		if (file->Read((void*)ph.vaddr,ph.filesize)!=ph.filesize)
-			kout[Fault]<<"Failed to read elf segment "<<file<<endl;
+		err=file->Read((void*)ph.vaddr,ph.filesize);
+		if (err!=ph.filesize)
+			kout[Fault]<<"Failed to read elf segment "<<file<<" ,error code "<<-err<<endl;
 	}
 	{
 		VirtualMemoryRegion *vmr_stack=KmallocT<VirtualMemoryRegion>();
@@ -169,19 +171,19 @@ inline int Thread_CreateProcessFromELF(void *userdata)
 		vms->InsertVMR(vmr_stack);
 		MemsetT<char>((char*)InnerUserProcessStackAddr,0,InnerUserProcessStackSize);//!!??
 	}
-	vms->DisableAccesUser();
+	vms->DisableAccessUser();
 	d->sem.Signal();
 	return 0;
 }
 
-inline PID CreateProcessFromELF(FileHandle *file)
+inline PID CreateProcessFromELF(FileHandle *file,Uint64 flags)
 {
 	using namespace POS;
 	kout[Info]<<"CreateProcessFromELF "<<file<<endl;
 	ThreadData_CreateProcessFromELF *d=new ThreadData_CreateProcessFromELF();
 	d->file=file;
-	file->Read(&d->header,sizeof(d->header));
-	if (!d->header.IsELF())
+	Sint64 err=file->Read(&d->header,sizeof(d->header));
+	if (err!=sizeof(d->header)||!d->header.IsELF())
 	{
 		kout[Error]<<"CreateProcessFromELF "<<file<<" is not elf file!"<<endl;
 		delete d;
@@ -195,17 +197,19 @@ inline PID CreateProcessFromELF(FileHandle *file)
 	vms->Create(VirtualMemorySpace::VMS_Default);
 	
 	Process *proc=POS_PM.AllocProcess();
-	proc->Init(0);
+	proc->Init(flags);
 	proc->SetStack(nullptr,KernelStackSize);
 	proc->SetVMS(vms);
-	
+	if (!(flags&Process::F_AutoDestroy))
+		proc->SetFa(POS_PM.Current());
+		
 	d->vms=vms;
 	d->proc=proc;
 	proc->Start(Thread_CreateProcessFromELF,d,d->header.entry);
+	kout[Info]<<"CreateProcessFromELF "<<file<<" OK, PID "<<proc->GetPID()<<endl;
 	d->sem.Wait();
 	delete d;
-	kout[Info]<<"CreateProcessFromELF "<<file<<" OK, PID "<<proc->GetPID()<<endl;
-	return proc->GetPID();
+	return flags&Process::F_AutoDestroy?Process::InvalidPID:proc->GetPID();
 }
 
 #endif
