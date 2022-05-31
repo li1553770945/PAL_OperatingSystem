@@ -23,6 +23,7 @@ Page * Page::DismantleNext()//把下一个节点拆下来
 Page * Page::Dismantle() //把自己拆下来
 {
     this->pre->next = this->next;
+    kout[Debug]<<"Page::Dismantle pre "<<(void*)this->pre<<endl;
     if(this->next)
     {
         this->next->pre = this->pre;
@@ -31,13 +32,13 @@ Page * Page::Dismantle() //把自己拆下来
     this->next = nullptr;
     return this;
 }
-void Page::AddNext(Page * next)
+void Page::AddNext(Page * p)
 {
-    next->next = this->next;
-    this->next = next;
-    next->pre = this;
-    if(next->next)
-        next->next->pre = next;
+    p->next = this->next;
+    this->next = p;
+    p->pre = this;
+    if(p->next)
+        p->next->pre = p;
 }
 
 void* PhysicalMemoryManager::Alloc(Uint64 size)//要分配的字节数
@@ -150,9 +151,9 @@ int Zone::Init()
     int left = 1;
     InitTree(1,max_order,left,right);
     page_need_memory = page_num * sizeof(Page);
-    free_memory_start_addr =  page_base + page_need_memory+4095>>PageSizeBit<<PageSizeBit;
+    free_memory_start_addr =  (page_base + page_need_memory+4095)>>PageSizeBit<<PageSizeBit;
     free_memory_size = end_addr - free_memory_start_addr;
-    int valid_page_num =  free_memory_size / page_size;
+    valid_page_num =  free_memory_size / page_size;
     BuildTree(1,left,right,1,valid_page_num,free_memory_start_addr);
     for(int i=0;i<=max_order;i++)
     {
@@ -209,7 +210,9 @@ void Zone::FreePage(Page * p)
 //    kout[Test]<<"Zone::FreePage: "<<p<<" "<<p->index<<endl;
     free_area[p->order].head.AddNext(p);
     p->flags = 0;
+    kout[Debug]<<"free:try to merge"<<endl;
     Merge(p);
+    kout[Debug]<<"free page ok"<<endl;
 }
 
 void Zone::Merge(Page * p)
@@ -221,18 +224,29 @@ void Zone::Merge(Page * p)
     }
     else
     {
-//        kout[Test]<<"Zone::Merge: "<<p<<" "<<p->index<<endl;
+       kout[Test]<<"Zone::Merge: "<<p<<" "<<p->index<<endl;
+       kout[Test]<<"Zone::Merge Partner: "<<partner<<" "<<partner->index<<endl;
         p->Dismantle();
+        kout[Test]<<"Zone::Merge Dismentle partner: "<<partner<<" "<<partner->index<<endl;
+
         partner->Dismantle();
+        kout[Test]<<"Zone::Merge Getparent: "<<partner<<" "<<partner->index<<endl;
+
         Page * parent = GetParent(p);
+        kout[Test]<<"Zone::Merge setparent flags: "<<partner<<" "<<partner->index<<endl;
+
         parent->flags = 0;
+        kout[Test]<<"Zone::Merge Add parent: "<<partner<<" "<<partner->index<<endl;
+
         free_area[parent->order].head.AddNext(parent);
+        kout<<"merge ok"<<endl;
     }
 }
 
 void Zone::Split(Page * p)
 {
-//    kout[Test]<<"Zone::Split: "<<p<<" "<<p->index<<endl;
+    p->flags = 2;
+   kout[Test]<<"Zone::Split: "<<p<<" "<<p->index<<endl;
     p->Dismantle();
     Page *lson = GetLeftSon(p),*rson = GetRightSon(p);
     int order = lson->order;

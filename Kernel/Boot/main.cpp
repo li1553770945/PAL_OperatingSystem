@@ -157,6 +157,7 @@ void TestFuncs()
 	if (0) CreateKernelThread(KernelThreadTest,nullptr);
 	if (0) CreateKernelThread(KernelThreadTest2,nullptr);
 	if (1) CreateInnerUserImgProcessWithName(Hello_img);
+	kout[Debug]<<"CreateInnerUserImgProcessWithName OK"<<endl;
 	if (0) CreateInnerUserImgProcessWithName(Count1_100_img);
 	if (0) CreateInnerUserImgProcessWithName(ForkTest_img);
 	
@@ -354,7 +355,10 @@ int main()
 	kout[Info]<<"SDCard init..."<<endl;
 	sdcard_init();
 	kout[Info]<<"Drivers init OK"<<endl;
-	
+	kout[Debug]<<"kernel end:"<<POS_PMM.zone.end_addr<<endl;
+	kout[Debug]<<"page_need_memory:"<<POS_PMM.zone.page_need_memory<<endl;
+	kout[Debug]<<"free_memory_start_addr:"<<POS_PMM.zone.free_memory_start_addr<<endl;
+	kout[Debug]<<"valid_page_num:"<<POS_PMM.zone.valid_page_num<<endl;
 	VFSM.Init();
 	InterruptEnable();
 	

@@ -35,7 +35,10 @@ SECTIONS
 		*(.sbss .sbss.* .bss .bss.*)
 		bssend = .;
 	}
-	
+	.all :
+	{
+		*(* .* *. *.*)
+	}
 	PROVIDE(kernelend = .);
 	. = ALIGN(4k);
 	PROVIDE(freememstart = .);

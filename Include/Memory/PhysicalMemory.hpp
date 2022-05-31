@@ -107,7 +107,7 @@ class Zone
 
 class PhysicalMemoryManager
 {
-	protected:
+	public:
     	Zone zone;
 
 	public:
