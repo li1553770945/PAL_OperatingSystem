@@ -40,6 +40,7 @@ struct DBR {
 	Uint32 BPB_hiden_section_num; //隐藏扇区数
 	Uint64 BPBSectionPerClus;//每个簇有多少个扇区
 };
+
 class FAT32 :public VirtualFileSystem
 {
 	friend class FAT32FileNode;
@@ -67,9 +68,11 @@ public:
 
 	FAT32();
 	FileNode* LoadShortFileInfoFromBuffer(unsigned char* buffer);
-	Uint64 GetOffsetFromCluster(Uint64 cluster);
+	ErrorType LoadLongFileNameFromBuffer(unsigned char* buffer,Uint32* name);
+	char*  MergeLongNameAndToUtf8(Uint32* buffer[], Uint32 cnt);
 	Uint64 GetLbaFromCluster(Uint64 cluster);
-	FileNode * GetFileNodesFromCluster(Uint64 cluster);//读取cluster开始的目录对应的所有目录项
+	//FileNode * GetFileNodesFromCluster(Uint64 cluster);//读取cluster开始的目录对应的所有目录项
+
 	Uint64 GetFATContentFromCluster(Uint64 cluster);//读取cluster对应的FAT表中内容(自动将读取的内容转换为小端)
 	Uint64 SetFATContentFromCluster(Uint64 cluster,Uint64 content);//设置cluster对应的FAT表中内容为content(自动将content转换为大端)
 	int ReadRawData(Uint64 lba, Uint64 offset, Uint64 size, unsigned char* buffer);//从lba偏移offset字节的位置读取size字节大小的数据

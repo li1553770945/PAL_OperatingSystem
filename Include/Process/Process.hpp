@@ -24,6 +24,7 @@ inline RegisterData GetCPUID()
 
 class Process;
 class Semaphore;
+class FileHandle;
 
 class ProcessManager
 {
@@ -124,9 +125,12 @@ class Process
 		ClockTime SemWaitingTargetTime;//Waiting Semaphore timeout+basetime
 		Semaphore *WaitSem;//Used for this process to wait for something such as child process
 		
+		FileHandle* FileTable[8];
+		
 		ErrorType InitForKernelProcess0();
 		ErrorType CopyOthers(Process *src);
 		ErrorType Start(TrapFrame *tf,bool IsNew);//fork returned by this
+		ErrorType InitFileTable();
 		
 	public:
 		ErrorType Rest();//Hand out CPU and schedule other Process

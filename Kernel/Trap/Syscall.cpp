@@ -117,7 +117,7 @@ inline PID Syscall_Wait4(PID cid,int *status,int options)
 			if (status!=nullptr)
 			{
 				VirtualMemorySpace::EnableAccessUser();
-				*status=child->GetReturnedValue();
+				*status=child->GetReturnedValue()<<8;//??
 				VirtualMemorySpace::DisableAccessUser();
 			}
 			child->Destroy();

@@ -62,6 +62,42 @@ namespace POS
 		}
 		return re;
 	}
+	
+	inline Uint64 UnicodeToUtf8(char *dst,Uint32 unicode[],Uint32 len)
+	{
+		Uint64 char_len = 0;
+		for (Uint32 i = 0; i < len; i++)
+		{
+			if (unicode[i] <= 0x7F) {
+				// Plain ASCII
+				dst[char_len++] = (char)unicode[i];
+			}
+			else if (unicode[i] <= 0x07FF) {
+				// 2-byte unicode
+				dst[char_len++] = (char)(((unicode[i] >> 6) & 0x1F) | 0xC0);
+				dst[char_len++] = (char)(((unicode[i] >> 0) & 0x3F) | 0x80);
+			}
+			else if (unicode[i] <= 0xFFFF) {
+				// 3-byte unicode
+				dst[char_len++] = (char)(((unicode[i] >> 12) & 0x0F) | 0xE0);
+				dst[char_len++] = (char)(((unicode[i] >> 6) & 0x3F) | 0x80);
+				dst[char_len++] = (char)(((unicode[i] >> 0) & 0x3F) | 0x80);
+			}
+			else if (unicode[i] <= 0x10FFFF) {
+				// 4-byte unicode
+				dst[char_len++] = (char)(((unicode[i] >> 18) & 0x07) | 0xF0);
+				dst[char_len++] = (char)(((unicode[i] >> 12) & 0x3F) | 0x80);
+				dst[char_len++] = (char)(((unicode[i] >> 6) & 0x3F) | 0x80);
+				dst[char_len++] = (char)(((unicode[i] >> 0) & 0x3F) | 0x80);
+			}
+			else {
+				// error 
+				return 0;
+			}
+		}
+		dst[char_len] = 0;
+		return char_len;
+	}
 };
 
 #endif

@@ -159,13 +159,14 @@ int RunAllTestSuits(void*)
 		}
 	};
 	
-	kout.SetEnableEffect(0);
-	kout.SwitchTypeOnoff(Warning,0);
-	kout.SwitchTypeOnoff(Test,0);
+//	kout.SetEnableEffect(0);
+//	kout.SwitchTypeOnoff(Warning,0);
+//	kout.SwitchTypeOnoff(Test,0);
 //	kout.SwitchTypeOnoff(Debug,0);
-	kout.SetEnabledType(0);
+//	kout.SetEnabledType(0);
 	kout<<"Test all suits..."<<endl;
 	VirtualFileSystem *vfs=new FAT32();
+	FileNode *f=vfs->Open("/");
 	RunAllFile(RunAllFile,vfs,"/");
 	delete vfs;
 	kout<<"Test all suits OK"<<endl;
@@ -180,7 +181,7 @@ void TestFuncs()
 {
 //	kout.SwitchTypeOnoff(Test,0);
 	
-	if (0)
+	if (1)
 	{
 		kout[Test]<<"PhysicalMemorySize:          "<<(void*)PhysicalMemorySize()<<endl;
 		kout[Test]<<"PhysicalMemoryPhysicalStart: "<<(void*)PhysicalMemoryPhysicalStart()<<endl;
@@ -371,6 +372,7 @@ void TestFuncs()
 
 int main()
 {
+	kout.SetEnableEffect(0);
 	PrintSystemInfo();
 	POS_InitClock();
 	POS_InitTrap();
@@ -379,6 +381,8 @@ int main()
 	POS_PM.Init();
 	ForkServer.Init();
 //	PrintDeviceTree((void*)DTB+PhymemVirmemOffset()+PhysicalMemoryPhysicalStart());
+	
+	kout.SetEnabledType(0);
 	
 	kout[Info]<<"plic init..."<<endl;
 	plicinit();

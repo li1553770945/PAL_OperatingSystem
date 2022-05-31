@@ -6,11 +6,14 @@
 #include "../Process/Synchronize.hpp"
 #include "../Library/String/SysStringTools.hpp"
 #include "../Library/Kout.hpp"
+#include "../Library/DataStructure/LinkTable.hpp"
+#include "FilePathTools.hpp"
 
 class FileHandle;
 class FileNode;
 class VirtualFileSystem;
 class VirtualFileSystemManager;
+class Process;
 
 inline const char * InvalidFileNameCharacter()
 {return "/\\:*?\"<>|";}
@@ -121,6 +124,11 @@ class FileHandle
 		Uint64 Pos=0;
 		Uint64 Flags=0;
 		
+		//Below is infomation for process
+		Process *proc=nullptr;
+		Uint32 FD=-1;
+		POS::LinkTable <Process> Link;
+		
 	public:
 		inline Sint64 Read(void *dst,Uint64 size)//Need improve...
 		{
@@ -168,6 +176,12 @@ class FileHandle
 			file->Unref(this);
 			file=nullptr;
 			return ERR_None;
+		}
+		
+		~FileHandle()
+		{
+			using namespace POS;
+			kout[Warning]<<"FileHandle deconstructor is not complete yet!"<<endl;
 		}
 		
 		FileHandle(FileNode *filenode,Uint64 flags=F_Read|F_Write|F_Seek|F_Size):Flags(flags)
