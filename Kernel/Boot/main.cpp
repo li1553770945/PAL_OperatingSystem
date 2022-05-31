@@ -163,7 +163,7 @@ int RunAllTestSuits(void*)
 	kout.SwitchTypeOnoff(Warning,0);
 	kout.SwitchTypeOnoff(Test,0);
 //	kout.SwitchTypeOnoff(Debug,0);
-//	kout.SetEnabledType(0);
+	kout.SetEnabledType(0);
 	kout<<"Test all suits..."<<endl;
 	VirtualFileSystem *vfs=new FAT32();
 	RunAllFile(RunAllFile,vfs,"/");
