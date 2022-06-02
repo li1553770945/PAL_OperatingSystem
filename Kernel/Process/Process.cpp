@@ -27,6 +27,8 @@ void ProcessManager::Schedule()
 {
 	if (CurrentProcess!=nullptr&&ProcessCount>=2)
 	{
+		for (int i=0;i<=4;++i)
+			kout[Debug]<<Processes[i]<<endl;
 		kout[Debug]<<"S1 "<<CurrentProcess->ID<<endl;
 //		kout[Test]<<"ProcessManager::Schedule: Start schedule, CurrentProcess "<<CurrentProcess->ID<<", TotalProcess "<<ProcessCount<<endl;
 		int i,p;

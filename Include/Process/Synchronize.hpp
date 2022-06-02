@@ -105,6 +105,7 @@ class Semaphore
 				if (!p.NxtEmpty())
 				{
 					if (p()->stat==Process::S_Sleeping)
+						POS::kout[POS::Debug]<<"signal "<<p()->ID<<POS::endl,
 						p()->stat=Process::S_Ready;
 				}
 				else break;
