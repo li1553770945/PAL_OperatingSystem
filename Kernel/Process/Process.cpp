@@ -143,7 +143,9 @@ ErrorType Process::Run()
 ErrorType Process::Exit(int re)
 {
 	ASSERT(stat!=S_Quiting,"Process::Exit: stat is S_Quiting(Exit twice)!");
-	kout[Test]<<"Process::Exit: re "<<re<<" PID "<<ID<<endl;
+	if (re!=Exit_Normal)
+		kout[Warning]<<"Process "<<ID<<" exited with returned value "<<re<<endl;
+	else kout[Test]<<"Process "<<ID<<" exited successfully."<<endl;
 	ReturnedValue=re;
 	VMS->Leave();
 	if (!(flags&F_AutoDestroy)&&fa!=nullptr)
@@ -365,13 +367,12 @@ ErrorType Process::InitFileTable()
 
 ErrorType Process::DestroyFileTable()
 {
-	kout[Warning]<<"Process::DestroyFileTable is not usable yet!"<<endl;
 	for (FileHandle *p=FileTable[0],*q;p;p=q)
 	{
 		q=p->nxt;
 		delete p;
 	}
-	return ERR_Todo;
+	return ERR_None;
 }
 
 ErrorType Process::InitForKernelProcess0()

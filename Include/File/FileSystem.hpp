@@ -8,6 +8,7 @@
 #include "../Library/Kout.hpp"
 #include "../Library/DataStructure/LinkTable.hpp"
 #include "FilePathTools.hpp"
+#include "../Library/DataStructure/PAL_Tuple.hpp"
 
 class FileHandle;
 class FileNode;
@@ -20,15 +21,6 @@ inline const char * InvalidFileNameCharacter()
 
 inline bool IsValidFileNameCharacter(char ch)
 {return POS::NotInSet(ch,'/','\\',':','*','?','\"','<','>','|');}
-
-class StorageDevice {
-	
-public:
-	virtual ErrorType Init() = 0;
-	virtual ErrorType Read(Uint64 lba, unsigned char* buffer) = 0; 
-	virtual ErrorType Write(Uint64 lba, unsigned char* buffer) = 0;
-};
-
 
 class FileNode
 {
@@ -137,7 +129,7 @@ class FileNode
 		virtual Sint64 Read(void *dst,Uint64 pos,Uint64 size)
 		{return ERR_UnsuppoertedVirtualFunction;}
 		
-		virtual ErrorType Write(void *src,Uint64 pos,Uint64 size)
+		virtual Sint64 Write(void *src,Uint64 pos,Uint64 size)
 		{return ERR_UnsuppoertedVirtualFunction;}
 		
 		template <int type> char* GetPath()//type 0:Fullpath 1:Path in VFS;returned string should be freed by caller
@@ -365,6 +357,7 @@ class VirtualFileSystemManager
 		FileNode* FindChildName(FileNode *p,const char *s,const char *e);
 		FileNode* FindChildName(FileNode *p,const char *s);
 		FileNode* FindRecursive(FileNode *p,const char *path);
+		PAL_DS::Doublet <VirtualFileSystem*,const char*> FindPathOfVFS(FileNode *p,const char *path);
 		
 	public:
 		static inline bool IsAbsolutePath(const char *path)
@@ -377,7 +370,9 @@ class VirtualFileSystemManager
 		int GetAllFileIn(const char *path,char *result[],int bufferSize,int skipCnt=0);//if unused ,user should free the char*
 		int GetAllFileIn(Process *proc,const char *path,char *result[],int bufferSize,int skipCnt=0);
 		ErrorType CreateDirectory(const char *path);
+		ErrorType CreateDirectory(Process *proc,const char *path);
 		ErrorType CreateFile(const char *path);
+		ErrorType CreateFile(Process *proc,const char *path);
 		ErrorType Move(const char *src,const char *dst);
 		ErrorType Copy(const char *src,const char *dst);
 		ErrorType Delete(const char *path);

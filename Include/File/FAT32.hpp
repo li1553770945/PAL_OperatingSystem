@@ -8,6 +8,16 @@
 
 //#undef CreateFile
 //#undef CreateDirectory
+const Uint64 SECTORSIZE = 512;
+const Uint64 CLUSTEREND = 0x0FFFFFFF;
+
+class StorageDevice {
+	
+public:
+	virtual ErrorType Init() = 0;
+	virtual ErrorType Read(Uint64 lba, unsigned char* buffer) = 0; 
+	virtual ErrorType Write(Uint64 lba, unsigned char* buffer) = 0;
+};
 
 class FAT32Device :public StorageDevice {
 public:
@@ -22,8 +32,7 @@ public:
 	}
 	ErrorType Write(Uint64 lba, unsigned char* buffer)
 	{
-
-		
+		sdcard_write_sector((Sector*)buffer,lba);
 		return ERR_None;
 	}
 };
@@ -106,14 +115,19 @@ public:
 class FAT32FileNode :public FileNode {
 	friend class FAT32;
 public:
-	virtual Sint64 Read(void* dst, Uint64 pos, Uint64 size) override;
-	virtual ErrorType Write(void* src, Uint64 pos, Uint64 size) override;
-	PAL_DS::Doublet <Uint32, Uint64> GetCLusterAndLbaFromOffset(Uint64 offset);
+
 	Uint32 FirstCluster; //起始簇号
 	FAT32FileNode* nxt;
 	bool IsDir; //是否是文件夹
 	Uint64 ReadSize;//已经读取的数据大小
-	FAT32FileNode(FAT32* _vfs,Uint32 cluster=0);
+	Uint64 ContentLba;//目录项所在lba
+	Uint64 ContentOffset;//目录项所在偏移
+
+	virtual Sint64 Read(void* dst, Uint64 pos, Uint64 size) override;
+	virtual Sint64 Write(void* src, Uint64 pos, Uint64 size) override;
+	ErrorType SetSize(Uint32 size);//设置文件大小，只能缩小，不能放大
+	PAL_DS::Doublet <Uint32, Uint64> GetCLusterAndLbaFromOffset(Uint64 offset);
+	FAT32FileNode(FAT32* _vfs,Uint32 cluster,Uint64 _ContentLba,Uint64 _ContentOffset);
 	~FAT32FileNode();
 };
 

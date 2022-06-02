@@ -161,11 +161,11 @@ int RunAllTestSuits(void*)
 	};
 	
 	kout.SetEnableEffect(0);
+	kout.SwitchTypeOnoff(Info,0);
 	kout.SwitchTypeOnoff(Warning,0);
 	kout.SwitchTypeOnoff(Test,0);
-	kout.SwitchTypeOnoff(Info,0);
-	// kout.SwitchTypeOnoff(Debug,0);
-	// kout.SetEnabledType(0);
+//	kout.SwitchTypeOnoff(Debug,0);
+//	kout.SetEnabledType(0);
 	kout<<"Test all suits..."<<endl;
 	POS_PM.Current()->SetCWD("/VFS/FAT32");
 	VirtualFileSystem *vfs=new FAT32();
@@ -376,6 +376,8 @@ void TestFuncs()
 		kout<<"VFSM Test:"<<endl;
 		VirtualFileSystem *vfs=new FAT32();
 		VFSM.LoadVFS(vfs);
+		VFSM.CreateDirectory("/VFS/FAT32/MyDir");
+		VFSM.CreateDirectory("/VFS/FAT32/MyDir");
 		PrintVFSM(PrintVFSM,"/");
 //		delete vfs;
 		kout<<"VFSM Test OK"<<endl;

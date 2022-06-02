@@ -98,19 +98,36 @@ namespace POS
 		dst[char_len] = 0;
 		return char_len;
 	}
-
 	
-	inline bool IsUpperCase(char ch)
+	inline PAL_DS::Doublet<Uint32*, Uint32> Utf8ToUnicode(const char * name)
 	{
-		return ch <= 'Z' && ch >= 'A';
-	}
-	inline bool IsLowwerCase(char ch)
-	{
-		return ch <= 'z' && ch >= 'a';
-	}
-	inline bool IsLetter(char ch)
-	{
-		return IsUpperCase(ch) || IsLowwerCase(ch);
+		Uint32* unicode = new Uint32[strLen(name)];
+		Uint32 unicode_len = 0;
+		int read_pos = 0;
+
+		while(read_pos < strLen(name))
+		{
+			unsigned char mask = 1 << 7;
+			int size = 0;
+			for (; size < 8; size++)
+			{
+				if ( (name[read_pos] & mask) == 0)
+					break;
+				mask >>= 1;
+			}
+			switch (size)
+			{
+				case 0:
+					unicode[unicode_len] = (Uint32)name[read_pos];
+					unicode_len++;
+					read_pos++;
+					break;
+				default:
+					kout[Fault] << "we have not support utf8 more than one size!"<<endl;
+					break;
+			}
+		}
+		return PAL_DS::Doublet<Uint32*, Uint32>(unicode,unicode_len);
 	}
 };
 

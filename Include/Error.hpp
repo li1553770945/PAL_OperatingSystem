@@ -7,7 +7,7 @@
 
 enum
 {
-	ERR_None = 0,
+	ERR_None=0,
 	ERR_Unknown,
 	ERR_Todo,
 	ERR_KmallocFailed,
@@ -25,15 +25,15 @@ enum
 	ERR_PathIsNotFile,
 	ERR_FileNameTooLong,
 	ERR_InvalidClusterNumInFAT32,
+	ERR_InvalidFileHandlePermission,
+	ERR_TargetExist,
+	ERR_UnsuppoertedVirtualFunction,
+	ERR_FileEmpty,
 	ERR_DeviceReadError,
 	ERR_DeviceWriteError,
 	ERR_UnmountDeviceError,
 	ERR_LockDeviceError,
-	ERR_DeviceInitialError,
-	ERR_InvalidFileHandlePermission,
-	ERR_TargetExist,
-	ERR_UnsuppoertedVirtualFunction,
-	ERR_FileEmpty
+	ERR_DeviceInitialError
 };
 
 void KernelFaultSolver();

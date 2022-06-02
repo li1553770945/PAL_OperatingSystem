@@ -169,11 +169,11 @@ inline int Syscall_openat(int fd,char *filename,int flags,int mode)//Currently, 
 	if (path==nullptr)
 		return -1;
 	
-	constexpr int O_CREAT=00000100,
-				  O_RDONLY=00000000,
-				  O_WRONLY=00000001,
-				  O_RDWR=00000002,
-				  O_DIRECTORY=00200000;//??
+	constexpr int O_CREAT=0x40,
+				  O_RDONLY=0x000,
+				  O_WRONLY=0x001,
+				  O_RDWR=0x002,
+				  O_DIRECTORY=0x0200000;//??
 	FileNode *node=nullptr;
 	if (flags&O_CREAT)
 		if (flags&O_DIRECTORY)
@@ -209,6 +209,41 @@ inline int Syscall_close(int fd)
 	return 0;
 }
 
+inline Sint64 Syscall_getdents64(int fd,RegisterData _buf,Uint64 bufSize)
+{
+	struct dirent
+	{
+		Uint64 ino;
+		Sint64 off;
+		Uint16 reclen;
+		Uint8 name[0];
+	}__attribute__((packed));
+	char *dir=CurrentPathFromFileNameAndFD(fd,".");
+	if (dir==nullptr)
+		return -1;
+	char *buf=(char*)_buf;
+	char *childs[16];
+	VirtualMemorySpace::EnableAccessUser();
+	int skip=0,re=0;
+	while (1)
+	{
+		int i=0,cnt=VFSM.GetAllFileIn(dir,childs,16,skip);
+		while (i<cnt)
+		{
+			
+			//...
+			Kfree(childs[i]);
+			++i;
+		}
+		if (cnt<16||i<cnt)
+			break;
+		else skip+=cnt;
+	}
+	VirtualMemorySpace::DisableAccessUser();
+	//...
+	
+}
+
 inline int Syscall_mkdirat(int fd,char *filename,int mode)//Currently,mode will be ignored...
 {
 	VirtualMemorySpace::EnableAccessUser();
@@ -218,7 +253,7 @@ inline int Syscall_mkdirat(int fd,char *filename,int mode)//Currently,mode will 
 		return -1;
 	ErrorType err=VFSM.CreateDirectory(path);
 	Kfree(path);
-	return err==ERR_None?0:-1;
+	return InThisSet(err,ERR_None,ERR_FileAlreadyExist)/*??*/?0:-1;
 }
 
 inline RegisterData Syscall_Read(int fd,void *dst,Uint64 size)
@@ -413,7 +448,7 @@ inline RegisterData Syscall_nanosleep(RegisterData _req,RegisterData _rem)
 ErrorType TrapFunc_Syscall(TrapFrame *tf)
 {
 	InterruptStackAutoSaverBlockController isas;//??
-	kout[Test]<<"Syscall "<<tf->reg.a7<<" | "<<(void*)tf->reg.a0<<" "<<(void*)tf->reg.a1<<" "<<(void*)tf->reg.a2<<" "<<(void*)tf->reg.a3<<" "<<(void*)tf->reg.a4<<" "<<(void*)tf->reg.a5<<endl;
+//	kout[Test]<<"Syscall "<<tf->reg.a7<<" | "<<(void*)tf->reg.a0<<" "<<(void*)tf->reg.a1<<" "<<(void*)tf->reg.a2<<" "<<(void*)tf->reg.a3<<" "<<(void*)tf->reg.a4<<" "<<(void*)tf->reg.a5<<endl;
 	switch (tf->reg.a7)
 	{
 		case SYS_Putchar:

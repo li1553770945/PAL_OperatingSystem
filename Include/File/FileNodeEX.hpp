@@ -15,7 +15,7 @@ class UartFileNode:public FileNode
 			return size;
 		}
 		
-		virtual ErrorType Write(void *src,Uint64 pos,Uint64 size)//pos is not used...
+		virtual Sint64 Write(void *src,Uint64 pos,Uint64 size)//pos is not used...
 		{
 			char *s=(char*)src,*e=s+size;
 			while (s!=e)
@@ -77,7 +77,7 @@ class PipeFileNode:public FileNode
 			return size_bak;
 		}
 		
-		virtual ErrorType Write(void *src,Uint64 pos,Uint64 size)//pos is not used...
+		virtual Sint64 Write(void *src,Uint64 pos,Uint64 size)//pos is not used...
 		{
 			Uint64 size_bak=size;
 			while (size>0)

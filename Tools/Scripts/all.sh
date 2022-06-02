@@ -35,6 +35,8 @@ riscv64-unknown-elf-g++ -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/Library
 riscv64-unknown-elf-g++ -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/File/FileSystem.cpp            -o Build/Kernel/FileSystem.o        -I"Include" -mcmodel=medany 
 riscv64-unknown-elf-g++ -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/Library/libcpp.cpp             -o Build/Kernel/libcpp.o            -I"Include" -mcmodel=medany 
 riscv64-unknown-elf-g++ -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/File/FAT32.cpp                 -o Build/Kernel/FAT32.o             -I"Include" -mcmodel=medany 
+riscv64-unknown-elf-g++ -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/File/FAT32FileNode.cpp         -o Build/Kernel/FAT32FileNode.o     -I"Include" -mcmodel=medany 
+
 
 riscv64-unknown-elf-gcc -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/HAL/Drivers/_dmac.c            -o Build/Kernel/_dmac.o             -I"Include" -mcmodel=medany 
 riscv64-unknown-elf-gcc -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/HAL/Drivers/_plic.c            -o Build/Kernel/_plic.o             -I"Include" -mcmodel=medany 

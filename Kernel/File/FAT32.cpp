@@ -6,8 +6,6 @@
 #include <Library/DataStructure/PAL_Tuple.hpp>
 
 using namespace POS;
-const Uint64 SECTORSIZE = 512;
-const Uint64 CLUSTEREND = 0x0FFFFFFF;
 
 const char* FAT32::FileSystemName()
 {
@@ -125,8 +123,11 @@ int FAT32::GetAllFileIn(const char* path, char* result[], int bufferSize, int sk
 				else //短目录项
 				{
 					FAT32FileNode* p = (FAT32FileNode*)LoadShortFileInfoFromBuffer(temp);
+					
 					if (p != nullptr)
 					{
+						p->ContentLba = lba + i;
+						p->ContentOffset = j * 32;
 						if (skipCnt)
 						{
 							skipCnt--;
@@ -392,7 +393,7 @@ PAL_DS::Doublet <unsigned char*, Uint8 > FAT32::GetShortName(const char* name)
 
 	for (int i = 0; i < 11; i++)
 	{
-		if (IsLowwerCase(buffer[i]))
+		if (IsLowerCase(buffer[i]))
 		{
 			buffer[i] -= 32;
 		}
@@ -440,7 +441,7 @@ PAL_DS::Doublet <unsigned char*, Uint64> FAT32::GetLongName(const char *name)
 	int read_pos = -1;
 	int total_content_num = len / 13 + 2;
 	unsigned char* buffer = new unsigned char[total_content_num*32];
-	MemsetT(buffer, (unsigned char)0, (Uint64)total_content_num * 32);
+	MemsetT(buffer, (unsigned char)0, total_content_num * 32);
 	
 	for (int i = total_content_num - 1; i > 1; i--)
 	{
@@ -681,7 +682,7 @@ FileNode* FAT32::LoadShortFileInfoFromBuffer(unsigned char * buffer) //从第lba
 	{
 		return nullptr;
 	}*/
-	FAT32FileNode* node = new FAT32FileNode(this);
+	FAT32FileNode* node = new FAT32FileNode(this,0,0,0);
 	node->IsDir = attr & (1 << 4);
 	if (node->IsDir)
 		node->Attributes |= FileNode::A_Dir;
@@ -906,6 +907,7 @@ FileNode* FAT32::FindFileByNameFromCluster(Uint32 cluster, const char* name)
 				else //短目录项
 				{
 					result = (FAT32FileNode*)LoadShortFileInfoFromBuffer(temp);
+					
 					if (result == nullptr)
 					{
 						for (int i = 0; i < long_name_cnt; i++)
@@ -915,7 +917,8 @@ FileNode* FAT32::FindFileByNameFromCluster(Uint32 cluster, const char* name)
 						long_name_cnt = 0;
 						continue;
 					}
-
+					result->ContentLba = lba + i;
+					result->ContentOffset = j * 32;
 					if (long_name_cnt) //如果是长目录对应的短目录
 					{
 						char* long_full_name = MergeLongNameAndToUtf8(long_name, long_name_cnt);
@@ -960,14 +963,14 @@ FileNode* FAT32::FindFileByPath(const char* path)
 	}
 	if (POS::strLen(path) == 1)
 	{
-		FAT32FileNode* node = new FAT32FileNode(this, 2);
+		FAT32FileNode* node = new FAT32FileNode(this, 2,GetLbaFromCluster(2),0);
 		node->IsDir = true;
 		node->Attributes |= FileNode::A_Dir;
 		return node;
 	}
 
 
-	FAT32FileNode* node = new FAT32FileNode(this, 2);
+	FAT32FileNode* node = new FAT32FileNode(this, 2,GetLbaFromCluster(2),0);
 	Uint64 index, last_index = 1;
  	for (index= 1; index < POS::strLen(path); index++)
 	{
@@ -1124,103 +1127,5 @@ unsigned char FAT32::CheckSum(unsigned char* data)
 		sum = ((sum & 1) ? 0x80 : 0) + (sum >> 1) + *data++;
 	}
 	return (sum);
-}
-FAT32FileNode::FAT32FileNode(FAT32* _vfs, Uint32 _cluster):FileNode(_vfs, 0, 0)
-{
-	IsDir = false;
-	nxt = nullptr;
-	Vfs = _vfs;
-	FirstCluster = _cluster;
-	ReadSize = 0;
-}
-
-Sint64 FAT32FileNode::Read(void* dst, Uint64 pos, Uint64 size)
-{
-	Uint64 size_bak = size;
-
-	if (IsDir)
-	{
-		return ~ERR_PathIsNotFile;
-	}
-	FAT32* vfs = (FAT32*)Vfs;
-	Uint64 total_has_read_size = 0;//可能要跨扇区、簇读取，这是本次（该函数执行完一次）总数据量
-	Uint64 bytes_per_cluster = SECTORSIZE * vfs->Dbr.BPBSectorPerClus;
-	if (pos>=FileSize || pos+size>FileSize || pos<0 || size <0)
-	{
-		return ~ERR_FileOperationOutofRange;
-	}
-	if (size == 0)
-	{
-		return 0;
-	}
-	PAL_DS::Doublet <Uint32, Uint64> cluster_and_lba = GetCLusterAndLbaFromOffset(pos);
-	Uint32 cluster = cluster_and_lba.a;
-	Uint64 lba = cluster_and_lba.b;
-
-	Uint64 sector_offset = pos%SECTORSIZE;
-	Uint64 cluster_offset =  size% bytes_per_cluster;//当前簇读的位置，用于判断是否该切换下一个lba和簇
-
-
-	while (size)
-	{
-		if (cluster == CLUSTEREND)
-		{
-			kout[Error]<< "try to read FAT32 from cluster end"<<endl;
-			return ~ERR_InvalidClusterNumInFAT32;
-		}
-		Uint64 sector_need_read_size;//当前扇区需要读取的字节
-		if (sector_offset + size <= SECTORSIZE)//这个扇区可以直接满足
-		{
-			sector_need_read_size = size;
-			size = 0;
-		}
-		else//当前扇区不能满足，把这个扇区读完
-		{
-			sector_need_read_size = SECTORSIZE - sector_offset;
-			size -= sector_need_read_size;
-		}
-		
-		vfs->ReadRawData(lba, sector_offset, sector_need_read_size , (unsigned char*)dst+total_has_read_size);
-		total_has_read_size += sector_need_read_size;
-		cluster_offset += sector_need_read_size;
-		sector_offset += sector_need_read_size;
-		if (sector_offset == SECTORSIZE)//这个扇区已经读完
-		{
-			lba++;
-			sector_offset = 0;
-		}
-		if (cluster_offset ==  bytes_per_cluster) //这个簇已经读完
-		{
-			cluster = vfs->GetFATContentFromCluster(cluster);
-			lba = vfs->GetLbaFromCluster(cluster);//新簇LBA
-			cluster_offset = 0;
-		}
-	}
-	
-	return size_bak;
-}
-PAL_DS::Doublet <Uint32, Uint64> FAT32FileNode::GetCLusterAndLbaFromOffset(Uint64 offset)
-{
-	FAT32* vfs = (FAT32*)Vfs;
-	Uint64 lba;
-	Uint64 size_per_cluster = SECTORSIZE * vfs->Dbr.BPBSectorPerClus;
-	Uint32 cluster = FirstCluster;
-	while (offset >= size_per_cluster)
-	{
-		offset -= size_per_cluster;
-		cluster = vfs->GetFATContentFromCluster(cluster);
-	}
-	lba = vfs->GetLbaFromCluster(cluster)+ offset / SECTORSIZE;
-	return PAL_DS::Doublet <Uint32, Uint64>(cluster,lba);
-}
-
-ErrorType FAT32FileNode::Write(void* src, Uint64 pos, Uint64 size)
-{
-	return ERR_None;
-}
-
-FAT32FileNode::~FAT32FileNode()
-{
-	
 }
 

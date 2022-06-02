@@ -304,7 +304,6 @@ class VirtualMemorySpace:protected SpinLock
 		
 		inline static void DisableAccessUser()
 		{
-			return;//To fix the bug forked process cannot run!!(Reason??)
 			#ifdef QEMU
 			write_csr(sstatus,read_csr(sstatus)&~SSTATUS_SUM);
 			#else

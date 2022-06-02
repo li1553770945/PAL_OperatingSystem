@@ -60,6 +60,32 @@ FileNode* VirtualFileSystemManager::FindRecursive(FileNode *p,const char *path)
 	else return nullptr;
 }
 
+PAL_DS::Doublet <VirtualFileSystem*,const char*> VirtualFileSystemManager::FindPathOfVFS(FileNode *p,const char *path)
+{
+	if (*path==0)
+		return {nullptr,nullptr};
+	const char *s=path+1;
+	while (NotInSet(*s,0,'/'))
+		++s;
+	if (s==path+1)
+		return {nullptr,nullptr};
+	char *name=strDump(path+1,s);
+	FileNode *child=FindChildName(p,name);
+	if (child==nullptr)
+		return {nullptr,nullptr};
+	else if (child->Attributes&FileNode::A_VFS)
+	{
+		Kfree(name);
+		return {child->Vfs,s};
+	}
+	else
+	{
+		auto re=FindPathOfVFS(child,s);
+		Kfree(name);
+		return re;
+	}
+}
+
 char* VirtualFileSystemManager::NormalizePath(const char *path,const char *base)
 {
 	char *tmp=base==nullptr||IsAbsolutePath(path)?strDump(path):strSplice(base,"/",path);
@@ -115,16 +141,32 @@ int VirtualFileSystemManager::GetAllFileIn(Process *proc,const char *path,char *
 	return re;
 }
 
-ErrorType VirtualFileSystemManager::CreateDirectory(const char *path)
+ErrorType VirtualFileSystemManager::CreateDirectory(const char *path)//Need improve...
 {
-	kout[Warning]<<"VirtualFileSystemManager::CreateDirectory is not usable yet!"<<endl;
-	return ERR_Todo;
+	auto vfs=FindPathOfVFS(root,path);
+	return vfs.a->CreateDirectory(vfs.b);
+}
+
+ErrorType VirtualFileSystemManager::CreateDirectory(Process *proc,const char *path)
+{
+	char *pa=NormalizePath(path,proc->GetCWD());
+	ErrorType re=CreateDirectory(pa);
+	Kfree(pa);
+	return re;
 }
 
 ErrorType VirtualFileSystemManager::CreateFile(const char *path)
 {
-	kout[Warning]<<"VirtualFileSystemManager::CreateFile is not usable yet!"<<endl;
-	return ERR_Todo;
+	auto vfs=FindPathOfVFS(root,path);
+	return vfs.a->CreateFile(vfs.b);
+}
+
+ErrorType VirtualFileSystemManager::CreateFile(Process *proc,const char *path)
+{
+	char *pa=NormalizePath(path,proc->GetCWD());
+	ErrorType re=CreateFile(pa);
+	Kfree(pa);
+	return ERR_None;
 }
 
 ErrorType VirtualFileSystemManager::Move(const char *src,const char *dst)

@@ -83,7 +83,7 @@ class StupidFileNode:public FileNode
 			return size;
 		}
 		
-		virtual ErrorType Write(void *src,Uint64 pos,Uint64 size)
+		virtual Sint64 Write(void *src,Uint64 pos,Uint64 size)
 		{
 			if (pos>=sizeof(Data)||pos+size>=sizeof(Data))
 				return -ERR_FileOperationOutofRange;
@@ -417,7 +417,7 @@ class TestMemFileNode:public FileNode
 			return ERR_None;
 		}
 		
-		virtual ErrorType Write(void *src,Uint64 pos,Uint64 size)
+		virtual Sint64 Write(void *src,Uint64 pos,Uint64 size)
 		{
 			return ERR_Unknown;
 		}

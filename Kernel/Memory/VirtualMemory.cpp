@@ -5,10 +5,6 @@
 #include <Library/TemplateTools.hpp>
 #include <Library/Kout.hpp>
 
-#include "../../Include/Memory/VirtualMemory.hpp"
-#include "../../Include/Process/Process.hpp"
-#include "../../Include/Trap/Trap.hpp"
-
 VirtualMemorySpace *VirtualMemorySpace::CurrentVMS=nullptr,
 				   *VirtualMemorySpace::BootVMS=nullptr,
 				   *VirtualMemorySpace::KernelVMS=nullptr;
@@ -23,6 +19,8 @@ ErrorType PageTable::Destroy(const int level)
 		if (entries[i].Valid())
 			if (entries[i].IsPageTable())
 				entries[i].GetPageTable()->Destroy(level-1);
+			else if (entries[i].Get<PageTable::Entry::U>()==0)
+				DoNothing;//Kernel page won't be freed
 			else if (level==0)//??
 			{
 				Page *page=entries[i].GetPage();
@@ -208,13 +206,11 @@ ErrorType VirtualMemorySpace::InitStatic()
 		
 void VirtualMemorySpace::Unref(Process *proc)
 {
-	kout[Warning]<<"VirtualMemorySpace::Unref is uncompleted!"<<endl;
 	--SharedCount;
 }
 
 void VirtualMemorySpace::Ref(Process *proc)
 {
-	kout[Warning]<<"VirtualMemorySpace::Ref is uncompleted!"<<endl;
 	++SharedCount;
 }
 
