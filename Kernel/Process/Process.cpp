@@ -27,22 +27,28 @@ void ProcessManager::Schedule()
 {
 	if (CurrentProcess!=nullptr&&ProcessCount>=2)
 	{
+		kout[Debug]<<"S1 "<<CurrentProcess->ID<<endl;
 //		kout[Test]<<"ProcessManager::Schedule: Start schedule, CurrentProcess "<<CurrentProcess->ID<<", TotalProcess "<<ProcessCount<<endl;
 		int i,p;
 		for (i=1,p=CurrentProcess->ID;i<MaxProcessCount;++i)
 		{
+		kout[Debug]<<"S2 "<<i<<endl;
 			Process *tar=&Processes[(i+p)%MaxProcessCount];
 			if (tar->stat==Process::S_Sleeping&&tar->SemWaitingTargetTime!=0&&GetClockTime()>=tar->SemWaitingTargetTime)
 				tar->stat=Process::S_Ready;
+		kout[Debug]<<"S3 "<<tar->stat<<endl;
 			if (tar->stat==Process::S_Ready)
 			{
+		kout[Debug]<<"S4 "<<tar->ID<<endl;
 				kout[Test]<<"Switch from "<<CurrentProcess->ID<<" to "<<tar->ID<<endl;
 				tar->Run();
+		kout[Debug]<<"S5 "<<CurrentProcess->ID<<endl;
 //				kout[Test]<<"Schedule return from "<<tar->ID<<"? to self "<<CurrentProcess->ID<<endl;
 				break;
 			}
 			else if (tar->stat==Process::S_Quiting&&(tar->flags&Process::F_AutoDestroy))
 				tar->Destroy();
+		kout[Debug]<<"S6"<<endl;
 		}
 //		kout[Test]<<"ProcessManager::Schedule: Schedule complete, CurrentProcess "<<CurrentProcess->ID<<", TotalProcess "<<ProcessCount<<endl;
 		if (i==MaxProcessCount&&p!=0)
