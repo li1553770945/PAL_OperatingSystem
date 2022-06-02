@@ -160,11 +160,11 @@ int RunAllTestSuits(void*)
 		}
 	};
 	
-//	kout.SetEnableEffect(0);
-//	kout.SwitchTypeOnoff(Warning,0);
-//	kout.SwitchTypeOnoff(Test,0);
-//	kout.SwitchTypeOnoff(Debug,0);
-	kout.SetEnabledType(0);
+	kout.SetEnableEffect(0);
+	// kout.SwitchTypeOnoff(Warning,0);
+	// kout.SwitchTypeOnoff(Test,0);
+	// kout.SwitchTypeOnoff(Debug,0);
+	// kout.SetEnabledType(0);
 	kout<<"Test all suits..."<<endl;
 	POS_PM.Current()->SetCWD("/VFS/FAT32");
 	VirtualFileSystem *vfs=new FAT32();
