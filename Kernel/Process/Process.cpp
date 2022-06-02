@@ -142,14 +142,20 @@ ErrorType Process::Run()
 
 ErrorType Process::Exit(int re)
 {
-	ASSERT(stat!=S_Quiting,"Process::Exit: stat is S_Quiting(Exit twice)!");
+	ASSERTEX(stat!=S_Quiting,"Process::Exit: stat is S_Quiting(Exit twice),PID "<<ID);
 	if (re!=Exit_Normal)
 		kout[Warning]<<"Process "<<ID<<" exited with returned value "<<re<<endl;
 	else kout[Test]<<"Process "<<ID<<" exited successfully."<<endl;
 	ReturnedValue=re;
+	if (ReturnedValue==Exit_BadSyscall)
+		kout[Debug]<<"A"<<endl;
 	VMS->Leave();
+	if (ReturnedValue==Exit_BadSyscall)
+		kout[Debug]<<"B"<<endl;
 	if (!(flags&F_AutoDestroy)&&fa!=nullptr)
 		fa->WaitSem->Signal();
+	if (ReturnedValue==Exit_BadSyscall)
+		kout[Debug]<<"C"<<endl;
 	stat=S_Quiting;
 	return ERR_None;
 }

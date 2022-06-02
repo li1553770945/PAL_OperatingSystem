@@ -554,7 +554,9 @@ ErrorType TrapFunc_Syscall(TrapFrame *tf)
 			{
 				kout[Error]<<"TrapFunc_Syscall: Unknown syscall "<<tf->reg.a7<<" from user process "<<cur->GetPID()<<"!"<<endl;
 				cur->Exit(Process::Exit_BadSyscall);
+				kout[Debug]<<"D"<<endl;
 				POS_PM.Schedule();
+				kout[Fault]<<"TrapFunc_Syscall: Reaced unreachable branch!"<<endl;
 			}
 			break;
 		}
