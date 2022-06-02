@@ -74,7 +74,7 @@ class StupidFileNode:public FileNode
 		}
 		
 	public:
-		virtual ErrorType Read(void *dst,Uint64 pos,Uint64 size)
+		virtual Sint64 Read(void *dst,Uint64 pos,Uint64 size)
 		{
 			if (pos>=Size||pos+size>=Size)
 				return -ERR_FileOperationOutofRange;
@@ -408,7 +408,7 @@ class TestMemFileNode:public FileNode
 		PtrInt Begin,End,Size;
 		
 	public:
-		virtual ErrorType Read(void *dst,Uint64 pos,Uint64 size)
+		virtual Sint64 Read(void *dst,Uint64 pos,Uint64 size)
 		{
 			if (pos>=Size||pos+size>=Size)
 				return ERR_FileOperationOutofRange;

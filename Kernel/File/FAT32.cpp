@@ -2,15 +2,12 @@
 #include <File/FAT32.hpp>
 #include <Error.hpp>
 #include <Library/TemplateTools.hpp>
+#include <Library/String/StringTools.hpp>
 #include <Library/DataStructure/PAL_Tuple.hpp>
 
 using namespace POS;
-
 const Uint64 SECTORSIZE = 512;
 const Uint64 CLUSTEREND = 0x0FFFFFFF;
-
-
-
 
 const char* FAT32::FileSystemName()
 {
@@ -22,50 +19,63 @@ FAT32::FAT32()
 	Init();
 }
 
-int FAT32::ReadRawData(Uint64 lba,Uint64 offset, Uint64 size, unsigned char* buffer)
+ErrorType FAT32::ReadRawData(Uint64 lba,Uint64 offset, Uint64 size, unsigned char* buffer)
 {
 	unsigned char buffer_temp[SECTORSIZE];
-	ErrorType error = file.Read(lba, buffer_temp);
-	if (error == 0)
+	ErrorType error = device.Read(lba, buffer_temp);
+	if (error != 0)
 	{
-		return error;
+		return ERR_DeviceReadError;
 	}
-	POS::MemcpyT(buffer, buffer_temp + offset, size);
+	POS::MemcpyT(buffer, buffer_temp + offset, (Uint32)size);
 	return  ERR_None;
 }
-int FAT32::Init()
+ErrorType FAT32::WriteRawData(Uint64 lba, Uint64 offset, Uint64 size, unsigned char* buffer)
+{
+	unsigned char temp_buffer[512];
+	device.Read(lba, temp_buffer);
+	POS::MemcpyT(temp_buffer + offset, buffer, size);
+	if (device.Write(lba, temp_buffer) == 0)
+	{
+		return ERR_DeviceWriteError;
+	}
+	return ERR_None;
+}
+ErrorType FAT32::Init()
 {
 #
 	kout << "initing fat32 file system..." << endl;
-	if (file.Init() != 0)
+	ErrorType err = device.Init();
+	if (err != 0)
 	{
-		return -1;
+		kout[Fault] << "device init error:" << err << endl;
+		return err;
 	}
 	unsigned char buffer[SECTORSIZE];
-	file.Read(0, buffer);
+	device.Read(0, buffer);
 	if (!((Uint8)buffer[510] == 0x55 && (Uint8)buffer[511] == 0xAA) )
 	{
-		return -1;
+		return ERR_VertifyNumberDisagree;
 	}
 	DBRLba = (buffer[0x1c9] << 24) | (buffer[0x1c8] << 16) | (buffer[0x1c7] << 8) | (buffer[0x1c6]);
 	kout << "DBR_lba:" << DBRLba << endl;
 
 
-	file.Read(DBRLba, buffer); //buffer是DBR分区内容
+	device.Read(DBRLba, buffer); //buffer是DBR分区内容
 
-	Dbr.BPBSectionPerClus = buffer[0x0d];
-	Dbr.BPB_rsvd_sec_cnt = (buffer[0x0f] << 8) | buffer[0x0e];
-	Dbr.BPB_FAT_num = buffer[0x10];
-	Dbr.BPB_hiden_section_num = (buffer[0x1f] << 24) | (buffer[0x1e] << 16) | (buffer[0x1d] << 8) | (buffer[0x1c]);
-	Dbr.BPB_section_per_FAT_area = (buffer[0x27] << 24) | (buffer[0x26] << 16) | (buffer[0x25] << 8) | (buffer[0x24]); //FAT区大小
-	kout << "Dbr.BPBSectionPerClus:" << Dbr.BPBSectionPerClus << endl;
-	kout << "BPB reserved section count:" << Dbr.BPB_rsvd_sec_cnt<<endl;
-	kout << "BPB FAT number:" << Dbr.BPB_FAT_num << endl;
-	kout << "BPB hiden section num:" << Dbr.BPB_hiden_section_num << endl;
-	kout << "BPB FAT section num:" << Dbr.BPB_section_per_FAT_area << endl;
-	FAT1Lba = DBRLba + Dbr.BPB_rsvd_sec_cnt; //FAT1 = DBR + 保留扇区
-	FAT2Lba = FAT1Lba + Dbr.BPB_section_per_FAT_area; //FAT2 = FAT1 + FAT区大小
-	RootLba = FAT1Lba + Dbr.BPB_section_per_FAT_area * Dbr.BPB_FAT_num;
+	Dbr.BPBSectorPerClus = buffer[0x0d];
+	Dbr.BPB_RsvdSectorNum = (buffer[0x0f] << 8) | buffer[0x0e];
+	Dbr.BPB_FATNum = buffer[0x10];
+	Dbr.BPB_HidenSectorNum = (buffer[0x1f] << 24) | (buffer[0x1e] << 16) | (buffer[0x1d] << 8) | (buffer[0x1c]);
+	Dbr.BPB_SectorPerFATArea = (buffer[0x27] << 24) | (buffer[0x26] << 16) | (buffer[0x25] << 8) | (buffer[0x24]); //FAT区大小
+	kout << "Dbr.BPBSectionPerClus:" << Dbr.BPBSectorPerClus << endl;
+	kout << "BPB reserved sector count:" << Dbr.BPB_RsvdSectorNum<<endl;
+	kout << "BPB FAT number:" << Dbr.BPB_FATNum << endl;
+	kout << "BPB hiden sector num:" << Dbr.BPB_HidenSectorNum << endl;
+	kout << "BPB FAT sector num:" << Dbr.BPB_SectorPerFATArea << endl;
+	FAT1Lba = DBRLba + Dbr.BPB_RsvdSectorNum; //FAT1 = DBR + 保留扇区
+	FAT2Lba = FAT1Lba + Dbr.BPB_SectorPerFATArea; //FAT2 = FAT1 + FAT区大小
+	RootLba = FAT1Lba + Dbr.BPB_SectorPerFATArea * (Uint64)Dbr.BPB_FATNum;
 	kout <<"FAT1_lba:" << FAT1Lba << " FAT2_lba:" << FAT2Lba << endl;
 	kout << "root lba:" << RootLba << endl;
 	return ERR_None;
@@ -73,8 +83,8 @@ int FAT32::Init()
 
 FileNode* FAT32::FindFile(const char* path, const char* name)
 {
-	char *s=strComp(path,"/")==0?strSplice("/",name):strSplice(path,"/",name);
-	FileNode *re=Open(s);
+	char* s = strComp(path, "/") == 0 ? strSplice("/", name) : strSplice(path, "/", name);
+	FileNode* re = Open(s);
 	Kfree(s);
 	return re;
 }
@@ -86,7 +96,7 @@ int FAT32::GetAllFileIn(const char* path, char* result[], int bufferSize, int sk
 	{
 		return -1;
 	}
-	Uint64  cluster = node->FirstCluster;
+	Uint32  cluster = node->FirstCluster;
 	delete node;
 	int cnt = 0; //一共找到了几个文件（夹）
 	int long_name_cnt = 0;//长文件名计数
@@ -96,7 +106,7 @@ int FAT32::GetAllFileIn(const char* path, char* result[], int bufferSize, int sk
 	{
 		Uint64 lba = GetLbaFromCluster(cluster);
 
-		for (Uint32 i = 0; i < Dbr.BPBSectionPerClus; i++)
+		for (Uint32 i = 0; i < Dbr.BPBSectorPerClus; i++)
 		{
 			unsigned char buffer[SECTORSIZE];
 			ReadRawData(lba + i, 0, 512, buffer);
@@ -178,12 +188,458 @@ int FAT32::GetAllFileIn(const char* path, char* result[], int bufferSize, int sk
 }
 ErrorType FAT32::CreateDirectory(const char* path)
 {
-	return 0;
+	FAT32FileNode* node = (FAT32FileNode*)FindFileByPath(path);
+	if (node != nullptr)
+	{
+		return ERR_FileAlreadyExist;
+	}
+	PAL_DS::Doublet <char*, char*> sections = CutLastSection(path);
+	char* section1 = sections.a,* section2 = sections.b;
+	node = (FAT32FileNode*)FindFileByPath(section1);
+	if (node == nullptr)
+	{
+		return ERR_FilePathNotExist;
+	}
+	if (node->IsDir == false)
+	{
+		return ERR_PathIsNotDirectory;
+	}
 
+	if (IsShortContent(section2))
+	{
+		unsigned char* buffer = new unsigned char[32];
+
+		PAL_DS::Doublet <unsigned char*, Uint8 > short_name = GetShortName(section2);
+
+		MemcpyT(buffer, short_name.a, 11);
+		delete[] short_name.a;
+		buffer[0x0C] = short_name.b;
+
+		Uint32 cluster = GetFreeClusterAndPlusOne();
+
+		buffer[0x14] = (cluster & 0x00FF0000) >> 16;//设置文件簇号
+		buffer[0x15] = (cluster & 0xFF000000) >> 24;
+		buffer[0x1A] = cluster & 0x000000FF;
+		buffer[0x1B] = (cluster & 0x0000FF00) >> 8;
+		buffer[0x0B] = 1 << 4;
+	
+		buffer[0x0D] = 0xB6;//创建时间10ms的值
+		buffer[0x0E] = 0x05;//创建时间
+		buffer[0x0F] = 0x7A;
+
+		buffer[0x10] = 0xC1;//创建日期
+		buffer[0x11] = 0x54;
+
+		buffer[0x12] = 0xC1;//最后访问日期
+		buffer[0x13] = 0x54;
+
+
+		buffer[0x16] = 0x06;//修改时间
+		buffer[0x17] = 0x7A;
+
+		buffer[0x18] = 0xC1;//修改日期
+		buffer[0x19] = 0x54;
+
+		AddContentToCluster(node->FirstCluster, buffer, 32ull);
+
+		delete node;
+		delete[] buffer;
+		delete[] section1;
+		delete[] section2;
+		return ERR_None;
+
+	}
+	else
+	{
+		PAL_DS::Doublet <unsigned char*, Uint64>  long_name = GetLongName(section2);
+
+		unsigned char* buffer = long_name.a;
+		Uint64 total_content_num = long_name.b;
+		unsigned char* temp = buffer + (total_content_num - 1) * 32;
+		Uint32 cluster = GetFreeClusterAndPlusOne();
+
+		temp[0x14] = (cluster & 0x00FF0000) >> 16;//设置文件簇号
+		temp[0x15] = (cluster & 0xFF000000) >> 24;
+		temp[0x1A] = cluster & 0x000000FF;
+		temp[0x1B] = (cluster & 0x0000FF00) >> 8;
+		temp[0x0B] = 1 << 4;
+
+		temp[0x0D] = 0xB6;//创建时间10ms的值
+
+		temp[0x0E] = 0x05;//创建时间
+		temp[0x0F] = 0x7A;
+
+		temp[0x10] = 0xC1;//创建日期
+		temp[0x11] = 0x54;
+
+		temp[0x12] = 0xC1;//最后访问日期
+		temp[0x13] = 0x54;
+
+		temp[0x16] = 0x06;//修改时间
+		temp[0x17] = 0x7A;
+
+		temp[0x18] = 0xC1;//修改日期
+		temp[0x19] = 0x54;
+
+		AddContentToCluster(node->FirstCluster, buffer, total_content_num * 32ull);
+
+		delete node;
+		delete[] buffer;
+		delete[] section1;
+		delete[] section2;
+		return ERR_None;
+	}
+
+}
+bool FAT32::IsShortContent(const char* name)
+{
+	int ext_start = -1;
+	bool name_upper_case = IsUpperCase(name[0]);
+	bool ext_upper_case = IsUpperCase(name[strLen(name)-1]);
+
+
+	for (int i = 0; i < strLen(name); i++)
+	{
+		if (name[i] == '.')
+		{
+			if (ext_start != -1)
+			{
+				return false;
+			}
+			ext_start = i+1;
+		}
+	}
+	if (ext_start!=-1&&ext_start - 1 > 8)
+	{
+		return false;
+	}
+	if (ext_start != -1&&strLen(name) - ext_start  > 3)
+	{
+		return false;
+	}
+
+	bool ext = false;
+	for (int i = 0; i < strLen(name); i++)
+	{
+		if (name[i] == '.')
+		{
+			ext = true;
+			continue;
+		}
+
+		if (!IsLetter(name[i]))
+		{
+			return false;
+		}
+
+		if (ext)
+		{
+			if (IsUpperCase(name[i]) != ext_upper_case)
+			{
+				return false;
+			}
+		}
+		else
+		{
+			if (IsUpperCase(name[i]) != name_upper_case)
+			{
+				return false;
+			}
+		}
+		
+	}
+	return true;
+}
+PAL_DS::Doublet <unsigned char*, Uint8 > FAT32::GetShortName(const char* name)
+{
+	bool have_ext = false;
+	bool name_upper_case = IsUpperCase(name[0]);
+	bool ext_upper_case = IsUpperCase(name[strLen(name) - 1]);
+
+
+	
+	unsigned char* buffer = new unsigned char [11];
+	int read_pos = 0,write_pos = -1;
+	for (; read_pos < strLen(name); read_pos++)
+	{
+		if (name[read_pos] == '.')
+		{
+			break;
+		}
+		buffer[++write_pos] = name[read_pos];
+	}
+	write_pos++;
+	for (; write_pos < 8; write_pos++)
+	{
+		buffer[write_pos] = 0x20;
+	}
+
+	write_pos = 7;
+
+	read_pos++;
+
+	for (; read_pos < strLen(name); read_pos++)
+	{
+		have_ext = true;
+		buffer[++write_pos] = name[read_pos];
+	}
+	write_pos++;
+
+	for (; write_pos < 11; write_pos++)
+	{
+		buffer[write_pos] = 0x20;
+	}
+
+	for (int i = 0; i < 11; i++)
+	{
+		if (IsLowwerCase(buffer[i]))
+		{
+			buffer[i] -= 32;
+		}
+	}
+	//1. 此值为18H时，文件名和扩展名都小写。
+	//2. 此值为10H时，文件名大写而扩展名小写。
+	//3. 此值为08H时，文件名小写而扩展名大写。
+	//4. 此值为00H时，文件名和扩展名都大写。
+	if (have_ext)
+	{
+		if (!name_upper_case && !ext_upper_case)
+		{
+			return Doublet <unsigned char*, Uint8 >(buffer, 0x18);
+		}
+		else if (name_upper_case && !ext_upper_case)
+		{
+			return Doublet <unsigned char*, Uint8 >(buffer, 0x10);
+		}
+		else if (!name_upper_case && ext_upper_case)
+		{
+			return Doublet <unsigned char*, Uint8 >(buffer, 0x08);
+		}
+		else 
+		{
+			return Doublet <unsigned char*, Uint8 >(buffer, 0x00);
+		}
+	}
+	else
+	{
+		if (name_upper_case)
+		{
+			return Doublet <unsigned char*, Uint8 >(buffer, 0x00);
+		}
+		else
+		{
+			return Doublet <unsigned char*, Uint8 >(buffer, 0x18);
+		}
+	}
+}
+PAL_DS::Doublet <unsigned char*, Uint64> FAT32::GetLongName(const char *name)
+{
+	PAL_DS::Doublet<Uint32*, Uint32> result = Utf8ToUnicode(name);
+	Uint32* unicode = result.a;
+	int len = result.b;
+	int read_pos = -1;
+	int total_content_num = len / 13 + 2;
+	unsigned char* buffer = new unsigned char[total_content_num*32];
+	MemsetT(buffer, (unsigned char)0, (Uint64)total_content_num * 32);
+	
+	for (int i = total_content_num - 1; i > 1; i--)
+	{
+		unsigned char* temp = buffer + (i-1)  * 32;
+		temp[0x00] = total_content_num - i;
+		temp[0x0B] = 0x0F;
+		for (int j = 0x01; j <= 0x1F; j+=2)
+		{
+			if (j == 0x0B)
+			{
+				j = 0x0E;
+			}
+			if (j == 0x1A)
+			{
+				j = 0x1C;
+			}
+			temp[j]   = unicode[++read_pos] & 0x000000FF;
+			temp[j+1] = (unicode[read_pos] & 0x0000FF00) >> 8;
+		}
+		
+
+	}
+
+	buffer[0x00] = 0x40 | (total_content_num - 1);
+	buffer[0x0B] = 0x0F;
+	bool have_add_zero = false;
+	for (int i = 0x01; i <= 0x1F; i+=2)
+	{
+		if (i == 0x0B)
+		{
+			i = 0x0E;
+		}
+		if (i == 0x1A)
+		{
+			i = 0x1C;
+		}
+		if (read_pos + 1 >= len)
+		{
+			if (have_add_zero)
+			{
+				buffer[i] = 0xFF;
+				buffer[i + 1] = 0xFF;
+			}
+			else
+			{
+				buffer[i] = 0x00;
+				buffer[i + 1] = 0x00;
+				have_add_zero = true;
+			}
+		}
+		else
+		{
+			buffer[i] = unicode[++read_pos];
+			buffer[i + 1] = (unicode[read_pos] & 0x0000FF00) >> 8;
+		}
+	}
+	unsigned char* temp = buffer + (total_content_num - 1) * 32;
+
+
+	int short_name_len = 0;
+	for (int i = 0; i < 6; i++)
+	{
+		if (i < strLen(name))
+		{
+			short_name_len++;
+			temp[i] = name[i];
+		}
+		else
+		{
+			break;
+		}
+	}
+	temp[short_name_len++]  = '~';
+	temp[short_name_len++] = '1';
+	for (; short_name_len < 11; short_name_len++)
+	{
+		temp[short_name_len] = 0x20;
+	}
+	for (int i = 0; i < 11; i++)
+	{
+		if (temp[i] <= 'z' && temp[i] >= 'a')
+		{
+			temp[i] -= 32;
+		}
+	}
+
+	unsigned char check_sum = CheckSum(temp);
+	for (int i = 0; i < total_content_num - 1; i++)
+	{
+		buffer[i*32+0x0D] = check_sum;
+
+	}
+
+	delete[] unicode;
+	return PAL_DS::Doublet <unsigned char*, Uint64> (buffer, total_content_num);
 }
 ErrorType FAT32::CreateFile(const char* path)
 {
-	return 0;
+	FAT32FileNode* node = (FAT32FileNode*)FindFileByPath(path);
+	if (node != nullptr)
+	{
+		return ERR_FileAlreadyExist;
+	}
+	PAL_DS::Doublet <char*, char*> sections = CutLastSection(path);
+	char* section1 = sections.a, * section2 = sections.b;
+	node = (FAT32FileNode*)FindFileByPath(section1);
+	if (node == nullptr)
+	{
+		return ERR_FilePathNotExist;
+	}
+	if (node->IsDir == false)
+	{
+		return ERR_PathIsNotDirectory;
+	}
+
+	if (IsShortContent(section2))
+	{
+		unsigned char* buffer = new unsigned char[32];
+		MemsetT(buffer, (unsigned char)0, 32);
+		
+		PAL_DS::Doublet <unsigned char*, Uint8 > short_name = GetShortName(section2);
+		
+		MemcpyT(buffer, short_name.a, 11);
+		delete[] short_name.a;
+		buffer[0x0C] = short_name.b;
+
+		Uint32 cluster = GetFreeClusterAndPlusOne();
+
+		buffer[0x14] = (cluster & 0x00FF0000) >> 16;//设置文件簇号
+		buffer[0x15] = (cluster & 0xFF000000) >> 24;
+		buffer[0x1A] = cluster & 0x000000FF;
+		buffer[0x1B] = (cluster & 0x0000FF00) >> 8;
+
+		buffer[0x0D] = 0xB6;//创建时间10ms的值
+		buffer[0x0E] = 0x05;//创建时间
+		buffer[0x0F] = 0x7A;
+
+		buffer[0x10] = 0xC1;//创建日期
+		buffer[0x11] = 0x54;
+
+		buffer[0x12] = 0xC1;//最后访问日期
+		buffer[0x13] = 0x54;
+
+
+		buffer[0x16] = 0x06;//修改时间
+		buffer[0x17] = 0x7A;
+
+		buffer[0x18] = 0xC1;//修改日期
+		buffer[0x19] = 0x54;
+
+		AddContentToCluster(node->FirstCluster, buffer, 32ull);
+
+		delete node;
+		delete[] buffer;
+		delete[] section1;
+		delete[] section2;
+		return ERR_None;
+
+	}
+	else
+	{
+		
+		PAL_DS::Doublet <unsigned char*, Uint64>  long_name = GetLongName(section2);
+
+		unsigned char* buffer = long_name.a;
+		Uint64 total_content_num = long_name.b;
+		unsigned char* temp = buffer + (total_content_num - 1)*32;
+		Uint32 cluster = GetFreeClusterAndPlusOne();
+
+		temp[0x14] = (cluster & 0x00FF0000) >> 16;//设置文件簇号
+		temp[0x15] = (cluster & 0xFF000000) >> 24;
+		temp[0x1A] = cluster & 0x000000FF;
+		temp[0x1B] = (cluster & 0x0000FF00) >> 8;
+
+		temp[0x0D] = 0xB6;//创建时间10ms的值
+
+		temp[0x0E] = 0x05;//创建时间
+		temp[0x0F] = 0x7A;
+
+		temp[0x10] = 0xC1;//创建日期
+		temp[0x11] = 0x54;
+
+		temp[0x12] = 0xC1;//最后访问日期
+		temp[0x13] = 0x54;
+
+		temp[0x16] = 0x06;//修改时间
+		temp[0x17] = 0x7A;
+
+		temp[0x18] = 0xC1;//修改日期
+		temp[0x19] = 0x54;
+
+		AddContentToCluster(node->FirstCluster, buffer, total_content_num * 32ull);
+
+		delete node;
+		delete[] buffer;
+		delete[] section1;
+		delete[] section2;
+		return ERR_None;
+	}
 
 }
 ErrorType FAT32::Move(const char* src, const char* dst)
@@ -228,7 +684,7 @@ FileNode* FAT32::LoadShortFileInfoFromBuffer(unsigned char * buffer) //从第lba
 	FAT32FileNode* node = new FAT32FileNode(this);
 	node->IsDir = attr & (1 << 4);
 	if (node->IsDir)
-		node->Attributes|=FileNode::A_Dir;
+		node->Attributes |= FileNode::A_Dir;
 	Uint16 file_name_length = 0; //获取文件名
 	for (int i = 0; i < 8; i++)
 	{
@@ -321,22 +777,32 @@ ErrorType FAT32::LoadLongFileNameFromBuffer(unsigned char* buffer, Uint32*  name
 	name[12] = (buffer[0x1F] << 8) | (buffer[0x1E] );
 	return ERR_None;
 }
-char* FAT32::MergeLongNameAndToUtf8(Uint32* buffer[], Uint32 cnt)
+char* FAT32::MergeLongNameAndToUtf8(Uint32* unicode[], Uint32 cnt)
 {
 
 	char* result = new char[4 * 13 * cnt];
 	Uint64 last_length = 0;
 	for (int i = cnt - 1; i >= 0; i--)
 	{
-		last_length = POS::UnicodeToUtf8(result+last_length, buffer[i], 13);
+		last_length = POS::UnicodeToUtf8(result+last_length, unicode[i], 13);
 	}
 	return result;
 }
 Uint64 FAT32::GetLbaFromCluster(Uint64 cluster)
 {
 
-	return RootLba + (cluster - 2)*Dbr.BPBSectionPerClus;
+	return RootLba + (cluster - 2)*Dbr.BPBSectorPerClus;
 
+}
+Uint64 FAT32::GetSectorOffsetFromlba(Uint64 lba)//当前lba是所属簇的第几个扇区
+{
+	lba -= RootLba;
+	if (lba < 0)
+	{
+		Panic("try to get sector offset from a lba out of data range!" );
+		return -1;
+	}
+	return lba / Dbr.BPBSectorPerClus;
 }
 
 //FileNode* FAT32::GetFileNodesFromCluster(Uint64 cluster) // cluster对应的是目录项
@@ -387,15 +853,26 @@ Uint64 FAT32::GetLbaFromCluster(Uint64 cluster)
 //	return head;
 //	
 //}
-Uint64 FAT32::GetFATContentFromCluster(Uint64 cluster)
+Uint32 FAT32::GetFATContentFromCluster(Uint32 cluster)
 {
-	Uint64 lba = FAT1Lba + cluster * 4 / SECTORSIZE;//对应扇区lba
-	Uint64 offset = (cluster * 4) % SECTORSIZE;
+	Uint64 lba = FAT1Lba + (Uint64)cluster * 4 / SECTORSIZE;//对应扇区lba
+	Uint64 offset = ((Uint64)cluster * 4) % SECTORSIZE;
 	unsigned char buffer[4];
 	ReadRawData(lba, offset, 4, buffer);
 	return (buffer[3] << 24) | (buffer[2] << 16) | (buffer[1] <<8) | buffer[0];
 }
-FileNode* FAT32::FindFileByNameFromCluster(Uint64 cluster, const char* name)
+ErrorType FAT32::SetFATContentFromCluster(Uint32 cluster, Uint32 content)//设置cluster对应的FAT表中内容为content(自动将content转换为大端)
+{
+	unsigned char buffer[4];
+	buffer[0] = content & 0x000000FF;
+	buffer[1] = (content & 0x0000FF00) >> 8;
+	buffer[2] = (content & 0x00FF0000) >> 16;
+	buffer[3] = (content & 0xFF000000) >> 24;
+	Uint64 lba = FAT1Lba + (Uint64)cluster * 4ull / SECTORSIZE;//对应扇区lba
+	Uint64 offset = ((Uint64)cluster * 4ull) % SECTORSIZE;
+	return WriteRawData(lba, offset, 4, buffer);
+}
+FileNode* FAT32::FindFileByNameFromCluster(Uint32 cluster, const char* name)
 {
 	FAT32FileNode* result;
 	
@@ -406,7 +883,7 @@ FileNode* FAT32::FindFileByNameFromCluster(Uint64 cluster, const char* name)
 
 	while (cluster != CLUSTEREND)
 	{
-		for (Uint32 i = 0; i < Dbr.BPBSectionPerClus; i++)
+		for (Uint32 i = 0; i < Dbr.BPBSectorPerClus; i++)
 		{
 			unsigned char buffer[SECTORSIZE];
 			ReadRawData(lba + i, 0, 512, buffer);
@@ -485,7 +962,7 @@ FileNode* FAT32::FindFileByPath(const char* path)
 	{
 		FAT32FileNode* node = new FAT32FileNode(this, 2);
 		node->IsDir = true;
-		node->Attributes|=FileNode::A_Dir;
+		node->Attributes |= FileNode::A_Dir;
 		return node;
 	}
 
@@ -539,20 +1016,116 @@ bool FAT32::IsExist(const char* path)
 	return FindFileByPath(path) != nullptr;
 }
 
-Uint64 FAT32::GetFreeCluster()//返回一个空闲簇的簇号
+Uint32 FAT32::GetFreeClusterAndPlusOne()//返回一个空闲簇的簇号
 {
-	return 0;
+	unsigned char buffer[8];
+	ReadRawData(DBRLba + 1ull,0x1E8,8,buffer);
+	Uint32 free_cluster = (buffer[7] << 24) | (buffer[6] << 16) | (buffer[5] << 8) | buffer[4];
+	Uint32 free_cluster_num = (buffer[3] << 24) | (buffer[2] << 16) | (buffer[1] << 8) | buffer[0];
+
+	Uint32 new_free_cluster = free_cluster + 1;
+	free_cluster_num--;
+
+	buffer[0] = free_cluster_num & 0x000000FF;
+	buffer[1] = (free_cluster_num & 0x0000FF00) >> 8;
+	buffer[2] = (free_cluster_num & 0x00FF0000) >> 16;
+	buffer[3] = (free_cluster_num & 0xFF000000) >> 24;
+
+	buffer[4] = new_free_cluster & 0x000000FF;
+	buffer[5] = (new_free_cluster & 0x0000FF00) >> 8;
+	buffer[6] = (new_free_cluster & 0x00FF0000) >> 16;
+	buffer[7] = (new_free_cluster & 0xFF000000) >> 24;
+
+	WriteRawData(DBRLba + 1,0x1E8, 8, buffer);
+
+	SetFATContentFromCluster(free_cluster, CLUSTEREND);
+	return free_cluster;
 }
 PAL_DS::Doublet<Uint64, Uint64> FAT32::GetContentLbaAndOffsetFromPath()//得到文件所在目录项的位置，例如要删除文件就要把文件对应目录项设置为E5
 {
 	return PAL_DS::Doublet<Uint64, Uint64>(0,0);
 }
-PAL_DS::Doublet<Uint64, Uint64> FAT32::GetFreeLbaAndOffsetFromPath()//得到Path中下一个空白的位置用于放置目录项
+PAL_DS::Triplet<Uint32, Uint64,Uint64> FAT32::GetFreeClusterAndLbaAndOffsetFromCluster(Uint32 cluster)//得到目录cluster中下一个空白的位置用于放置目录项
 {
-	return PAL_DS::Doublet<Uint64, Uint64>(0, 0);
+	while (true)
+	{
+		Uint64 lba = GetLbaFromCluster(cluster);
+		for (Uint32 i = 0; i < Dbr.BPBSectorPerClus; i++)
+		{
+			unsigned char buffer[SECTORSIZE];
+			ReadRawData(lba + i, 0, 512, buffer);
+			for (Uint32 j = 0; j < SECTORSIZE / 32; j++)
+			{
+				if(*(buffer + j * 32) == 0x00 )
+				{
+					return PAL_DS::Triplet<Uint32, Uint64, Uint64>(cluster,lba + i, (Uint64)j * 32);
+				}
+			}
+		}
+		Uint32 last_cluster = cluster;
+		cluster = GetFATContentFromCluster(cluster);
+		if (cluster == CLUSTEREND)
+		{
+			cluster = GetFreeClusterAndPlusOne();
+			SetFATContentFromCluster(last_cluster, cluster);
+			SetFATContentFromCluster(cluster, CLUSTEREND);
+			return PAL_DS::Triplet<Uint32, Uint64, Uint64>(cluster,GetLbaFromCluster(cluster), 0);;
+		}
+	}
+
 }
 
-FAT32FileNode::FAT32FileNode(FAT32* _vfs, Uint64 _cluster):FileNode(_vfs,0,0)
+ErrorType FAT32::AddContentToCluster(Uint32 _cluster, unsigned char* buffer, Uint64 size)
+{
+	Triplet <Uint32, Uint64,Uint64> cluster_lba_offset = GetFreeClusterAndLbaAndOffsetFromCluster(_cluster);
+	Uint32 cluster = cluster_lba_offset.a;
+	Uint64 lba = cluster_lba_offset.b, offset = cluster_lba_offset.c;
+	if (size % 32 != 0)//目录项必须是32的倍数
+	{
+		return ERR_InvalidParameter;
+	}
+	Uint64 write_bytes = 0;
+	Uint64 sector_offset = GetSectorOffsetFromlba(lba);
+	for (int i = 0; i < size / 32; i++)
+	{
+		WriteRawData(lba, offset, 32, buffer+write_bytes);
+		offset += 32;
+		write_bytes += 32;
+		if (offset % SECTORSIZE == 0)
+		{
+			lba++;
+			offset = 0;
+			++sector_offset;
+		}
+		if(sector_offset == Dbr.BPBSectorPerClus)
+		{
+			Uint32 last_cluster = cluster;
+			cluster = GetFATContentFromCluster(cluster);
+			if (cluster == CLUSTEREND)
+			{
+				cluster = GetFreeClusterAndPlusOne();
+				SetFATContentFromCluster(last_cluster, cluster);
+				SetFATContentFromCluster(cluster, CLUSTEREND);
+				lba = GetLbaFromCluster(cluster);
+			}
+		}
+	}
+	return ERR_None;
+
+}
+
+unsigned char FAT32::CheckSum(unsigned char* data)
+{
+	short name_len;
+	unsigned char sum;  //必须为无符号型.
+
+	sum = 0;
+	for (name_len = 11; name_len != 0; name_len--) {
+		sum = ((sum & 1) ? 0x80 : 0) + (sum >> 1) + *data++;
+	}
+	return (sum);
+}
+FAT32FileNode::FAT32FileNode(FAT32* _vfs, Uint32 _cluster):FileNode(_vfs, 0, 0)
 {
 	IsDir = false;
 	nxt = nullptr;
@@ -561,28 +1134,30 @@ FAT32FileNode::FAT32FileNode(FAT32* _vfs, Uint64 _cluster):FileNode(_vfs,0,0)
 	ReadSize = 0;
 }
 
-ErrorType FAT32FileNode::Read(void* dst, Uint64 pos, Uint64 size)
+Sint64 FAT32FileNode::Read(void* dst, Uint64 pos, Uint64 size)
 {
-	Uint64 size_bak=size;
+	Uint64 size_bak = size;
+
 	if (IsDir)
 	{
-		return -ERR_PathIsNotFile;
+		return ~ERR_PathIsNotFile;
 	}
 	FAT32* vfs = (FAT32*)Vfs;
 	Uint64 total_has_read_size = 0;//可能要跨扇区、簇读取，这是本次（该函数执行完一次）总数据量
-	Uint64 bytes_per_cluster = SECTORSIZE * vfs->Dbr.BPBSectionPerClus;
+	Uint64 bytes_per_cluster = SECTORSIZE * vfs->Dbr.BPBSectorPerClus;
 	if (pos>=FileSize || pos+size>FileSize || pos<0 || size <0)
 	{
-		return -ERR_FileOperationOutofRange;
+		return ~ERR_FileOperationOutofRange;
 	}
 	if (size == 0)
 	{
 		return 0;
 	}
-	PAL_DS::Doublet <Uint64, Uint64> cluster_and_lba = GetCLusterAndLba(pos);
-	Uint64 cluster = cluster_and_lba.a, lba = cluster_and_lba.b;
+	PAL_DS::Doublet <Uint32, Uint64> cluster_and_lba = GetCLusterAndLbaFromOffset(pos);
+	Uint32 cluster = cluster_and_lba.a;
+	Uint64 lba = cluster_and_lba.b;
 
-	Uint64 section_offset = pos%SECTORSIZE;
+	Uint64 sector_offset = pos%SECTORSIZE;
 	Uint64 cluster_offset =  size% bytes_per_cluster;//当前簇读的位置，用于判断是否该切换下一个lba和簇
 
 
@@ -591,28 +1166,28 @@ ErrorType FAT32FileNode::Read(void* dst, Uint64 pos, Uint64 size)
 		if (cluster == CLUSTEREND)
 		{
 			kout[Error]<< "try to read FAT32 from cluster end"<<endl;
-			return -ERR_InvalidClusterNumInFAT32;
+			return ~ERR_InvalidClusterNumInFAT32;
 		}
-		Uint64 section_need_read_size;//当前扇区需要读取的字节
-		if (section_offset + size <= SECTORSIZE)//这个扇区可以直接满足
+		Uint64 sector_need_read_size;//当前扇区需要读取的字节
+		if (sector_offset + size <= SECTORSIZE)//这个扇区可以直接满足
 		{
-			section_need_read_size = size;
+			sector_need_read_size = size;
 			size = 0;
 		}
 		else//当前扇区不能满足，把这个扇区读完
 		{
-			section_need_read_size = SECTORSIZE - section_offset;
-			size -= section_need_read_size;
+			sector_need_read_size = SECTORSIZE - sector_offset;
+			size -= sector_need_read_size;
 		}
 		
-		vfs->ReadRawData(lba, section_offset, section_need_read_size , (unsigned char*)dst+total_has_read_size);
-		total_has_read_size += section_need_read_size;
-		cluster_offset += section_need_read_size;
-		section_offset += section_need_read_size;
-		if (section_offset == SECTORSIZE)//这个扇区已经读完
+		vfs->ReadRawData(lba, sector_offset, sector_need_read_size , (unsigned char*)dst+total_has_read_size);
+		total_has_read_size += sector_need_read_size;
+		cluster_offset += sector_need_read_size;
+		sector_offset += sector_need_read_size;
+		if (sector_offset == SECTORSIZE)//这个扇区已经读完
 		{
 			lba++;
-			section_offset = 0;
+			sector_offset = 0;
 		}
 		if (cluster_offset ==  bytes_per_cluster) //这个簇已经读完
 		{
@@ -624,19 +1199,19 @@ ErrorType FAT32FileNode::Read(void* dst, Uint64 pos, Uint64 size)
 	
 	return size_bak;
 }
-PAL_DS::Doublet <Uint64, Uint64> FAT32FileNode::GetCLusterAndLba(Uint64 pos)
+PAL_DS::Doublet <Uint32, Uint64> FAT32FileNode::GetCLusterAndLbaFromOffset(Uint64 offset)
 {
 	FAT32* vfs = (FAT32*)Vfs;
 	Uint64 lba;
-	Uint64 size_per_cluster = SECTORSIZE * vfs->Dbr.BPBSectionPerClus;
-	Uint64 cluster = FirstCluster;
-	while (pos >= size_per_cluster)
+	Uint64 size_per_cluster = SECTORSIZE * vfs->Dbr.BPBSectorPerClus;
+	Uint32 cluster = FirstCluster;
+	while (offset >= size_per_cluster)
 	{
-		pos -= size_per_cluster;
+		offset -= size_per_cluster;
 		cluster = vfs->GetFATContentFromCluster(cluster);
 	}
-	lba = vfs->GetLbaFromCluster(cluster)+ pos / SECTORSIZE;
-	return PAL_DS::Doublet <Uint64, Uint64>(cluster,lba);
+	lba = vfs->GetLbaFromCluster(cluster)+ offset / SECTORSIZE;
+	return PAL_DS::Doublet <Uint32, Uint64>(cluster,lba);
 }
 
 ErrorType FAT32FileNode::Write(void* src, Uint64 pos, Uint64 size)

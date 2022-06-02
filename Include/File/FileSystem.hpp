@@ -21,6 +21,15 @@ inline const char * InvalidFileNameCharacter()
 inline bool IsValidFileNameCharacter(char ch)
 {return POS::NotInSet(ch,'/','\\',':','*','?','\"','<','>','|');}
 
+class StorageDevice {
+	
+public:
+	virtual ErrorType Init() = 0;
+	virtual ErrorType Read(Uint64 lba, unsigned char* buffer) = 0; 
+	virtual ErrorType Write(Uint64 lba, unsigned char* buffer) = 0;
+};
+
+
 class FileNode
 {
 	friend class VirtualFileSystemManager;
@@ -125,7 +134,7 @@ class FileNode
 		}
 		
 	public:
-		virtual ErrorType Read(void *dst,Uint64 pos,Uint64 size)
+		virtual Sint64 Read(void *dst,Uint64 pos,Uint64 size)
 		{return ERR_UnsuppoertedVirtualFunction;}
 		
 		virtual ErrorType Write(void *src,Uint64 pos,Uint64 size)

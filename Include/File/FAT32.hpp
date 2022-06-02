@@ -9,38 +9,41 @@
 //#undef CreateFile
 //#undef CreateDirectory
 
-class FileBaseSystem {//Test
-	 ;
+class FAT32Device :public StorageDevice {
 public:
-	int Init()
+	ErrorType Init()
 	{
-		// disk = CreateFileA("\\\\.\\PhysicalDrive2", GENERIC_READ , FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-		// return (disk == INVALID_HANDLE_VALUE);
-		return 0;
+		return ERR_None;;
 	}
-	bool Read(Uint64 pos, unsigned char* buffer)
+	ErrorType Read(Uint64 lba, unsigned char* buffer)
 	{
-		sdcard_read_sector((Sector*)buffer,pos);
-		return 1;
-		// memset(buffer, 0, 512);
-		// LARGE_INTEGER li;
-		// li.QuadPart = pos * 0x200;//0x200 = 512,求出扇区的 字节地址，通过设置读取的地址和长度进行read
-		// SetFilePointer(disk, li.LowPart, &li.HighPart, FILE_BEGIN);
-		// DWORD count = 0; //计数
-		// BOOL result = ReadFile(disk, buffer, 512, &count, NULL);
-		// return result;
+		sdcard_read_sector((Sector*)buffer,lba);
+		return ERR_None;
+	}
+	ErrorType Write(Uint64 lba, unsigned char* buffer)
+	{
+
+		
+		return ERR_None;
 	}
 };
 class VirtualFileSystem;
 
 struct DBR {
-	Uint32 BPB_rsvd_sec_cnt;  //保留扇区数⽬ 
-	Uint32 BPB_FAT_num;   //此卷中FAT表数 
-	Uint32 BPB_section_per_FAT_area;   //⼀个FAT表扇区数 
-	Uint32 BPB_hiden_section_num; //隐藏扇区数
-	Uint64 BPBSectionPerClus;//每个簇有多少个扇区
+	Uint32 BPB_RsvdSectorNum;  //保留扇区数⽬ 
+	Uint32 BPB_FATNum;   //此卷中FAT表数 
+	Uint32 BPB_SectorPerFATArea;   //⼀个FAT表扇区数 
+	Uint32 BPB_HidenSectorNum; //隐藏扇区数
+	Uint64 BPBSectorPerClus;//每个簇有多少个扇区
 };
-
+//class ShortContent {
+//	unsigned char buffer[32];
+//public:
+//	void SetBuffer(unsigned char*);
+//	unsigned char* GetBuffer();
+//	ErrorType SetCluster(Uint32 cluster);
+//	Uint32 GetCluster();
+//};
 class FAT32 :public VirtualFileSystem
 {
 	friend class FAT32FileNode;
@@ -58,12 +61,12 @@ public:
 	virtual FileNode* Open(const char* path) override;
 	virtual ErrorType Close(FileNode* p) override;
 
-	Uint32 DBRLba;
+	Uint64 DBRLba;
 	DBR Dbr;
-	Uint32 FAT1Lba;
-	Uint32 FAT2Lba;
-	Uint32 RootLba;//数据区(根目录)起始lba
-	FileBaseSystem file;
+	Uint64 FAT1Lba;
+	Uint64 FAT2Lba;
+	Uint64 RootLba;//数据区(根目录)起始lba
+	FAT32Device device;
 
 
 	FAT32();
@@ -71,21 +74,29 @@ public:
 	ErrorType LoadLongFileNameFromBuffer(unsigned char* buffer,Uint32* name);
 	char*  MergeLongNameAndToUtf8(Uint32* buffer[], Uint32 cnt);
 	Uint64 GetLbaFromCluster(Uint64 cluster);
+	Uint64 GetSectorOffsetFromlba(Uint64 lba);//当前lba是所属簇的第几个扇区
+
 	//FileNode * GetFileNodesFromCluster(Uint64 cluster);//读取cluster开始的目录对应的所有目录项
 
-	Uint64 GetFATContentFromCluster(Uint64 cluster);//读取cluster对应的FAT表中内容(自动将读取的内容转换为小端)
-	Uint64 SetFATContentFromCluster(Uint64 cluster,Uint64 content);//设置cluster对应的FAT表中内容为content(自动将content转换为大端)
-	int ReadRawData(Uint64 lba, Uint64 offset, Uint64 size, unsigned char* buffer);//从lba偏移offset字节的位置读取size字节大小的数据
-	FileNode* FindFileByNameFromCluster(Uint64 cluster, const char* name);//从cluster寻找一个file，cluster对应的必须是目录项所在的位置
+	Uint32 GetFATContentFromCluster(Uint32 cluster);//读取cluster对应的FAT表中内容(自动将读取的内容转换为小端)
+	ErrorType SetFATContentFromCluster(Uint32 cluster,Uint32 content);//设置cluster对应的FAT表中内容为content(自动将content转换为大端)
+	ErrorType ReadRawData(Uint64 lba, Uint64 offset, Uint64 size, unsigned char* buffer);//从lba偏移offset字节的位置读取size字节大小的数据
+	ErrorType WriteRawData(Uint64 lba, Uint64 offset, Uint64 size, unsigned char* buffer);
+	FileNode* FindFileByNameFromCluster(Uint32 cluster, const char* name);//从cluster寻找一个file，cluster对应的必须是目录项所在的位置
 	FileNode* FindFileByPath(const char* path);
 	bool IsExist(const char* path);
-	Uint64 GetFreeCluster();//返回一个空闲簇的簇号
+	bool IsShortContent(const char* name);
+	PAL_DS::Doublet <unsigned char*,Uint8 > GetShortName(const char*);
+	PAL_DS::Doublet <unsigned char*, Uint64> GetLongName(const char *);
+	Uint32 GetFreeClusterAndPlusOne();//返回一个空闲簇的簇号，并且把这个值加1
+	ErrorType AddContentToCluster(Uint32 cluster,unsigned char * buffer,Uint64 size);
+	//在cluster所在的位置找到一个空的位置，写入buffer里面的内容，大小为size，如果不够了会自动开新的簇
 	PAL_DS::Doublet<Uint64,Uint64> GetContentLbaAndOffsetFromPath();//得到文件所在目录项的位置，例如要删除文件就要把文件对应目录项设置为E5
-	PAL_DS::Doublet<Uint64, Uint64> GetFreeLbaAndOffsetFromPath();//得到Path中下一个空白的位置用于放置目录项
-
+	PAL_DS::Triplet<Uint32, Uint64,Uint64>  GetFreeClusterAndLbaAndOffsetFromCluster(Uint32 cluster);//得到目录cluster中下一个空白的位置用于放置目录项
+	unsigned char CheckSum(unsigned char* data);
 
 public:
-	int Init();
+	ErrorType Init();
 	const char* FileSystemName() override;
 
 	
@@ -95,14 +106,14 @@ public:
 class FAT32FileNode :public FileNode {
 	friend class FAT32;
 public:
-	virtual ErrorType Read(void* dst, Uint64 pos, Uint64 size) override;
+	virtual Sint64 Read(void* dst, Uint64 pos, Uint64 size) override;
 	virtual ErrorType Write(void* src, Uint64 pos, Uint64 size) override;
-	PAL_DS::Doublet <Uint64, Uint64>  GetCLusterAndLba(Uint64 pos);
-	Uint64 FirstCluster; //起始簇号
+	PAL_DS::Doublet <Uint32, Uint64> GetCLusterAndLbaFromOffset(Uint64 offset);
+	Uint32 FirstCluster; //起始簇号
 	FAT32FileNode* nxt;
 	bool IsDir; //是否是文件夹
 	Uint64 ReadSize;//已经读取的数据大小
-	FAT32FileNode(FAT32* _vfs,Uint64 cluster=0);
+	FAT32FileNode(FAT32* _vfs,Uint32 cluster=0);
 	~FAT32FileNode();
 };
 

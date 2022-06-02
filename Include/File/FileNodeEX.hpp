@@ -7,7 +7,7 @@
 class UartFileNode:public FileNode
 {
 	public:
-		virtual ErrorType Read(void *dst,Uint64 pos,Uint64 size)//pos is not used...
+		virtual Sint64 Read(void *dst,Uint64 pos,Uint64 size)//pos is not used...
 		{
 			char *s=(char*)dst,*e=s+size;
 			while (s!=e)
@@ -41,7 +41,7 @@ class PipeFileNode:public FileNode
 			   PosW=0;
 		
 	public:
-		virtual ErrorType Read(void *dst,Uint64 pos,Uint64 size)//pos is not used...
+		virtual Sint64 Read(void *dst,Uint64 pos,Uint64 size)//pos is not used...
 		{
 			Uint64 size_bak=size;
 			bool flag=0;

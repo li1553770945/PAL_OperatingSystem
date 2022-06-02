@@ -98,6 +98,20 @@ namespace POS
 		dst[char_len] = 0;
 		return char_len;
 	}
+
+	
+	inline bool IsUpperCase(char ch)
+	{
+		return ch <= 'Z' && ch >= 'A';
+	}
+	inline bool IsLowwerCase(char ch)
+	{
+		return ch <= 'z' && ch >= 'a';
+	}
+	inline bool IsLetter(char ch)
+	{
+		return IsUpperCase(ch) || IsLowwerCase(ch);
+	}
 };
 
 #endif
