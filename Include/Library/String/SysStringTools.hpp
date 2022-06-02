@@ -15,6 +15,16 @@ namespace POS
 		strCopy(re,src);
 		return re;
 	}
+	
+	inline char *strDump(const char *src,const char *end)
+	{
+		long long len=end-src;
+		if (len<=0)
+			return nullptr;
+		char *re=(char*)Kmalloc(len+1);
+		strCopy(re,src,end);
+		return re;
+	}
 
 	inline char *strSplice(const char *a,const char *b)
 	{

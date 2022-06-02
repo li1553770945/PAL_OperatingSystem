@@ -1,6 +1,6 @@
 cd ../..
 
-riscv64-unknown-elf-g++ -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/Boot/main.cpp                  -o Build/Kernel/main.o              -I"Include" -mcmodel=medany 
+riscv64-unknown-elf-g++ -w -g -nostdlib -fno-exceptions -fno-rtti -c Kernel/Boot/main.cpp                  -o Build/Kernel/main.o              -I"Include" -mcmodel=medany 
 riscv64-unknown-elf-g++ -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/Boot/Start.S                   -o Build/Kernel/Start.o             -I"Include" -mcmodel=medany 
 riscv64-unknown-elf-g++ -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/Boot/SystemInfo.cpp            -o Build/Kernel/SystemInfo.o        -I"Include" -mcmodel=medany 
 riscv64-unknown-elf-g++ -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/Trap/Clock.cpp                 -o Build/Kernel/Clock.o             -I"Include" -mcmodel=medany 

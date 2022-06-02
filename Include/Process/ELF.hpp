@@ -176,7 +176,7 @@ inline int Thread_CreateProcessFromELF(void *userdata)
 	return 0;
 }
 
-inline PID CreateProcessFromELF(FileHandle *file,Uint64 flags)
+inline PID CreateProcessFromELF(FileHandle *file,Uint64 flags,const char *workDir)
 {
 	using namespace POS;
 	kout[Info]<<"CreateProcessFromELF "<<file<<endl;
@@ -202,7 +202,16 @@ inline PID CreateProcessFromELF(FileHandle *file,Uint64 flags)
 	proc->SetVMS(vms);
 	if (!(flags&Process::F_AutoDestroy))
 		proc->SetFa(POS_PM.Current());
-		
+	
+	if (VFSM.IsAbsolutePath(workDir))
+		proc->SetCWD(workDir);
+	else
+	{
+		char *cwd=VFSM.NormalizePath(workDir,POS_PM.Current()->GetCWD());
+		proc->SetCWD(cwd);
+		Kfree(cwd);
+	}
+	
 	d->vms=vms;
 	d->proc=proc;
 	proc->Start(Thread_CreateProcessFromELF,d,d->header.entry);

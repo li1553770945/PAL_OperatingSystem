@@ -4,6 +4,9 @@
 #include <Trap/Interrupt.hpp>
 #include <Process/Synchronize.hpp>
 #include <Library/String/StringTools.hpp>
+#include <File/FileSystem.hpp>
+#include <Process/ELF.hpp>
+#include <File/FileNodeEX.hpp>
 using namespace POS;
 
 inline void Syscall_Putchar(char ch)
@@ -45,6 +48,201 @@ PID Syscall_Fork(TrapFrame *tf)
 	}
 }
 
+
+inline char* Syscall_getcwd(char *buf,Uint64 size)
+{
+	if (buf==nullptr)
+		kout[Warning]<<"Syscall_getcwd: buf is nullptr is not supported!"<<endl;
+	else
+	{
+		const char *cwd=POS_PM.Current()->GetCWD();
+		Uint64 len=strLen(cwd);
+		VirtualMemorySpace::EnableAccessUser();
+		if (len>0&&len<size)
+			strCopy(buf,cwd);
+		VirtualMemorySpace::DisableAccessUser();
+	}
+	return buf;
+}
+
+inline int Syscall_pipe2(int *fd,int flags)
+{
+	Process *cur=POS_PM.Current();
+	PipeFileNode *pipe=new PipeFileNode();
+	if (pipe==nullptr)
+		return -1;
+	FileHandle *fh0=new FileHandle(pipe,FileHandle::F_Read),
+			   *fh1=new FileHandle(pipe,FileHandle::F_Write);//??
+	if (InThisSet(nullptr,fh0,fh1))
+	{
+		if (fh0==nullptr&&fh1==nullptr)
+			delete pipe;
+		else if (fh0==nullptr)
+			delete fh1;
+		else delete fh0;
+		return -1;
+	}
+	VirtualMemorySpace::EnableAccessUser();
+	fh0->BindToProcess(cur);
+	fh1->BindToProcess(cur);
+	fd[0]=fh0->GetFD();
+	fd[1]=fh1->GetFD();
+	VirtualMemorySpace::DisableAccessUser();
+	return 0;
+}
+
+inline int Syscall_dup(int fd)
+{
+	Process *cur=POS_PM.Current();
+	FileHandle *fh=cur->GetFileHandleFromFD(fd);
+	if (fh==nullptr)
+		return -1;
+	FileHandle *nfh=fh->Dump();
+	if (nfh==nullptr)
+		return -1;
+	nfh->BindToProcess(cur);
+	return nfh->GetFD();
+}
+
+inline int Syscall_dup3(int fd,int nfd)
+{
+	if (fd==nfd)
+		return fd;
+	Process *cur=POS_PM.Current();
+	FileHandle *fh=cur->GetFileHandleFromFD(fd);
+	if (fh==nullptr)
+		return -1;
+	FileHandle *nfh=fh->Dump();
+	FileHandle *ofh=cur->GetFileHandleFromFD(nfd);
+	if (ofh!=nullptr)
+		delete ofh;
+	if (nfh==nullptr)
+		return -1;
+	if (nfh->BindToProcess(cur,nfd)!=ERR_None)
+	{
+		delete nfh;
+		return -1;
+	}
+	return nfh->GetFD();
+}
+
+inline int Syscall_chdir(char *path)
+{
+	if (path==nullptr)
+		return -1;
+	VirtualMemorySpace::EnableAccessUser();
+	POS_PM.Current()->SetCWD(path);
+	VirtualMemorySpace::DisableAccessUser();
+	return 0;
+}
+
+inline char* CurrentPathFromFileNameAndFD(int fd,char *filename)
+{
+	Process *cur=POS_PM.Current();
+	char *path=nullptr;
+	constexpr int AT_FDCWD=-100;
+	if (VFSM.IsAbsolutePath(filename))
+		path=VFSM.NormalizePath(filename);
+	else if (fd==AT_FDCWD)
+		path=VFSM.NormalizePath(filename,cur->GetCWD());
+	else
+	{
+		FileHandle *fh=cur->GetFileHandleFromFD(fd);
+		if (fh!=nullptr)
+		{
+			char *base=fh->Node()->GetPath<0>();
+			if (base!=nullptr)
+			{
+				path=VFSM.NormalizePath(filename,base);
+				Kfree(base);
+			}
+		}
+	}
+	return path;
+}
+
+inline int Syscall_openat(int fd,char *filename,int flags,int mode)//Currently, mode will be ignored...
+{
+	VirtualMemorySpace::EnableAccessUser();
+	char *path=CurrentPathFromFileNameAndFD(fd,filename);
+	VirtualMemorySpace::DisableAccessUser();
+	if (path==nullptr)
+		return -1;
+	
+	constexpr int O_CREAT=00000100,
+				  O_RDONLY=00000000,
+				  O_WRONLY=00000001,
+				  O_RDWR=00000002,
+				  O_DIRECTORY=00200000;//??
+	FileNode *node=nullptr;
+	if (flags&O_CREAT)
+		if (flags&O_DIRECTORY)
+			VFSM.CreateDirectory(path);
+		else VFSM.CreateFile(path);
+	node=VFSM.Open(path);
+	if (node!=nullptr)
+		if (node->IsDir()&&!(flags&O_DIRECTORY)||!node->IsDir()&&(flags&O_DIRECTORY))
+			node=nullptr;
+	FileHandle *re=nullptr;
+	if (node!=nullptr)
+	{
+		Uint64 fh_flags=FileHandle::F_Seek|FileHandle::F_Size;//??
+		if (flags&O_RDWR)
+			fh_flags|=FileHandle::F_Read|FileHandle::F_Write;
+		else if (flags&O_WRONLY)
+			fh_flags|=FileHandle::F_Write;
+		else fh_flags|=FileHandle::F_Read;
+		re=new FileHandle(node,fh_flags);
+		re->BindToProcess(POS_PM.Current());
+	}
+	Kfree(path);
+	return re?re->GetFD():-1;
+}
+
+inline int Syscall_close(int fd)
+{
+	Process *cur=POS_PM.Current();
+	FileHandle *fh=cur->GetFileHandleFromFD(fd);
+	if (fh==nullptr)
+		return -1;
+	delete fh;//??
+	return 0;
+}
+
+inline int Syscall_mkdirat(int fd,char *filename,int mode)//Currently,mode will be ignored...
+{
+	VirtualMemorySpace::EnableAccessUser();
+	char *path=CurrentPathFromFileNameAndFD(fd,filename);
+	VirtualMemorySpace::DisableAccessUser();
+	if (path==nullptr)
+		return -1;
+	ErrorType err=VFSM.CreateDirectory(path);
+	Kfree(path);
+	return err==ERR_None?0:-1;
+}
+
+inline RegisterData Syscall_Read(int fd,void *dst,Uint64 size)
+{
+	FileHandle *fh=POS_PM.Current()->GetFileHandleFromFD(fd);
+	if (fh==nullptr)
+		return -1;
+	VirtualMemorySpace::EnableAccessUser();
+	Sint64 re=fh->Read(dst,size);
+	VirtualMemorySpace::DisableAccessUser();
+	return re<0?-1:re;
+}
+
+inline RegisterData Syscall_Write(int fd,void *src,Uint64 size)
+{
+	FileHandle *fh=POS_PM.Current()->GetFileHandleFromFD(fd);
+	if (fh==nullptr)
+		return -1;
+	VirtualMemorySpace::EnableAccessUser();
+	Sint64 re=fh->Write(src,size);
+	VirtualMemorySpace::DisableAccessUser();
+	return re<0?-1:re;
+}
+
 inline PID Syscall_Clone(TrapFrame *tf,Uint64 flags,void *stack,PID ppid,Uint64 tls,PID cid)
 {
 	if (ppid!=0||tls!=0||cid!=0)
@@ -84,25 +282,32 @@ inline PID Syscall_Clone(TrapFrame *tf,Uint64 flags,void *stack,PID ppid,Uint64 
 	return re;
 }
 
+inline int Syscall_execve(const char *filepath,char *argvs[],char *envp[])//Currently, argvs and envps will be ingnored.
+{
+	Process *cur=POS_PM.Current(),*cp=nullptr;
+	FileNode *node=VFSM.Open(cur,filepath);
+	if (node==nullptr)
+		return -1;
+	FileHandle *file=new FileHandle(node);
+	PID id=CreateProcessFromELF(file,0,cur->GetCWD());//PID will changed! Need improve...
+	int re;
+	delete file;
+	if (id<=0)
+		return -1;
+	else
+	{
+		while ((cp=cur->GetQuitingChild(id))==nullptr)
+			cur->GetWaitSem()->Wait();
+		re=cp->GetReturnedValue();
+		cp->Destroy();
+	}
+	cur->Exit(re);
+	POS_PM.Schedule();
+	kout[Fault]<<"Syscall_execve reached unreacheable branch!"<<endl;
+}
+
 inline PID Syscall_GetPID()
 {return POS_PM.Current()->GetPID();}
-
-inline RegisterData Syscall_Write(int fd,void *dst,Uint64 size)
-{
-//	kout[Warning]<<"Currently Syscall_Write can only use fd == 1!"<<endl;
-	if (fd!=1)
-	{
-		kout[Error]<<"Currently Syscall_Write can only use fd == 1, while fd is "<<fd<<endl;
-		return (RegisterData)-1;
-	}
-	Process *proc=POS_PM.Current();
-	VirtualMemorySpace *vms=proc->GetVMS();
-	vms->EnableAccessUser();
-	for (int i=0;i<size;++i)
-		Putchar(*(char*)(dst+i));
-	vms->DisableAccessUser();
-	return size;
-}
 
 inline PID Syscall_Wait4(PID cid,int *status,int options)
 {
@@ -173,10 +378,10 @@ inline RegisterData Syscall_gettimeofday(RegisterData _tv)
 {
 	struct timeval
 	{
-		int tv_sec;
-		int tv_usec;
+		Uint64 tv_sec;
+		Uint64 tv_usec;
 	}*tv=(timeval*)_tv;
-	//<<Improve timer related to 1700.
+	//<<Improve timer related to 1970...
 	VirtualMemorySpace::EnableAccessUser();
 	ClockTime t=GetClockTime();
 	tv->tv_sec=t/Timer_1s;
@@ -208,7 +413,7 @@ inline RegisterData Syscall_nanosleep(RegisterData _req,RegisterData _rem)
 ErrorType TrapFunc_Syscall(TrapFrame *tf)
 {
 	InterruptStackAutoSaverBlockController isas;//??
-//	kout[Test]<<"Syscall "<<tf->reg.a7<<" | "<<tf->reg.a0<<" "<<tf->reg.a1<<" "<<tf->reg.a2<<" "<<tf->reg.a3<<" "<<tf->reg.a4<<" "<<tf->reg.a5<<endl;
+	kout[Test]<<"Syscall "<<tf->reg.a7<<" | "<<(void*)tf->reg.a0<<" "<<(void*)tf->reg.a1<<" "<<(void*)tf->reg.a2<<" "<<(void*)tf->reg.a3<<" "<<(void*)tf->reg.a4<<" "<<(void*)tf->reg.a5<<endl;
 	switch (tf->reg.a7)
 	{
 		case SYS_Putchar:
@@ -231,21 +436,40 @@ ErrorType TrapFunc_Syscall(TrapFrame *tf)
 			break;
 		
 		case	SYS_getcwd		:
+			tf->reg.a0=(RegisterData)Syscall_getcwd((char*)tf->reg.a0,tf->reg.a1);
+			break;
 		case	SYS_pipe2		:
+			tf->reg.a0=Syscall_pipe2((int*)tf->reg.a0,tf->reg.a1);
+			break;
 		case	SYS_dup			:
+			tf->reg.a0=Syscall_dup(tf->reg.a0);
+			break;
 		case	SYS_dup3		:
+			tf->reg.a0=Syscall_dup3(tf->reg.a0,tf->reg.a1);
+			break;
 		case	SYS_chdir		:
+			tf->reg.a0=Syscall_chdir((char*)tf->reg.a0);
+			break;
 		case	SYS_openat		:
+			tf->reg.a0=Syscall_openat(tf->reg.a0,(char*)tf->reg.a1,tf->reg.a2,tf->reg.a3);
+			break;
 		case	SYS_close		:
+			tf->reg.a0=Syscall_close(tf->reg.a0);
+			break;
 		case	SYS_getdents64	:
-		case	SYS_read		:
 			goto Default;
+		case	SYS_read		:
+			tf->reg.a0=Syscall_Read(tf->reg.a0,(void*)tf->reg.a1,tf->reg.a2);
+			break;
 		case	SYS_write		:
 			tf->reg.a0=Syscall_Write(tf->reg.a0,(void*)tf->reg.a1,tf->reg.a2);
 			break;
 		case	SYS_linkat		:
 		case	SYS_unlinkat	:
+			goto Default;
 		case	SYS_mkdirat		:
+			tf->reg.a0=Syscall_mkdirat(tf->reg.a0,(char*)tf->reg.a1,tf->reg.a2);
+			break;
 		case	SYS_umount2		:
 		case	SYS_mount		:
 		case	SYS_fstat		:
@@ -254,7 +478,8 @@ ErrorType TrapFunc_Syscall(TrapFrame *tf)
 			tf->reg.a0=Syscall_Clone(tf,tf->reg.a0,(void*)tf->reg.a1,tf->reg.a2,tf->reg.a3,tf->reg.a4);
 			break;
 		case	SYS_execve		:
-			goto Default;
+			Syscall_execve((char*)tf->reg.a0,(char**)tf->reg.a1,(char**)tf->reg.a2);
+			break;
 		case	SYS_wait4		:
 			tf->reg.a0=Syscall_Wait4(tf->reg.a0,(int*)tf->reg.a1,tf->reg.a2);
 			break;

@@ -117,38 +117,39 @@ void CmpKernelText()
 
 int RunAllTestSuits(void*)
 {
-	auto RunAllFile=[](auto &self,auto *vfs,const char *path,int dep=0)->void
+	auto RunAllFile=[](auto &self,const char *path,int dep=0)->void
 	{
 		kout<<dep<<": "<<path<<endl;
 		char *buffer[16];
 		int skip=0;
 		while (1)
 		{
-			int cnt=vfs->GetAllFileIn(path,buffer,16,skip);
+			int cnt=VFSM.GetAllFileIn(POS_PM.Current(),path,buffer,16,skip);
 			for (int i=0;i<cnt;++i)
 			{
-				char *child=strSplice(path,dep==0?"":"/",buffer[i]);
+				char *child=strSplice(path,"/",buffer[i]);
 				if (buffer[i][0]!='.')
 				{
-					FileNode *node=vfs->Open(child);
+					FileNode *node=VFSM.Open(POS_PM.Current(),child);
 					if (!node)
 						kout[Error]<<"Cannot open file "<<child<<endl;
 					else if (node->IsDir())
-						self(self,vfs,child,dep+1);
+						self(self,child,dep+1);
 					else
 					{
 						kout[Info]<<"Run "<<child<<endl; 
 						FileHandle *file=new FileHandle(node);
-						PID id=CreateProcessFromELF(file,0);
+						PID id=CreateProcessFromELF(file,0,path);
 						if (id>0)
 						{
-							Process *proc=POS_PM.Current(); 
-							while (proc->GetQuitingChild(id)==nullptr)
+							Process *proc=POS_PM.Current(),*cp=nullptr;
+							while ((cp=proc->GetQuitingChild(id))==nullptr)
 								proc->GetWaitSem()->Wait();
+							cp->Destroy();
 						}
 						delete file;
 					}
-					delete node;
+					VFSM.Close(node);
 				}
 				Kfree(child);
 				Kfree(buffer[i]);
@@ -163,12 +164,12 @@ int RunAllTestSuits(void*)
 //	kout.SwitchTypeOnoff(Warning,0);
 //	kout.SwitchTypeOnoff(Test,0);
 //	kout.SwitchTypeOnoff(Debug,0);
-//	kout.SetEnabledType(0);
+	kout.SetEnabledType(0);
 	kout<<"Test all suits..."<<endl;
+	POS_PM.Current()->SetCWD("/VFS/FAT32");
 	VirtualFileSystem *vfs=new FAT32();
-	FileNode *f=vfs->Open("/");
-	RunAllFile(RunAllFile,vfs,"/");
-	delete vfs;
+	VFSM.LoadVFS(vfs);
+	RunAllFile(RunAllFile,".");
 	kout<<"Test all suits OK"<<endl;
 //	kout.SetEnabledType(-1);
 	kout.SwitchTypeOnoff(Debug,1);
@@ -267,7 +268,7 @@ void TestFuncs()
 		{
 			kout<<"MainTest: Test sleep using Semaphore... Time: "<<GetClockTime()/Timer_1ms<<"ms"<<endl;
 			Semaphore sem(0);
-			sem.Wait(Timer_1ms*234);
+			sem.Wait(Timer_1s*10);
 			kout<<"MainTest: Test sleep using Semaphore OK. Time: "<<GetClockTime()/Timer_1ms<<"ms. Semaphore value: "<<sem.Value()<<endl;
 		},nullptr);
 	
@@ -300,6 +301,29 @@ void TestFuncs()
 				char *child=strSplice(path,dep==0?"":"/",buffer[i]);
 				if (buffer[i][0]!='.')//??
 					self(self,vfs,child,dep+1);
+				Kfree(child);
+				Kfree(buffer[i]);
+			}
+			if (cnt<16)
+				break;
+			else skip+=16;
+		}
+	};
+	
+	auto PrintVFSM=[](auto &self,const char *path,int dep=0)->void
+	{
+		kout<<dep<<": "<<path<<endl;
+		char *buffer[16];
+		int skip=0;
+		ISAS
+		while (1)
+		{
+			int cnt=VFSM.GetAllFileIn(path,buffer,16,skip);
+			for (int i=0;i<cnt;++i)
+			{
+				char *child=strSplice(path,dep==0?"":"/",buffer[i]);
+				if (buffer[i][0]!='.')//??
+					self(self,child,dep+1);
 				Kfree(child);
 				Kfree(buffer[i]);
 			}
@@ -348,17 +372,27 @@ void TestFuncs()
 	
 	if (0)
 	{
-		kout<<"Test ELF ..."<<endl;
+		kout<<"VFSM Test:"<<endl;
 		VirtualFileSystem *vfs=new FAT32();
-		FileNode *node=vfs->Open("/dir/TEST.elf");
-		if (!node)
-			kout[Fault]<<"Cannot open /dir/TEST.elf"<<endl;
-		FileHandle *file=new FileHandle(node);
-		CreateProcessFromELF(file,Process::F_AutoDestroy);
-		delete file;
-		delete node;
-		delete vfs;
-		kout<<"Test ELF OK"<<endl;
+		VFSM.LoadVFS(vfs);
+		PrintVFSM(PrintVFSM,"/");
+//		delete vfs;
+		kout<<"VFSM Test OK"<<endl;
+	}
+	
+	if (0)
+	{
+//		kout<<"Test ELF ..."<<endl;
+//		VirtualFileSystem *vfs=new FAT32();
+//		FileNode *node=vfs->Open("/dir/TEST.elf");
+//		if (!node)
+//			kout[Fault]<<"Cannot open /dir/TEST.elf"<<endl;
+//		FileHandle *file=new FileHandle(node);
+//		CreateProcessFromELF(file,Process::F_AutoDestroy);
+//		delete file;
+//		delete node;
+//		delete vfs;
+//		kout<<"Test ELF OK"<<endl;
 	}
 	
 	if (1)
@@ -370,19 +404,23 @@ void TestFuncs()
 	}
 }
 
+void InitBSS()
+{
+	for (char *i=bssstart;i<bssend;++i)
+		if (!InRange(i,bootstack,bootstacktop-1))
+			*i=0;
+}
+
 int main()
 {
-	kout.SetEnableEffect(0);
 	PrintSystemInfo();
 	POS_InitClock();
 	POS_InitTrap();
+	InitBSS();
 	POS_PMM.Init();
 	VirtualMemorySpace::InitStatic();
 	POS_PM.Init();
-	ForkServer.Init();
 //	PrintDeviceTree((void*)DTB+PhymemVirmemOffset()+PhysicalMemoryPhysicalStart());
-	
-	kout.SetEnabledType(0);
 	
 	kout[Info]<<"plic init..."<<endl;
 	plicinit();
@@ -397,6 +435,7 @@ int main()
 	kout[Info]<<"Drivers init OK"<<endl;
 	
 	VFSM.Init();
+	ForkServer.Init();
 	InterruptEnable();
 	
 	TestFuncs();

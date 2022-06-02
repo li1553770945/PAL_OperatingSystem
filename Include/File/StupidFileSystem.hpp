@@ -77,20 +77,20 @@ class StupidFileNode:public FileNode
 		virtual ErrorType Read(void *dst,Uint64 pos,Uint64 size)
 		{
 			if (pos>=Size||pos+size>=Size)
-				return ERR_FileOperationOutofRange;
+				return -ERR_FileOperationOutofRange;
 			for (Uint64 i=0;i<size;++i)
 				((char*)dst)[i]=Data[pos+i];
-			return ERR_None;
+			return size;
 		}
 		
 		virtual ErrorType Write(void *src,Uint64 pos,Uint64 size)
 		{
 			if (pos>=sizeof(Data)||pos+size>=sizeof(Data))
-				return ERR_FileOperationOutofRange;
+				return -ERR_FileOperationOutofRange;
 			Size=pos+size;
 			for (Uint64 i=0;i<size;++i)
 				Data[pos+i]=((char*)src)[i];
-			return ERR_None;
+			return size;
 		}
 		
 		inline ErrorType SetFileName(const char *name)
@@ -231,11 +231,29 @@ class StupidFileSystem:public VirtualFileSystem
 			return u;
 		}
 		
+		virtual FileNode* FindFile(FileNode *p,const char *name)
+		{
+			StupidFileNode *u=(StupidFileNode*)p;
+			return u->FindChild(name);
+		}
+		
 		virtual FileNode* FindFile(const char *path,const char *name)
 		{
 			auto Path=POS::strSplice(path,"/",name);
 			FileNode *re=FindSFN(Path);
 			Kfree(Path);
+			return re;
+		}
+		
+		virtual int GetAllFileIn(FileNode *p,char *result[],int bufferSize,int skipCnt=0)
+		{
+			StupidFileNode *u=(StupidFileNode*)p;
+			int re=0;
+			if (u!=nullptr)
+				for (StupidFileNode *v=u->child;v&&re<bufferSize;v=v->nxt)
+					if (skipCnt==0)
+						result[re++]=POS::strDump(v->Name);
+					else --skipCnt;
 			return re;
 		}
 		
@@ -379,7 +397,7 @@ StupidFileNode::~StupidFileNode()
 	--SFS->TotalFiles;
 }
 
-StupidFileNode::StupidFileNode(StupidFileSystem *_sfs):FileNode(_sfs),SFS(_sfs)
+StupidFileNode::StupidFileNode(StupidFileSystem *_sfs):FileNode(_sfs,0,0),SFS(_sfs)
 {
 	FileNode::SetFileName(Name,1);
 }
@@ -404,7 +422,7 @@ class TestMemFileNode:public FileNode
 			return ERR_Unknown;
 		}
 		
-		TestMemFileNode(PtrInt begin,PtrInt end):Begin(begin),End(end),Size(end-begin)
+		TestMemFileNode(PtrInt begin,PtrInt end):FileNode(nullptr,0,0),Begin(begin),End(end),Size(end-begin)
 		{
 			using namespace POS;
 			kout[Debug]<<"  This function is used for test ELF temporaryly!"<<endl;

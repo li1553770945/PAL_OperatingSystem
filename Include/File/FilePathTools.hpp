@@ -31,7 +31,7 @@ namespace POS
 			return nullptr;
 		char *re=(char*)Kmalloc(last-path+1);
 		strCopy(re,path,last);
-		re[last-path+1]=0;
+		re[last-path]=0;
 		return re;
 	}
 	
@@ -50,7 +50,7 @@ namespace POS
 		{
 			re.a=(char*)Kmalloc(last-path+1);
 			strCopy(re.a,path,last);
-			re.a[last-path+1]=0;
+			re.a[last-path]=0;
 		}
 		else re.a=strDump("/");
 		++last;
@@ -58,7 +58,7 @@ namespace POS
 		{
 			re.b=(char*)Kmalloc(p-last+1);
 			strCopy(re.b,last,p);
-			re.b[p-last+1]=0;
+			re.b[p-last]=0;
 		}
 		return re;
 	}

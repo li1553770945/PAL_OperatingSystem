@@ -56,6 +56,7 @@ class Process
 	friend class ProcessManager;
 	friend class ForkServerClass;
 	friend class Semaphore;
+	friend class FileHandle;
 	friend PID Syscall_Clone(TrapFrame *tf,Uint64 flags,void *stack,PID ppid,Uint64 tls,PID cid);//??
 	public:
 		enum
@@ -82,6 +83,7 @@ class Process
 			Exit_Normal=0,
 			Exit_Destroy=-10000,
 			Exit_BadSyscall,
+			Exit_Execve
 		};
 		
 		struct RegContext
@@ -125,12 +127,15 @@ class Process
 		ClockTime SemWaitingTargetTime;//Waiting Semaphore timeout+basetime
 		Semaphore *WaitSem;//Used for this process to wait for something such as child process
 		
+		char *CurrentWorkDirectory;
 		FileHandle* FileTable[8];
 		
 		ErrorType InitForKernelProcess0();
+		ErrorType CopyFileTable(Process *src);
 		ErrorType CopyOthers(Process *src);
 		ErrorType Start(TrapFrame *tf,bool IsNew);//fork returned by this
 		ErrorType InitFileTable();
+		ErrorType DestroyFileTable();
 		
 	public:
 		ErrorType Rest();//Hand out CPU and schedule other Process
@@ -143,6 +148,11 @@ class Process
 		ErrorType SetName(char *name,bool outside);
 		ErrorType SetFa(Process *_fa);
 		Process* GetQuitingChild(PID cid=AnyPID);//??
+		ErrorType SetCWD(const char *path);//Will be dumplicated.(?)
+		FileHandle* GetFileHandleFromFD(int fd);
+		
+		inline const char* GetCWD()
+		{return CurrentWorkDirectory;}
 		
 		inline Semaphore *GetWaitSem()//Temporaryly use...
 		{return WaitSem;}

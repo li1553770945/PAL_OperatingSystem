@@ -10,6 +10,8 @@
 #include <Config.h>
 #include <Process/Synchronize.hpp>
 #include <Trap/Clock.h>
+#include <File/FileSystem.hpp>
+#include <File/FileNodeEX.hpp>
 
 #include "../../Include/Process/Process.hpp"
 
@@ -88,7 +90,7 @@ ErrorType ProcessManager::FreeProcess(Process *proc)
 
 ErrorType ProcessManager::Init()
 {
-	MemsetT<char>((char*)&Processes,0,sizeof(Processes));
+//	MemsetT<char>((char*)&Processes,0,sizeof(Processes));
 	for (int i=0;i<MaxProcessCount;++i)
 	{
 		Processes[i].PM=this;
@@ -239,6 +241,19 @@ ErrorType Process::Start(TrapFrame *tf,bool IsNew)//It is not a good way...
 	return ERR_None;
 }
 
+ErrorType Process::CopyFileTable(Process *src)
+{
+	DestroyFileTable();
+	for (FileHandle *p=src->FileTable[0];p;p=p->nxt)
+	{
+		FileHandle *q=p->Dump();
+		if (q!=nullptr)
+			q->BindToProcess(this,p->GetFD());
+		else kout[Error]<<"Process::CopyFileTable failed to dumplicate FileHandle "<<p<<endl;
+	}		
+	return ERR_None;
+}
+
 ErrorType Process::CopyOthers(Process *src)
 {
 	CountingBase=src->CountingBase;
@@ -251,6 +266,7 @@ ErrorType Process::CopyOthers(Process *src)
 	if (Name==nullptr)//??
 		Name=strDump(src->Name);
 	Namespace=src->Namespace;
+	CopyFileTable(src);
 //	stat=src->stat;
 	return ERR_None;
 }
@@ -308,24 +324,64 @@ Process* Process::GetQuitingChild(PID cid)
 	return nullptr;
 }
 
+ErrorType Process::SetCWD(const char *path)
+{
+	if (CurrentWorkDirectory)
+		Kfree(CurrentWorkDirectory);
+	CurrentWorkDirectory=strDump(path);
+	return ERR_None;
+}
+
+FileHandle* Process::GetFileHandleFromFD(int fd)
+{
+	if (InRange(fd,0,7))
+		return FileTable[fd];
+	else for (FileHandle *fh=FileTable[0];fh;fh=fh->Nxt())
+		if (fh->FD==fd)
+			return fh;
+	return nullptr;
+}
+
+ErrorType Process::InitFileTable()
+{
+	CurrentWorkDirectory=nullptr;
+	MemsetT<FileHandle*>(FileTable,0,8);
+	if (stdIO!=nullptr)
+	{
+		FileTable[0]=new FileHandle(stdIO,FileHandle::F_Read);
+		FileTable[1]=new FileHandle(stdIO,FileHandle::F_Write);
+		FileTable[2]=new FileHandle(stdIO,FileHandle::F_Write);//??
+		FileTable[0]->FD=0;
+		FileTable[1]->FD=1;
+		FileTable[2]->FD=2;
+		FileTable[0]->proc=this;
+		FileTable[1]->proc=this;
+		FileTable[2]->proc=this;
+		FileTable[0]->NxtInsert(FileTable[1]);
+		FileTable[1]->NxtInsert(FileTable[2]);
+	}
+	return ERR_None;
+}
+
+ErrorType Process::DestroyFileTable()
+{
+	kout[Warning]<<"Process::DestroyFileTable is not usable yet!"<<endl;
+	for (FileHandle *p=FileTable[0],*q;p;p=q)
+	{
+		q=p->nxt;
+		delete p;
+	}
+	return ERR_Todo;
+}
+
 ErrorType Process::InitForKernelProcess0()
 {
-	RunningTime=0;
-	CountingBase=RunningTime=StartedTime=SleepingTime=WaitingTime=0;
+	stat=S_Initing;
+	Init(F_Kernel);
 	Stack=bootstack;
 	StackSize=KernelStackSize;
-	fa=pre=nxt=child=nullptr;
-	POS::MemsetT<RegisterData>((RegisterData*)&context,0,sizeof(context)/sizeof(RegisterData));
-//	tf=nullptr;
 	VMS=VirtualMemorySpace::Boot();
-	flags=F_Kernel;
-	Name=nullptr;
 	SetName("PAL_OperatingSystem BootProcess",1);
-	Namespace=0;
-	SemWaitingLink.Init();
-	SemWaitingLink.SetData(this);
-	SemWaitingTargetTime=0;
-	WaitSem=new Semaphore(0);
 	stat=S_Running;
 	return ERR_None;
 }
@@ -348,6 +404,7 @@ ErrorType Process::Init(Uint64 _flags)
 	SemWaitingLink.SetData(this);
 	SemWaitingTargetTime=0;
 	WaitSem=new Semaphore(0);
+	InitFileTable();
 	return ERR_None;
 }
 
@@ -358,6 +415,9 @@ ErrorType Process::Destroy()
 		return ERR_None;
 	else if (POS::NotInSet(stat,S_Initing,S_Quiting))
 		Exit(Exit_Destroy);
+	while (child)
+		child->Destroy();//??
+	SetFa(nullptr);
 	VMS->Unref(this);
 	VMS->TryDeleteSelf();
 	VMS=nullptr;
@@ -369,6 +429,7 @@ ErrorType Process::Destroy()
 	delete WaitSem;
 	WaitSem=nullptr;
 	SetName(nullptr,1);
+	DestroyFileTable();
 	PM->FreeProcess(this);
 	return ERR_None;
 }

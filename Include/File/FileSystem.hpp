@@ -23,19 +23,26 @@ inline bool IsValidFileNameCharacter(char ch)
 
 class FileNode
 {
-	
+	friend class VirtualFileSystemManager;
 	public:
 		enum:Uint64
 		{
 			A_Dir		=1ull<<0,
-			A_VFS		=1ull<<1,//root of VFS
+			A_Root		=1ull<<1,
+			A_VFS		=1ull<<2,//root of VFS
+			A_Device	=1ull<<3,
+//			A_Virtual	=1ull<<4,
 //			A_Deleted	=1ull<<,
 //			A_Link		=1ull<<,
 		};
 		
 		enum:Uint64
 		{
-			F_OutsideName=1ull<<0//Means that the name if not dumplicated and won't be freed.
+			F_OutsideName=1ull<<0,//Means that the name if not dumplicated and won't be freed.(Also cannot modify!)
+			F_BelongVFS  =1ull<<1,//if in the subtree of VFS
+			F_Managed    =1ull<<2,
+			F_Base       =1ull<<3,
+			F_AutoClose  =1ull<<4
 		};
 		
 	protected:
@@ -43,12 +50,16 @@ class FileNode
 		char *Name=nullptr;
 		Uint64 Attributes=0;
 		Uint64 Flags=0;
-//		FileNode *fa;
+		FileNode *fa=nullptr,
+				 *pre=nullptr,
+				 *nxt=nullptr,
+				 *child=nullptr;
 		Uint64 FileSize=0;
-		Uint64 RefCount=0;
+		Sint32 RefCount=0;
 		
 		virtual inline void SetFileName(char *name,bool outside)
 		{
+			//<<Validate name...??
 			if (Name!=nullptr&&!(Flags&F_OutsideName))
 				Kfree(Name);
 			if (outside)
@@ -63,9 +74,72 @@ class FileNode
 			}
 		}
 		
+		void SetFa(FileNode *_fa)
+		{
+			ASSERTEX(_fa==nullptr||(_fa->Attributes&A_Dir),"FileNode::SetFa "<<_fa<<" of "<<Name<<" is not valid!");
+			if (fa!=nullptr)
+			{
+				if (fa->child==this)
+					fa->child=nxt;
+				else if (pre!=nullptr)
+					pre->nxt=nxt;
+				if (nxt!=nullptr)
+					nxt->pre=pre;
+				pre=nxt=fa=nullptr;
+			}
+			if (_fa!=nullptr)
+			{
+				fa=_fa;
+				nxt=fa->child;
+				fa->child=this;
+				if (nxt!=nullptr)
+					nxt->pre=this;
+			}
+		}
+		
+		template <int type> Uint64 GetPath_Measure()
+		{
+			if (Attributes&A_Root)
+				return 0;
+			else if (type==1&&(Attributes&A_VFS))
+				return 0;
+			else if (fa==nullptr)
+				return 0;
+			else return fa->GetPath_Measure<type>()+1+POS::strLen(Name);
+		}
+		
+		template <int type> char* GetPath_Copy(char *dst)
+		{
+			if (Attributes&A_Root)
+				return dst;
+			else if (type==1&&(Attributes&A_VFS))
+				return dst;
+			else if (fa==nullptr)
+				return dst;
+			else
+			{
+				char *s=fa->GetPath_Copy<type>(dst);
+				*s='/';
+				return POS::strCopyRe(s+1,Name);
+			}
+		}
+		
 	public:
-		virtual ErrorType Read(void *dst,Uint64 pos,Uint64 size)=0;
-		virtual ErrorType Write(void *src,Uint64 pos,Uint64 size)=0;
+		virtual ErrorType Read(void *dst,Uint64 pos,Uint64 size)
+		{return ERR_UnsuppoertedVirtualFunction;}
+		
+		virtual ErrorType Write(void *src,Uint64 pos,Uint64 size)
+		{return ERR_UnsuppoertedVirtualFunction;}
+		
+		template <int type> char* GetPath()//type 0:Fullpath 1:Path in VFS;returned string should be freed by caller
+		{
+			Uint64 len=GetPath_Measure<type>();
+			if (len==0)
+				return POS::strDump("/");
+			char *re=(char*)Kmalloc(len+1);
+			*GetPath_Copy<type>(re)=0;
+			return re;
+		}
 		
 		virtual inline Uint64 Size()
 		{return FileSize;}
@@ -81,6 +155,8 @@ class FileNode
 		{
 			//...
 			--RefCount;
+			if (RefCount<=0&&(Flags&F_AutoClose))
+				delete this;
 			return ERR_None;
 		}
 		
@@ -95,21 +171,31 @@ class FileNode
 		
 		virtual ~FileNode()
 		{
+			while (child)
+				delete child;
+			SetFa(nullptr);
 			SetFileName(nullptr,0);
 		}
 		
-		FileNode(VirtualFileSystem *_vfs=nullptr):Vfs(_vfs) {}
+		FileNode(VirtualFileSystem *_vfs,Uint64 attri,Uint64 flags):Vfs(_vfs),Attributes(attri),Flags(flags)
+		{
+			if (Vfs!=nullptr)
+				Flags|=F_BelongVFS;
+		}
 };
 
-class FileHandle
+class FileHandle:public POS::LinkTableT<FileHandle>
 {
+	friend class Process;
 	public:
 		enum
 		{
 			F_Read	=1ull<<0,
 			F_Write	=1ull<<1,
 			F_Seek	=1ull<<2,
-			F_Size	=1ull<<3
+			F_Size	=1ull<<3, 
+			
+			F_ALL   =F_Read|F_Write|F_Seek|F_Size
 		};
 	
 		enum
@@ -127,27 +213,30 @@ class FileHandle
 		//Below is infomation for process
 		Process *proc=nullptr;
 		Uint32 FD=-1;
-		POS::LinkTable <Process> Link;
 		
 	public:
 		inline Sint64 Read(void *dst,Uint64 size)//Need improve...
 		{
 			if (!(Flags&F_Read))
 				return -ERR_InvalidFileHandlePermission;
+			if (Flags&F_Size)
+				size=POS::minN(size,file->Size()-Pos);
 			auto err=file->Read(dst,Pos,size);
-			if (err)
-				return -err;
-			else return Pos+=size,size;
+			if (err>=0)
+				Pos+=err;
+			return err;
 		}
 		
 		inline Sint64 Write(void *src,Uint64 size)
 		{
 			if (!(Flags&F_Write))
 				return -ERR_InvalidFileHandlePermission;
+			if (Flags&F_Size)
+				size=POS::minN(size,file->Size()-Pos);//??
 			auto err=file->Write(src,Pos,size);
-			if (err)
-				return -err;
-			else return Pos+=size,size;
+			if (err>=0)
+				Pos+=err;
+			return err;
 		}
 		
 		inline ErrorType Seek(Sint64 pos,Uint8 base=Seek_Beg)
@@ -171,41 +260,122 @@ class FileHandle
 			return file->Size();
 		}
 		
+		inline FileNode* Node()
+		{return file;}
+		
+		inline int GetFD()
+		{return FD;}
+		
+		inline Uint64 GetFlags()
+		{return Flags;}
+		
 		ErrorType Close()
 		{
-			file->Unref(this);
-			file=nullptr;
+			ErrorType err=ERR_None;
+			if (file)
+			{
+				err=file->Unref(this);
+				file=nullptr;
+			}
+			if (proc)
+			{
+				if (FD<=7)
+					proc->FileTable[FD]=nullptr;
+				Remove();
+				FD=-1;
+				proc=nullptr;
+			}
+			return err;
+		}
+		
+		ErrorType BindToProcess(Process *_proc,int fd=-1)//if fd==-1, auto allocate fd; fd should not be used if specified!
+		{
+			if (proc!=nullptr)
+				return ERR_TargetExist;
+			proc=_proc;
+			if (fd==0||fd==1)//For special use in Process::CopyFileTable; Won't check existance! (??)
+			{
+				FD=fd;
+				proc->FileTable[fd]=this;
+				if (fd==0&&proc->FileTable[1])
+					proc->FileTable[1]->PreInsert(this);
+				if (fd==1&&proc->FileTable[0])
+					proc->FileTable[0]->NxtInsert(this);
+				return ERR_None;
+			}
+			FileHandle *p=proc->FileTable[1];
+			while (p)
+				if (fd==-1)
+					if (p->nxt==nullptr||p->nxt->FD>p->FD+1)
+					{
+						fd=p->FD+1;
+						break;
+					}
+					else p=p->nxt;
+				else
+					if (p->FD<fd)
+						if (p->nxt==nullptr||fd<p->nxt->FD)
+							break;
+						else p=p->nxt;
+					else if (p->FD==fd)
+						return ERR_TargetExist;
+			FD=fd;
+			p->NxtInsert(this);
+			if (fd<=7)
+				proc->FileTable[fd]=this;
 			return ERR_None;
+		}
+		
+		FileHandle* Dump()//??
+		{
+			FileHandle *re=new FileHandle(file,Flags);
+			re->Pos=Pos;
+			return re;
 		}
 		
 		~FileHandle()
 		{
-			using namespace POS;
-			kout[Warning]<<"FileHandle deconstructor is not complete yet!"<<endl;
+			Close();
 		}
 		
-		FileHandle(FileNode *filenode,Uint64 flags=F_Read|F_Write|F_Seek|F_Size):Flags(flags)
+		FileHandle(FileNode *filenode,Uint64 flags=F_ALL):Flags(flags)
 		{
 			file=filenode;
 			file->Ref(this);
+			LinkTableT<FileHandle>::Init();
 		}
 };
 
 class VirtualFileSystemManager
 {
 	protected:
-		Mutex mu;
+		FileNode *root;
+		
+		void AddNewNode(FileNode *p,FileNode *fa);
+		FileNode* AddFileInVFS(FileNode *p,char *name);
+		FileNode* FindChildName(FileNode *p,const char *s,const char *e);
+		FileNode* FindChildName(FileNode *p,const char *s);
+		FileNode* FindRecursive(FileNode *p,const char *path);
 		
 	public:
+		static inline bool IsAbsolutePath(const char *path)
+		{
+			return path!=nullptr&&*path=='/';//??
+		}
+		
+		static char* NormalizePath(const char *path,const char *base=nullptr);//if base is nullptr, or path is absolute, base will be ignored.
 		FileNode* FindFile(const char *path,const char *name);
-		int GetAllFileIn(const char *path,char *result[],int bufferSize);//if unused ,user should free the char*
+		int GetAllFileIn(const char *path,char *result[],int bufferSize,int skipCnt=0);//if unused ,user should free the char*
+		int GetAllFileIn(Process *proc,const char *path,char *result[],int bufferSize,int skipCnt=0);
 		ErrorType CreateDirectory(const char *path);
 		ErrorType CreateFile(const char *path);
 		ErrorType Move(const char *src,const char *dst);
 		ErrorType Copy(const char *src,const char *dst);
 		ErrorType Delete(const char *path);
+		ErrorType LoadVFS(VirtualFileSystem *vfs,const char *path="/VFS");
 		
-		FileNode* Open(const char *path);
+		FileNode* Open(const char *path);//path here should be normalized.
+		FileNode* Open(Process *proc,const char *path);
 		ErrorType Close(FileNode *p);
 		
 		ErrorType Init();
@@ -217,6 +387,22 @@ class VirtualFileSystem
 {
 //	protected:
 	public:
+		virtual FileNode* FindFile(FileNode *p,const char *name)//Temp...
+		{
+			char *path=p->GetPath<1>();
+			FileNode *re=FindFile(path,name);
+			Kfree(path);
+			return re;
+		}
+		
+		virtual int GetAllFileIn(FileNode *p,char *result[],int bufferSize,int skipCnt=0)
+		{
+			char *path=p->GetPath<1>();
+			int re=GetAllFileIn(path,result,bufferSize,skipCnt);
+			Kfree(path);
+			return re;
+		}
+		
 		virtual FileNode* FindFile(const char *path,const char *name)=0;
 		virtual int GetAllFileIn(const char *path,char *result[],int bufferSize,int skipCnt=0)=0;//if unused,result should be empty when input , user should free the char*
 		virtual ErrorType CreateDirectory(const char *path)=0;

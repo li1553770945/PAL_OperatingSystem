@@ -25,7 +25,10 @@ enum
 	ERR_PathIsNotFile,
 	ERR_FileNameTooLong,
 	ERR_InvalidClusterNumInFAT32,
-	ERR_InvalidFileHandlePermission
+	ERR_InvalidFileHandlePermission,
+	ERR_TargetExist,
+	ERR_UnsuppoertedVirtualFunction,
+	ERR_FileEmpty
 };
 
 void KernelFaultSolver();

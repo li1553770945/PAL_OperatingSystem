@@ -73,7 +73,10 @@ int FAT32::Init()
 
 FileNode* FAT32::FindFile(const char* path, const char* name)
 {
-	return nullptr;
+	char *s=strComp(path,"/")==0?strSplice("/",name):strSplice(path,"/",name);
+	FileNode *re=Open(s);
+	Kfree(s);
+	return re;
 }
 int FAT32::GetAllFileIn(const char* path, char* result[], int bufferSize, int skipCnt) 
 {
@@ -224,6 +227,8 @@ FileNode* FAT32::LoadShortFileInfoFromBuffer(unsigned char * buffer) //从第lba
 	}*/
 	FAT32FileNode* node = new FAT32FileNode(this);
 	node->IsDir = attr & (1 << 4);
+	if (node->IsDir)
+		node->Attributes|=FileNode::A_Dir;
 	Uint16 file_name_length = 0; //获取文件名
 	for (int i = 0; i < 8; i++)
 	{
@@ -480,6 +485,7 @@ FileNode* FAT32::FindFileByPath(const char* path)
 	{
 		FAT32FileNode* node = new FAT32FileNode(this, 2);
 		node->IsDir = true;
+		node->Attributes|=FileNode::A_Dir;
 		return node;
 	}
 
@@ -546,7 +552,7 @@ PAL_DS::Doublet<Uint64, Uint64> FAT32::GetFreeLbaAndOffsetFromPath()//得到Path
 	return PAL_DS::Doublet<Uint64, Uint64>(0, 0);
 }
 
-FAT32FileNode::FAT32FileNode(FAT32* _vfs, Uint64 _cluster)
+FAT32FileNode::FAT32FileNode(FAT32* _vfs, Uint64 _cluster):FileNode(_vfs,0,0)
 {
 	IsDir = false;
 	nxt = nullptr;
@@ -557,16 +563,17 @@ FAT32FileNode::FAT32FileNode(FAT32* _vfs, Uint64 _cluster)
 
 ErrorType FAT32FileNode::Read(void* dst, Uint64 pos, Uint64 size)
 {
+	Uint64 size_bak=size;
 	if (IsDir)
 	{
-		return ERR_PathIsNotFile;
+		return -ERR_PathIsNotFile;
 	}
 	FAT32* vfs = (FAT32*)Vfs;
 	Uint64 total_has_read_size = 0;//可能要跨扇区、簇读取，这是本次（该函数执行完一次）总数据量
 	Uint64 bytes_per_cluster = SECTORSIZE * vfs->Dbr.BPBSectionPerClus;
 	if (pos>=FileSize || pos+size>FileSize || pos<0 || size <0)
 	{
-		return ERR_FileOperationOutofRange;
+		return -ERR_FileOperationOutofRange;
 	}
 	if (size == 0)
 	{
@@ -584,7 +591,7 @@ ErrorType FAT32FileNode::Read(void* dst, Uint64 pos, Uint64 size)
 		if (cluster == CLUSTEREND)
 		{
 			kout[Error]<< "try to read FAT32 from cluster end"<<endl;
-			return ERR_InvalidClusterNumInFAT32;
+			return -ERR_InvalidClusterNumInFAT32;
 		}
 		Uint64 section_need_read_size;//当前扇区需要读取的字节
 		if (section_offset + size <= SECTORSIZE)//这个扇区可以直接满足
@@ -615,7 +622,7 @@ ErrorType FAT32FileNode::Read(void* dst, Uint64 pos, Uint64 size)
 		}
 	}
 	
-	return ERR_None;
+	return size_bak;
 }
 PAL_DS::Doublet <Uint64, Uint64> FAT32FileNode::GetCLusterAndLba(Uint64 pos)
 {
