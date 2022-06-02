@@ -144,6 +144,7 @@ int RunAllTestSuits(void*)
 						{
 							Process *proc=POS_PM.Current(),*cp=nullptr;
 							while ((cp=proc->GetQuitingChild(id))==nullptr)
+								kout[Debug]<<"W"<<endl,
 								proc->GetWaitSem()->Wait();
 							cp->Destroy();
 						}
@@ -401,9 +402,10 @@ void TestFuncs()
 	if (1)
 	{
 		PID id=CreateKernelThread(RunAllTestSuits,nullptr,0);
-		Process *proc=POS_PM.Current(); 
-		while (proc->GetQuitingChild(id)==nullptr)
+		Process *proc=POS_PM.Current(),*cp; 
+		while ((cp=proc->GetQuitingChild(id))==nullptr)
 			proc->GetWaitSem()->Wait();
+		cp->Destroy();
 	}
 }
 

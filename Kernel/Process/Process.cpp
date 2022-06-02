@@ -159,10 +159,12 @@ ErrorType Process::Exit(int re)
 	if (ReturnedValue==Exit_BadSyscall)
 		kout[Debug]<<"B"<<endl;
 	if (!(flags&F_AutoDestroy)&&fa!=nullptr)
+		kout[Debug]<<"SignalFa"<<endl,
 		fa->WaitSem->Signal();
 	if (ReturnedValue==Exit_BadSyscall)
 		kout[Debug]<<"C"<<endl;
 	stat=S_Quiting;
+	kout[Debug]<<"stat "<<stat<<" ID "<<ID<<endl;
 	return ERR_None;
 }
 
