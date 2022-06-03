@@ -21,9 +21,13 @@ Sint64 FAT32FileNode::Read(void* dst, Uint64 pos, Uint64 size)
 	FAT32* vfs = (FAT32*)Vfs;
 	Sint64 total_has_read_size = 0;//可能要跨扇区、簇读取，这是本次（该函数执行完一次）总数据量
 	Uint64 bytes_per_cluster = SECTORSIZE * vfs->Dbr.BPBSectorPerClus;
-	if (pos >= FileSize || pos + size > FileSize || pos < 0 || size < 0)
+	if (pos >= FileSize)
 	{
 		return -ERR_FileOperationOutofRange;
+	}
+	if(pos + size > FileSize)
+	{
+		size = FileSize - pos;
 	}
 	if (size == 0)
 	{

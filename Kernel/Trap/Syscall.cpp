@@ -266,6 +266,16 @@ inline RegisterData Syscall_Write(int fd,void *src,Uint64 size)
 	return re<0?-1:re;
 }
 
+inline int Syscall_linkat(int olddirfd,char *oldpath,int newdirfd,char *newpath,unsigned flags)
+{
+	return -1;
+}
+
+inline int Syscall_unlinkat(int dirfd,char *path,unsigned flags)
+{
+	return -1;
+}
+
 inline int Syscall_mkdirat(int fd,char *filename,int mode)//Currently,mode will be ignored...
 {
 	VirtualMemorySpace::EnableAccessUser();
@@ -639,8 +649,11 @@ ErrorType TrapFunc_Syscall(TrapFrame *tf)
 			tf->reg.a0=Syscall_Write(tf->reg.a0,(void*)tf->reg.a1,tf->reg.a2);
 			break;
 		case	SYS_linkat		:
+			tf->reg.a0=Syscall_linkat(tf->reg.a0,(char*)tf->reg.a1,tf->reg.a2,(char*)tf->reg.a3,tf->reg.a4);
+			break;
 		case	SYS_unlinkat	:
-			goto Default;
+			tf->reg.a0=Syscall_unlinkat(tf->reg.a0,(char*)tf->reg.a1,tf->reg.a2);
+			break;
 		case	SYS_mkdirat		:
 			tf->reg.a0=Syscall_mkdirat(tf->reg.a0,(char*)tf->reg.a1,tf->reg.a2);
 			break;
