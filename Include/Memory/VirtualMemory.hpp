@@ -197,20 +197,24 @@ class VirtualMemoryRegion:public POS::LinkTableT <VirtualMemoryRegion>
 {
 	friend class VirtualMemorySpace;
 	public:
-		enum
+		enum:Uint32
 		{
-			VM_Read=1<<0,
-			VM_Write=1<<1,
-			VM_Exec=1<<2,
-			VM_Stack=1<<3,
-			VM_Kernel=1<<4,
-			VM_Shared=1<<5,
-			VM_Device=1<<6,
+			VM_Read		=1<<0,
+			VM_Write	=1<<1,
+			VM_Exec		=1<<2,
+			VM_Stack	=1<<3,
+			VM_Heap		=1<<4,
+			VM_Kernel	=1<<5,
+			VM_Shared	=1<<6,
+			VM_Device	=1<<7,
+			VM_File		=1<<8,
+			VM_Dynamic	=1<<9,
 			
 			VM_RW=VM_Read|VM_Write,
 			VM_RWX=VM_RW|VM_Exec,
 			VM_KERNEL=VM_Kernel|VM_RWX,
-			VM_USERSTACK=VM_RW|VM_Stack,
+			VM_USERSTACK=VM_RW|VM_Stack|VM_Dynamic,
+			VM_USERHEAP=VM_RW|VM_Heap|VM_Dynamic,
 			VM_MMIO=VM_RW|VM_Kernel|VM_Device,
 			
 			VM_TEST=VM_Kernel|VM_RW|VM_Shared//??
@@ -250,7 +254,16 @@ class VirtualMemoryRegion:public POS::LinkTableT <VirtualMemoryRegion>
 		inline bool In(PtrInt p)
 		{return Start<=p&&p<End;}
 		
-		ErrorType Init(PtrInt start,PtrInt end,PtrInt flags);
+		inline PtrInt GetStart()
+		{return Start;}
+		
+		inline PtrInt GetEnd()
+		{return End;}
+		
+		inline PtrInt GetLength()
+		{return End-Start;}
+		
+		ErrorType Init(PtrInt start,PtrInt end,Uint32 flags);
 };
 
 class Process;
@@ -316,6 +329,7 @@ class VirtualMemorySpace:protected SpinLock
 		VirtualMemoryRegion* FindVMR(PtrInt p);
 		void InsertVMR(VirtualMemoryRegion *vmr);
 		void RemoveVMR(VirtualMemoryRegion *vmr,bool FreeVmr);
+		PtrInt GetUsableVMR(PtrInt start,PtrInt end,PtrInt length);
 		
 		void Unref(Process *proc);
 		void Ref(Process *proc);
@@ -334,6 +348,49 @@ class VirtualMemorySpace:protected SpinLock
 		
 		ErrorType Init();
 		ErrorType Destroy();
+};
+
+class HeapMemoryRegion:public VirtualMemoryRegion
+{
+	protected:
+		Uint64 BreakPointLength=0;
+		
+	public:
+		inline PtrInt BreakPoint()
+		{return Start+BreakPointLength;}
+		
+		inline ErrorType Resize(Sint64 delta)
+		{
+			if (delta>=0)
+			{
+				BreakPointLength+=delta;
+				if (Start+BreakPointLength>End)
+					if (nxt==nullptr||Start+BreakPointLength<=nxt->GetStart())
+						End=Start+BreakPointLength+PageSize-1>>PageSizeBit<<PageSizeBit;
+					else return ERR_HeapCollision;
+			}
+			else
+			{
+				if (-delta>BreakPointLength)
+				{
+					BreakPointLength=0;
+					End=Start+PageSize;
+				}
+				else
+				{
+					BreakPointLength+=delta;
+					End=Start+BreakPointLength+PageSize-1>>PageSizeBit<<PageSizeBit;
+				}
+				//<<destroy uneeded pages...
+			}
+			return ERR_None;
+		}
+		
+		inline ErrorType Init(PtrInt start,Uint64 len=PageSize,Uint64 flags=VM_USERHEAP)
+		{
+			BreakPointLength=len;
+			return VirtualMemoryRegion::Init(start,start+len,flags);
+		}
 };
 
 ErrorType TrapFunc_FageFault(TrapFrame *tf);

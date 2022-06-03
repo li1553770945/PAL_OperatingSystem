@@ -57,6 +57,7 @@ class Process
 	friend class ForkServerClass;
 	friend class Semaphore;
 	friend class FileHandle;
+	friend void Trap(TrapFrame *tf);
 	friend PID Syscall_Clone(TrapFrame *tf,Uint64 flags,void *stack,PID ppid,Uint64 tls,PID cid);//??
 	public:
 		enum
@@ -66,6 +67,7 @@ class Process
 			S_Initing,
 			S_Ready,
 			S_Running,
+			S_UserRunning,
 			S_Sleeping,
 			S_Quiting
 		};
@@ -104,10 +106,11 @@ class Process
 		PID ID;//PM fill
 		Uint32 stat;
 		ClockTime CountingBase,
-				  RunningTime,
+				  RunningDuration,
 				  StartedTime,
-				  SleepingTime,
-				  WaitingTime;
+				  SleepingDuration,//Sleeping stat
+				  WaitingDuration,//Ready stat
+				  UserDuration;
 		void *Stack;//[Stack,Stack+StackSize) is the stack area
 		Uint32 StackSize;
 //		void *UserStack;
@@ -126,6 +129,7 @@ class Process
 		POS::LinkTable <Process> SemWaitingLink;//Processes waiting in a Semaphore
 		ClockTime SemWaitingTargetTime;//Waiting Semaphore timeout+basetime
 		Semaphore *WaitSem;//Used for this process to wait for something such as child process
+		HeapMemoryRegion *Heap;
 		
 		char *CurrentWorkDirectory;
 		FileHandle* FileTable[8];
@@ -150,6 +154,21 @@ class Process
 		Process* GetQuitingChild(PID cid=AnyPID);//??
 		ErrorType SetCWD(const char *path);//Will be dumplicated.(?)
 		FileHandle* GetFileHandleFromFD(int fd);
+		ErrorType SwitchStat(Uint32 tar);
+		
+		inline Uint32 GetStat()
+		{return stat;}
+		
+		inline ErrorType SetHeap(HeapMemoryRegion *heap)
+		{
+			if (Heap!=nullptr)
+				return ERR_TargetExist;
+			Heap=heap;
+			return ERR_None;
+		}
+		
+		inline HeapMemoryRegion* GetHeap()
+		{return Heap;}
 		
 		inline const char* GetCWD()
 		{return CurrentWorkDirectory;}
@@ -176,10 +195,42 @@ class Process
 		{return flags&F_Kernel;}
 		
 		inline bool IsUserProcess()
-		{return !(flags)&F_Kernel;}
+		{return !(flags&F_Kernel);}
 		
-		//ClockTime GetXXXTime();
-//		ErrorType Fork();//Reserved... It is not usable
+		inline ClockTime GetRunningDuration(bool update=1)
+		{
+			if (update)
+				SwitchStat(stat);
+			return RunningDuration;
+		}
+		
+		inline ClockTime GetStartedTime(bool update=1)
+		{
+			if (update)
+				SwitchStat(stat);
+			return StartedTime;
+		}
+		
+		inline ClockTime GetSleepingDuration(bool update=1)
+		{
+			if (update)
+				SwitchStat(stat);
+			return SleepingDuration;
+		}
+		
+		inline ClockTime GetWaitingDuration(bool update=1)
+		{
+			if (update)
+				SwitchStat(stat);
+			return WaitingDuration;
+		}
+		
+		inline ClockTime GetUserDuration(bool update=1)
+		{
+			if (update)
+				SwitchStat(stat);
+			return UserDuration;
+		}
 		
 		ErrorType Init(Uint64 _flags);
 		ErrorType Destroy();
@@ -214,6 +265,8 @@ PID CreateInnerUserImgProcess(PtrInt start,PtrInt end,Uint64 flags=Process::F_Au
 extern "C"
 {
 	void KernelThreadExit(int re);
+	void SwitchToUserStat();
+	void SwitchBackKernelStat();
 	extern void KernelThreadEntry();
 	extern void UserThreadEntry();
 	extern void ProcessSwitchContext(Process::RegContext *from,Process::RegContext *to);

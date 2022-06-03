@@ -113,7 +113,7 @@ int FAT32::GetAllFileIn(const char* path, char* result[], int bufferSize, int sk
 				unsigned char temp[32];
 				POS::MemcpyT(temp, buffer + j * 32, 32);
 				Uint16 attr = temp[11];
-				if (attr == 0x0F)//长目录项
+				if (attr == 0x0F && temp[0] != 0xE5 && temp[0] != 0x00)//长目录项
 				{
 				    Uint32 * temp_long_name = new Uint32[13]; //has delete
 					LoadLongFileNameFromBuffer(temp, temp_long_name);

@@ -73,7 +73,7 @@ class Semaphore
 					Process *proc=POS_PM.Current();
 					Tail.PreInsert(&proc->SemWaitingLink);
 					proc->SemWaitingTargetTime=GetClockTime()+timeOut;
-					proc->stat=Process::S_Sleeping;
+					proc->SwitchStat(Process::S_Sleeping);
 					
 					UnlockProcess();
 					iss.Restore();
@@ -105,12 +105,10 @@ class Semaphore
 				if (!p.NxtEmpty())
 				{
 					if (p()->stat==Process::S_Sleeping)
-						POS::kout[POS::Debug]<<"signal "<<p()->ID<<POS::endl,
-						p()->stat=Process::S_Ready;
+						p()->SwitchStat(Process::S_Ready);
 				}
 				else break;
 			}
-			using namespace POS;
 			UnlockProcess();
 		}
 		

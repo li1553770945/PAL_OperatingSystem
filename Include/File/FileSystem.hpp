@@ -220,8 +220,6 @@ class FileHandle:public POS::LinkTableT<FileHandle>
 		{
 			if (!(Flags&F_Read))
 				return -ERR_InvalidFileHandlePermission;
-			if (Flags&F_Size)
-				size=POS::minN(size,file->Size()-Pos);
 			auto err=file->Read(dst,Pos,size);
 			if (err>=0)
 				Pos+=err;
@@ -232,8 +230,6 @@ class FileHandle:public POS::LinkTableT<FileHandle>
 		{
 			if (!(Flags&F_Write))
 				return -ERR_InvalidFileHandlePermission;
-			if (Flags&F_Size)
-				size=POS::minN(size,file->Size()-Pos);//??
 			auto err=file->Write(src,Pos,size);
 			if (err>=0)
 				Pos+=err;

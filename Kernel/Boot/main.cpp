@@ -144,7 +144,6 @@ int RunAllTestSuits(void*)
 						{
 							Process *proc=POS_PM.Current(),*cp=nullptr;
 							while ((cp=proc->GetQuitingChild(id))==nullptr)
-								kout[Debug]<<"W"<<endl,
 								proc->GetWaitSem()->Wait();
 							cp->Destroy();
 						}
@@ -171,6 +170,7 @@ int RunAllTestSuits(void*)
 	POS_PM.Current()->SetCWD("/VFS/FAT32");
 	VirtualFileSystem *vfs=new FAT32();
 	VFSM.LoadVFS(vfs);
+//	kout[Debug]<<"brk: "<<VFSM.Open("/VFS/FAT32/brk")<<endl;
 	RunAllFile(RunAllFile,".");
 	kout<<"Test all suits OK"<<endl;
 //	kout.SetEnabledType(-1);
@@ -377,7 +377,6 @@ void TestFuncs()
 		kout<<"VFSM Test:"<<endl;
 		VirtualFileSystem *vfs=new FAT32();
 		VFSM.LoadVFS(vfs);
-		VFSM.CreateDirectory("/VFS/FAT32/MyDir");
 		VFSM.CreateDirectory("/VFS/FAT32/MyDir");
 		PrintVFSM(PrintVFSM,"/");
 //		delete vfs;

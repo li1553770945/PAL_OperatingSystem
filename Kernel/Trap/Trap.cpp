@@ -32,6 +32,9 @@ extern "C"
 	void Trap(TrapFrame *tf)
 	{
 		using namespace POS;
+		Process *cur=POS_PM.Current();
+		if (cur->IsUserProcess())
+			SwitchBackKernelStat();
 		ErrorType err=0;
 		if ((long long)tf->cause<0) switch(tf->cause<<1>>1) 
 		{
@@ -90,6 +93,8 @@ extern "C"
 				       <<"  status  :"<<(void*)tf->status<<endline
 				       <<" TrapFunc ErrorType:"<<err<<endl;
 		}
+		if (cur->IsUserProcess())
+			SwitchToUserStat();
 	}
 	
 	extern void __alltraps();

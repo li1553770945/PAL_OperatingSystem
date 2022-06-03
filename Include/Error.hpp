@@ -33,7 +33,8 @@ enum
 	ERR_DeviceWriteError,
 	ERR_UnmountDeviceError,
 	ERR_LockDeviceError,
-	ERR_DeviceInitialError
+	ERR_DeviceInitialError,
+	ERR_HeapCollision
 };
 
 void KernelFaultSolver();

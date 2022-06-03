@@ -112,7 +112,6 @@ ErrorType FAT32FileNode::SetSize(Uint32 size)//设置文件大小，只能缩小
 
 Sint64 FAT32FileNode::Write(void* src, Uint64 pos, Uint64 size)
 {
-
 	Uint64 size_bak = size;
 	if (IsDir)
 	{

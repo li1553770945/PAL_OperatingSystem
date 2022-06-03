@@ -27,30 +27,23 @@ void ProcessManager::Schedule()
 {
 	if (CurrentProcess!=nullptr&&ProcessCount>=2)
 	{
-		for (int i=0;i<=4;++i)
-			kout[Debug]<<Processes[i]<<endl;
-		kout[Debug]<<"S1 "<<CurrentProcess->ID<<endl;
 //		kout[Test]<<"ProcessManager::Schedule: Start schedule, CurrentProcess "<<CurrentProcess->ID<<", TotalProcess "<<ProcessCount<<endl;
 		int i,p;
 		for (i=1,p=CurrentProcess->ID;i<MaxProcessCount;++i)
 		{
-		kout[Debug]<<"S2 "<<i<<endl;
 			Process *tar=&Processes[(i+p)%MaxProcessCount];
 			if (tar->stat==Process::S_Sleeping&&tar->SemWaitingTargetTime!=0&&GetClockTime()>=tar->SemWaitingTargetTime)
-				tar->stat=Process::S_Ready;
-		kout[Debug]<<"S3 "<<tar->stat<<endl;
+				tar->SwitchStat(Process::S_Ready);
+
 			if (tar->stat==Process::S_Ready)
 			{
-		kout[Debug]<<"S4 "<<tar->ID<<endl;
 				kout[Test]<<"Switch from "<<CurrentProcess->ID<<" to "<<tar->ID<<endl;
 				tar->Run();
-		kout[Debug]<<"S5 "<<CurrentProcess->ID<<endl;
 //				kout[Test]<<"Schedule return from "<<tar->ID<<"? to self "<<CurrentProcess->ID<<endl;
 				break;
 			}
 			else if (tar->stat==Process::S_Quiting&&(tar->flags&Process::F_AutoDestroy))
 				tar->Destroy();
-		kout[Debug]<<"S6"<<endl;
 		}
 //		kout[Test]<<"ProcessManager::Schedule: Schedule complete, CurrentProcess "<<CurrentProcess->ID<<", TotalProcess "<<ProcessCount<<endl;
 		if (i==MaxProcessCount&&p!=0)
@@ -68,6 +61,16 @@ void KernelThreadExit(int re)
 	kout[Fault]<<"KernelThreadExit: Reached unreachable branch!"<<endl;
 }
 
+void SwitchToUserStat()
+{
+	POS_PM.Current()->SwitchStat(Process::S_UserRunning);
+}
+
+void SwitchBackKernelStat()
+{
+	POS_PM.Current()->SwitchStat(Process::S_Running);
+}
+
 Process* ProcessManager::GetProcess(PID id)
 {
 	if (POS::InRange(id,1,MaxProcessCount-1))
@@ -81,7 +84,7 @@ Process* ProcessManager::AllocProcess()
 		if (Processes[i].stat==Process::S_None)
 		{
 			++ProcessCount;
-			Processes[i].stat=Process::S_Initing;
+			Processes[i].SwitchStat(Process::S_Allocated);
 			return &Processes[i];
 		}
 	return nullptr;
@@ -91,7 +94,7 @@ ErrorType ProcessManager::FreeProcess(Process *proc)
 {
 	if (proc==CurrentProcess)
 		kout[Fault]<<"ProcessManager::FreeProcess: proc==CurrentProcess with PID "<<proc->GetPID()<<"!"<<endl;
-	Processes[proc->ID].stat=Process::S_None;
+	Processes[proc->ID].SwitchStat(Process::S_None);
 	--ProcessCount;
 	return ERR_None;
 }
@@ -118,6 +121,38 @@ ErrorType ProcessManager::Destroy()
 	return ERR_None;
 }
 
+ErrorType Process::SwitchStat(Uint32 tar)
+{
+	ClockTime t=GetClockTime();
+	ClockTime d=t-CountingBase;
+	CountingBase=t;
+	switch (stat)
+	{
+		case S_Allocated:
+		case S_Initing:
+			if (tar==S_Ready)
+				StartedTime=t;
+			break;
+		case S_Ready:
+			WaitingDuration+=d;
+			break;
+		case S_Running:
+			RunningDuration+=d;
+			break;
+		case S_UserRunning:
+			RunningDuration+=d;
+			UserDuration+=d;
+			break;
+		case S_Sleeping:
+			SleepingDuration+=d;
+			break;
+		case S_Quiting:
+			break;
+	}
+	stat=tar;
+	return ERR_None;
+}
+
 ErrorType Process::Rest()
 {
 	if (stat==S_Running)
@@ -136,8 +171,8 @@ ErrorType Process::Run()
 		{
 //			kout[Debug]<<"this "<<this<<" "<<GetPID()<<" Cur "<<PM->CurrentProcess->GetPID()<<endl;
 			if (cur->stat==S_Running)//??
-				cur->stat=S_Ready;
-			stat=S_Running;
+				cur->SwitchStat(S_Ready);
+			SwitchStat(S_Running);
 			PM->CurrentProcess=this;
 			VMS->Enter();
 			ProcessSwitchContext(&cur->context,&this->context);
@@ -155,18 +190,10 @@ ErrorType Process::Exit(int re)
 		kout[Warning]<<"Process "<<ID<<" exited with returned value "<<re<<endl;
 	else kout[Test]<<"Process "<<ID<<" exited successfully."<<endl;
 	ReturnedValue=re;
-	if (ReturnedValue==Exit_BadSyscall)
-		kout[Debug]<<"A"<<endl;
 	VMS->Leave();
-	if (ReturnedValue==Exit_BadSyscall)
-		kout[Debug]<<"B"<<endl;
 	if (!(flags&F_AutoDestroy)&&fa!=nullptr)
-		kout[Debug]<<"SignalFa"<<endl,
 		fa->WaitSem->Signal();
-	if (ReturnedValue==Exit_BadSyscall)
-		kout[Debug]<<"C"<<endl;
-	stat=S_Quiting;
-	kout[Debug]<<"stat "<<stat<<" ID "<<ID<<endl;
+	SwitchStat(S_Quiting);
 	return ERR_None;
 }
 
@@ -194,7 +221,7 @@ ErrorType Process::Start(int (*func)(void*),void *funcdata,PtrInt userStartAddr)
 		tf->status   =(RegisterData)((read_csr(sstatus)|SSTATUS_SPIE)&~SSTATUS_SPP&~SSTATUS_SIE);//??
 //		tf->status   =(RegisterData)((read_csr(sstatus)|SSTATUS_SPP|SSTATUS_SPIE)&~SSTATUS_SIE);//??
 	}
-	stat=S_Ready;
+	SwitchStat(S_Ready);
 	return ERR_None;
 }
 
@@ -275,10 +302,11 @@ ErrorType Process::CopyFileTable(Process *src)
 ErrorType Process::CopyOthers(Process *src)
 {
 	CountingBase=src->CountingBase;
-	RunningTime=src->RunningTime;
+	RunningDuration=src->RunningDuration;
 	StartedTime=src->StartedTime;
-	SleepingTime=src->SleepingTime;
-	WaitingTime=src->WaitingTime;
+	SleepingDuration=src->SleepingDuration;
+	WaitingDuration=src->WaitingDuration;
+	UserDuration=src->UserDuration;
 	SetFa(src->fa);//??
 	flags=src->flags;//??
 	if (Name==nullptr)//??
@@ -393,21 +421,22 @@ ErrorType Process::DestroyFileTable()
 
 ErrorType Process::InitForKernelProcess0()
 {
-	stat=S_Initing;
+	SwitchStat(S_Allocated);
 	Init(F_Kernel);
 	Stack=bootstack;
 	StackSize=KernelStackSize;
 	VMS=VirtualMemorySpace::Boot();
 	SetName("PAL_OperatingSystem BootProcess",1);
-	stat=S_Running;
+	SwitchStat(S_Running);
 	return ERR_None;
 }
 
 ErrorType Process::Init(Uint64 _flags)
 {
-	ASSERT(stat==S_Initing,"Process::Init: stat is not 0");
-	RunningTime=0;
-	CountingBase=RunningTime=StartedTime=SleepingTime=WaitingTime=0;
+	ASSERT(stat==S_Allocated,"Process::Init: stat is not S_Allocated");
+	SwitchStat(S_Initing);
+	CountingBase=GetClockTime();
+	RunningDuration=StartedTime=SleepingDuration=WaitingDuration=UserDuration=0;
 	Stack=nullptr;
 	StackSize=0;
 	fa=pre=nxt=child=nullptr;//<<Firstly,we don't use this...
@@ -421,6 +450,7 @@ ErrorType Process::Init(Uint64 _flags)
 	SemWaitingLink.SetData(this);
 	SemWaitingTargetTime=0;
 	WaitSem=new Semaphore(0);
+	Heap=nullptr;
 	InitFileTable();
 	return ERR_None;
 }
@@ -459,7 +489,7 @@ int ForkServerClass::ForkServerFunc(void *funcdata)
 		Process *proc=This->CurrentRequestingProcess;
 		if (proc==nullptr)
 		{
-			This->ThisProcess->stat=Process::S_Sleeping;
+			This->ThisProcess->SwitchStat(Process::S_Sleeping);
 			ProcessManager::Schedule();
 			kout[Warning]<<"ForkServer "<<This<<" PID "<<This->ThisProcess->GetPID()<<" reached unreachable branch???"<<endl;
 		}
@@ -481,7 +511,7 @@ int ForkServerClass::ForkServerFunc(void *funcdata)
 				nproc->SetStack(nullptr,proc->StackSize);
 				nproc->Start(This->CurrentRequestingProcessTrapFrame,0);
 				nproc->CopyOthers(proc);
-				nproc->stat=Process::S_Ready;
+				nproc->SwitchStat(Process::S_Ready);
 				This->CurrentRequestingProcessTrapFrame->reg.a0=nproc->ID;
 				This->CurrentRequestingProcess=nullptr;
 				This->CurrentRequestingProcessTrapFrame=nullptr;

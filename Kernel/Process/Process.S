@@ -18,6 +18,7 @@ UserThreadEntry:
 	beqz s0,UserThreadEntry2
 	move a0,s1
 	jalr s0
+	jal SwitchToUserStat
 UserThreadEntry2:
 	j __trapret
 

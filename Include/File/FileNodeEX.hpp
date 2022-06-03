@@ -3,6 +3,7 @@
 
 #include "FileSystem.hpp"
 #include "../Library/BasicFunctions.hpp"
+#include "../Memory/VirtualMemory.hpp"
 
 class UartFileNode:public FileNode
 {
@@ -132,6 +133,52 @@ class PipeFileNode:public FileNode
 			if (name!=nullptr)
 				SetFileName((char*)name,0);
 			buffer=new char[BufferSize];
+		}
+};
+
+class MemapFileRegion:public VirtualMemoryRegion
+{
+	protected:
+		FileNode *File=nullptr;
+		Uint64 Start=0,
+			   Length=0,
+			   Offset=0;
+		
+	public:
+		ErrorType Save()//Save memory to file
+		{
+			VirtualMemorySpace *old=VirtualMemorySpace::Current();
+			VMS->Enter();
+			VMS->EnableAccessUser();
+			Sint64 re=File->Write((void*)Start,Offset,Length);
+			VMS->DisableAccessUser();
+			old->Enter();
+			return re>=0?ERR_None:-re;//??
+		}
+		
+		ErrorType Load()//Load memory from file
+		{
+			VirtualMemorySpace *old=VirtualMemorySpace::Current();
+			VMS->Enter();
+			VMS->EnableAccessUser();
+			Sint64 re=File->Read((void*)Start,Offset,Length);
+			VMS->DisableAccessUser();
+			old->Enter();
+			return re>=0?ERR_None:-re;
+		}
+		
+		~MemapFileRegion()//Virtual??
+		{
+			File->Unref(nullptr);
+			if (VMS!=nullptr)
+				VMS->RemoveVMR(this,0);
+		}
+		
+		MemapFileRegion(FileNode *node,void *start,Uint64 len,Uint64 offset,Uint32 prot)
+		:File(node),Start((PtrInt)start),Length(len),Offset(offset)
+		{
+			ASSERTEX(VirtualMemoryRegion::Init((PtrInt)start,(PtrInt)start+len,prot)==ERR_None,"MemapFileRegion "<<this<<" failed to init VMR!");
+			node->Ref(nullptr);
 		}
 };
 

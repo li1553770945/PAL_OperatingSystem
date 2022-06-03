@@ -244,18 +244,6 @@ inline Sint64 Syscall_getdents64(int fd,RegisterData _buf,Uint64 bufSize)
 	
 }
 
-inline int Syscall_mkdirat(int fd,char *filename,int mode)//Currently,mode will be ignored...
-{
-	VirtualMemorySpace::EnableAccessUser();
-	char *path=CurrentPathFromFileNameAndFD(fd,filename);
-	VirtualMemorySpace::DisableAccessUser();
-	if (path==nullptr)
-		return -1;
-	ErrorType err=VFSM.CreateDirectory(path);
-	Kfree(path);
-	return InThisSet(err,ERR_None,ERR_FileAlreadyExist)/*??*/?0:-1;
-}
-
 inline RegisterData Syscall_Read(int fd,void *dst,Uint64 size)
 {
 	FileHandle *fh=POS_PM.Current()->GetFileHandleFromFD(fd);
@@ -276,6 +264,68 @@ inline RegisterData Syscall_Write(int fd,void *src,Uint64 size)
 	Sint64 re=fh->Write(src,size);
 	VirtualMemorySpace::DisableAccessUser();
 	return re<0?-1:re;
+}
+
+inline int Syscall_mkdirat(int fd,char *filename,int mode)//Currently,mode will be ignored...
+{
+	VirtualMemorySpace::EnableAccessUser();
+	char *path=CurrentPathFromFileNameAndFD(fd,filename);
+	VirtualMemorySpace::DisableAccessUser();
+	if (path==nullptr)
+		return -1;
+	ErrorType err=VFSM.CreateDirectory(path);
+	Kfree(path);
+	return InThisSet(err,ERR_None,ERR_FileAlreadyExist)/*??*/?0:-1;
+}
+
+inline int Syscall_unmount(const char *special,unsigned flags)
+{
+	kout[Warning]<<"Syscall_unmount is not usable yet!"<<endl;
+	return 0;
+}
+
+inline int Syscall_mount(const char *special,const char *dir,const char *fstype,unsigned flags,const void *data)
+{
+	kout[Warning]<<"Syscall_mount is not usable yet!"<<endl;
+	return 0;
+}
+
+inline int Syscall_fstat(int fd,RegisterData _kst)
+{
+	struct kstat
+	{
+		Uint64 st_dev;
+		Uint64 st_ino;
+		Uint32 st_mode;
+		Uint32 st_nlink;
+		Uint32 st_uid;
+		Uint32 st_gid;
+		Uint64 st_rdev;
+		unsigned long __pad;
+		int st_size;
+		Uint32 st_blksize;
+		int __pad2;
+		Uint64 st_blocks;
+		long st_atime_sec;
+		long st_atime_nsec;
+		long st_mtime_sec;
+		long st_mtime_nsec;
+		long st_ctime_sec;
+		long st_ctime_nsec;
+		unsigned __unused[2];
+	}*kst=(kstat*)_kst;
+	FileHandle *fh=POS_PM.Current()->GetFileHandleFromFD(fd);
+	if (fh==nullptr)
+		return -1;
+	FileNode *node=fh->Node();
+	if (node==nullptr)
+		return -1;
+	VirtualMemorySpace::EnableAccessUser();
+	MemsetT<char>((char*)kst,0,sizeof(kstat));
+	kst->st_size=node->Size();
+	//<<Other info...
+	VirtualMemorySpace::DisableAccessUser();
+	return 0;
 }
 
 inline PID Syscall_Clone(TrapFrame *tf,Uint64 flags,void *stack,PID ppid,Uint64 tls,PID cid)
@@ -341,9 +391,6 @@ inline int Syscall_execve(const char *filepath,char *argvs[],char *envp[])//Curr
 	kout[Fault]<<"Syscall_execve reached unreacheable branch!"<<endl;
 }
 
-inline PID Syscall_GetPID()
-{return POS_PM.Current()->GetPID();}
-
 inline PID Syscall_Wait4(PID cid,int *status,int options)
 {
 	constexpr int WNOHANG=1;
@@ -376,6 +423,98 @@ inline PID Syscall_GetPPID()
 	if (fa==nullptr)
 		return Process::InvalidPID;
 	else return fa->GetPID();
+}
+
+inline PID Syscall_GetPID()
+{return POS_PM.Current()->GetPID();}
+
+inline PtrInt Syscall_brk(PtrInt pos)
+{
+	HeapMemoryRegion *hmr=POS_PM.Current()->GetHeap();
+	if (hmr==nullptr)
+		return -1;
+	if (pos==0)
+		return hmr->BreakPoint();
+	ErrorType err=hmr->Resize(pos-hmr->BreakPoint());
+	if (err==ERR_None)
+		return 0;
+	else return -1;	
+}
+
+inline int Syscall_munmap(void *start,Uint64 len)
+{
+	VirtualMemorySpace *vms=POS_PM.Current()->GetVMS();
+	VirtualMemoryRegion *vmr=vms->FindVMR((PtrInt)start);
+	if (vmr==nullptr)
+		-1;
+	MemapFileRegion *mfr=(MemapFileRegion*)vmr;
+	ErrorType err=mfr->Save();
+	if (err)
+		kout[Error]<<"Syscall_munmap: mfr failed to save! ErrorCode: "<<err<<endl;
+	delete mfr;
+	return 0;
+}
+
+inline PtrInt Syscall_mmap(void *start,Uint64 len,int prot,int flags,int fd,int off)//Currently flags will be ignored...
+{
+	FileHandle *fh=POS_PM.Current()->GetFileHandleFromFD(fd);
+	if (fh==nullptr)
+		return -1;
+	FileNode *node=fh->Node();
+	if (node==nullptr)
+		return -1;
+	constexpr Uint64 PROT_NONE=0,
+					 PROT_READ=1,
+					 PROT_WRITE=2,
+					 PROT_EXEC=4,
+					 PROT_GROWSDOWN=0X01000000,//Unsupported yet...
+					 PROT_GROWSUP=0X02000000;//Unsupported yet...
+	Uint64 mfrProt=VirtualMemoryRegion::VM_File;
+	if (prot&PROT_READ)
+		mfrProt|=VirtualMemoryRegion::VM_Read;
+	if (prot&PROT_WRITE)
+		mfrProt|=VirtualMemoryRegion::VM_Write;
+	if (prot&PROT_EXEC)
+		mfrProt|=VirtualMemoryRegion::VM_Exec;
+	PtrInt s=POS_PM.Current()->GetVMS()->GetUsableVMR(start==nullptr?0x60000000:(PtrInt)start,(PtrInt)0x80000000/*??*/,len);
+	if (s==0||start!=nullptr&&((PtrInt)start>>PageSizeBit<<PageSizeBit)!=s)
+		return -1;
+	MemapFileRegion *mfr=new MemapFileRegion(node,start==nullptr?(void*)s:start,len,off,mfrProt);
+	if (mfr==nullptr)
+		return -1;
+	POS_PM.Current()->GetVMS()->InsertVMR(mfr);
+	ErrorType err=mfr->Load();
+	if (err)
+		kout[Error]<<"Syscall_mmap: mfr failed to load! ErrorCode: "<<err<<endl;
+	return start==nullptr?s:(PtrInt)start;
+}
+
+inline RegisterData Syscall_times(RegisterData _tms)
+{
+	struct TMS              
+	{                     
+		long tms_utime;  
+		long tms_stime;  
+		long tms_cutime; 
+		long tms_cstime; 
+	}*tms=(TMS*)_tms;
+	ClockTime unit=Timer_1us;//??
+	if (tms!=nullptr)
+	{
+		Process *cur=POS_PM.Current();
+		ClockTime rd=cur->GetRunningDuration(1);
+//		ClockTime st=cur->GetStartedTime(0);
+//		ClockTime sd=cur->GetSleepingDuration(0);
+//		ClockTime wd=cur->GetWaitingDuration(0);
+		ClockTime ud=cur->GetUserDuration(0);
+		cur->GetVMS()->EnableAccessUser();
+		tms->tms_utime=ud/unit;
+		tms->tms_stime=(rd-ud)/unit;
+		tms->tms_cutime=0;//??
+		tms->tms_stime=0;
+		cur->GetVMS()->DisableAccessUser();
+	}
+	return GetClockTime();
 }
 
 inline RegisterData Syscall_Uname(RegisterData p)
@@ -506,9 +645,14 @@ ErrorType TrapFunc_Syscall(TrapFrame *tf)
 			tf->reg.a0=Syscall_mkdirat(tf->reg.a0,(char*)tf->reg.a1,tf->reg.a2);
 			break;
 		case	SYS_umount2		:
+			tf->reg.a0=Syscall_unmount((const char*)tf->reg.a0,tf->reg.a1);
+			break;
 		case	SYS_mount		:
+			tf->reg.a0=Syscall_mount((const char*)tf->reg.a0,(const char*)tf->reg.a1,(const char*)tf->reg.a2,tf->reg.a3,(void*)tf->reg.a4);
+			break;
 		case	SYS_fstat		:
-			goto Default;
+			tf->reg.a0=Syscall_fstat(tf->reg.a0,tf->reg.a1);
+			break;
 		case	SYS_clone		:
 			tf->reg.a0=Syscall_Clone(tf,tf->reg.a0,(void*)tf->reg.a1,tf->reg.a2,tf->reg.a3,tf->reg.a4);
 			break;
@@ -528,10 +672,17 @@ ErrorType TrapFunc_Syscall(TrapFrame *tf)
 			tf->reg.a0=Syscall_GetPID();
 			break;
 		case	SYS_brk			:
+			tf->reg.a0=Syscall_brk(tf->reg.a0);
+			break;
 		case	SYS_munmap		:
+			tf->reg.a0=Syscall_munmap((void*)tf->reg.a0,tf->reg.a1);
+			break; 
 		case	SYS_mmap		:
+			tf->reg.a0=Syscall_mmap((void*)tf->reg.a0,tf->reg.a1,tf->reg.a2,tf->reg.a3,tf->reg.a4,tf->reg.a5);
+			break;
 		case	SYS_times		:
-			goto Default;
+			tf->reg.a0=Syscall_times(tf->reg.a0);
+			break;
 		case	SYS_uname		:
 			tf->reg.a0=Syscall_Uname(tf->reg.a0);
 			break;
@@ -554,7 +705,6 @@ ErrorType TrapFunc_Syscall(TrapFrame *tf)
 			{
 				kout[Error]<<"TrapFunc_Syscall: Unknown syscall "<<tf->reg.a7<<" from user process "<<cur->GetPID()<<"!"<<endl;
 				cur->Exit(Process::Exit_BadSyscall);
-				kout[Debug]<<"D"<<endl;
 				POS_PM.Schedule();
 				kout[Fault]<<"TrapFunc_Syscall: Reaced unreachable branch!"<<endl;
 			}

@@ -81,14 +81,14 @@ ErrorType VirtualMemoryRegion::CopyMemory(PageTable &pt,const PageTable &src,int
 	return ERR_None;
 }
 
-ErrorType VirtualMemoryRegion::Init(PtrInt start,PtrInt end,PtrInt flags)
+ErrorType VirtualMemoryRegion::Init(PtrInt start,PtrInt end,Uint32 flags)
 {
 	LinkTableT::Init();
 	VMS=nullptr;
 	Start=start>>PageSizeBit<<PageSizeBit;
 	End=end+PageSize-1>>PageSizeBit<<PageSizeBit;//??
 	Flags=flags;
-	ASSERT(Start<End,"VirtualMemoryRegion::Init: Start>=End!");
+	ASSERTEX(Start<End,"VirtualMemoryRegion::Init: Start "<<(void*)Start<<" >= End "<<(void*)End);
 	return ERR_None;
 }
 
@@ -152,9 +152,27 @@ void VirtualMemorySpace::RemoveVMR(VirtualMemoryRegion *vmr,bool FreeVmr)
 		VmrCache=nullptr;
 	//<<Invalidate vmr's Page valid bit...
 	vmr->Remove();
+	vmr->VMS=nullptr;
 	--VmrCount;
 	if (FreeVmr)
 		Kfree(vmr);
+}
+
+PtrInt VirtualMemorySpace::GetUsableVMR(PtrInt start,PtrInt end,PtrInt length)//return 0 means invalid
+{
+	if (start>=end||length==0||end-start<length)
+		return 0;
+	start=start>>PageSizeBit<<PageSizeBit;
+	end=end+PageSize-1>>PageSizeBit<<PageSizeBit;
+	length=length+PageSize-1>>PageSizeBit<<PageSizeBit;
+	if (VmrHead.Nxt()==nullptr||maxN(PageSize*4ull,start)+length<=minN(VmrHead.Nxt()->Start,end))
+		return maxN(PageSize*4ull,start);
+	for (VirtualMemoryRegion *vmr=VmrHead.Nxt();vmr;vmr=vmr->Nxt())
+		if (vmr->Nxt()==nullptr)//??
+			return 0;
+		else if (maxN(vmr->End,start)+length<=minN(vmr->Nxt()->Start,end))
+			return maxN(vmr->End,start);
+	return 0;
 }
 
 //VirtualMemoryRegion* VirtualMemorySpace::CopyVMR()

@@ -123,6 +123,7 @@ inline int Thread_CreateProcessFromELF(void *userdata)
 	VirtualMemorySpace *vms=d->vms;
 	
 	vms->EnableAccessUser();
+	PtrInt BreakPoint=0;
 	for (int i=0;i<d->header.phnum;++i)
 	{
 		ELF_ProgramHeader64 ph{0};
@@ -159,6 +160,7 @@ inline int Thread_CreateProcessFromELF(void *userdata)
 		vmr->Init(ph.vaddr,ph.vaddr+ph.memsize,flags);
 		vms->InsertVMR(vmr);
 		MemsetT<char>((char*)ph.vaddr,0,ph.memsize);
+		BreakPoint=maxN(BreakPoint,vmr->GetEnd());
 		
 		file->Seek(ph.offset,FileHandle::Seek_Beg);
 		err=file->Read((void*)ph.vaddr,ph.filesize);
@@ -169,7 +171,14 @@ inline int Thread_CreateProcessFromELF(void *userdata)
 		VirtualMemoryRegion *vmr_stack=KmallocT<VirtualMemoryRegion>();
 		vmr_stack->Init(InnerUserProcessStackAddr,InnerUserProcessStackAddr+InnerUserProcessStackSize,VirtualMemoryRegion::VM_USERSTACK);
 		vms->InsertVMR(vmr_stack);
-		MemsetT<char>((char*)InnerUserProcessStackAddr,0,InnerUserProcessStackSize);//!!??
+		MemsetT<char>((char*)InnerUserProcessStackAddr,0,InnerUserProcessStackSize);
+	}
+	{
+		HeapMemoryRegion *hmr=KmallocT<HeapMemoryRegion>();
+		hmr->Init(BreakPoint);
+		vms->InsertVMR(hmr);
+		MemsetT<char>((char*)hmr->GetStart(),0,hmr->GetLength());
+		proc->SetHeap(hmr);
 	}
 	vms->DisableAccessUser();
 	d->sem.Signal();
