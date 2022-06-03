@@ -148,6 +148,20 @@ int RunAllTestSuits(void*)
 							cp->Destroy();
 						}
 						delete file;
+						
+						
+						{
+							FileHandle *file=new FileHandle(node);
+							PID id=CreateProcessFromELF(file,0,path);
+							if (id>0)
+							{
+								Process *proc=POS_PM.Current(),*cp=nullptr;
+								while ((cp=proc->GetQuitingChild(id))==nullptr)
+									proc->GetWaitSem()->Wait();
+								cp->Destroy();
+							}
+							delete file;
+						}
 					}
 					VFSM.Close(node);
 				}
