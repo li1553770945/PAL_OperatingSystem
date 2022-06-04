@@ -216,7 +216,8 @@ void spi_send_data_standard(spi_device_num_t spi_num, spi_chip_select_t chip_sel
 void spi_receive_data_standard(spi_device_num_t spi_num, spi_chip_select_t chip_select, const uint8 *cmd_buff,
                                uint64 cmd_len, uint8 *rx_buff, uint64 rx_len)
 {
-    // configASSERT(spi_num < SPI_DEVICE_MAX && spi_num != 2);
+    DebugInfo("S1");
+	// configASSERT(spi_num < SPI_DEVICE_MAX && spi_num != 2);
     uint64 index, fifo_len;
     if(cmd_len == 0)
         spi_set_tmod(spi_num, SPI_TMOD_RECV);
@@ -250,6 +251,7 @@ void spi_receive_data_standard(spi_device_num_t spi_num, spi_chip_select_t chip_
     spi_handle->ctrlr1 = (uint32)(v_rx_len - 1);
     spi_handle->ssienr = 0x01;
 
+    DebugInfo("S2");
     while(v_cmd_len)
     {
         fifo_len = 32 - spi_handle->txflr;
@@ -279,6 +281,7 @@ void spi_receive_data_standard(spi_device_num_t spi_num, spi_chip_select_t chip_
         spi_handle->ser = 1U << chip_select;
     }
 
+    DebugInfo("S3");
     i = 0;
     while(v_rx_len)
     {
@@ -305,6 +308,7 @@ void spi_receive_data_standard(spi_device_num_t spi_num, spi_chip_select_t chip_
 
     spi_handle->ser = 0x00;
     spi_handle->ssienr = 0x00;
+    DebugInfo("S4");
 }
 
 static spi_frame_format_t spi_get_frame_format(spi_device_num_t spi_num)
