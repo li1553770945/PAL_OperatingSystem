@@ -123,11 +123,13 @@ int FAT32::GetAllFileIn(const char* path, char* result[], int bufferSize, int sk
 			for (Uint32 j = 0; j < SECTORSIZE / 32; j++)
 			{
 //	kout[Debug]<<"GA6"<<endl;
+				kout[Debug]<<"j "<<j<<endl;
 				unsigned char temp[32];
 				POS::MemcpyT(temp, buffer + j * 32, 32);
 				Uint16 attr = temp[11];
 				if (attr == 0x0F && temp[0] != 0xE5 && temp[0] != 0x00)//长目录项
 				{
+					kout[Debug]<<"X"<<endl;
 				    Uint32 * temp_long_name = new Uint32[13]; //has delete
 					LoadLongFileNameFromBuffer(temp, temp_long_name);
 					long_name[long_name_cnt] = temp_long_name;
@@ -135,6 +137,7 @@ int FAT32::GetAllFileIn(const char* path, char* result[], int bufferSize, int sk
 				}
 				else //短目录项
 				{
+					kout[Debug]<<"Y"<<endl;
 					FAT32FileNode* p = (FAT32FileNode*)LoadShortFileInfoFromBuffer(temp);
 					
 					if (p != nullptr)
@@ -195,6 +198,7 @@ int FAT32::GetAllFileIn(const char* path, char* result[], int bufferSize, int sk
 					
 				}
 			}
+			kout[Debug]<<"Z"<<endl;
 		}
 		cluster = GetFATContentFromCluster(cluster);
 	}
@@ -805,7 +809,7 @@ char* FAT32::MergeLongNameAndToUtf8(Uint32* unicode[], Uint32 cnt)
 }
 Uint64 FAT32::GetLbaFromCluster(Uint64 cluster)
 {
-
+	kout[Debug]<<"GetLbaFromCluster cluster "<<cluster<<endl;
 	return RootLba + (cluster - 2)*Dbr.BPBSectorPerClus;
 
 }
