@@ -134,7 +134,7 @@ int RunAllTestSuits(void*)
 			{
 //				kout[Debug]<<"C"<<endl;
 				char *child=strSplice(path,"/",buffer[i]);
-				if (buffer[i][0]!='.')
+				if (buffer[i][0]!='.'&&strComp(buffer[i],"uname")!=0)
 				{
 //					kout[Debug]<<"D"<<endl;
 					FileNode *node=VFSM.Open(POS_PM.Current(),child);
@@ -190,6 +190,8 @@ int RunAllTestSuits(void*)
 	kout.SwitchTypeOnoff(Debug,1);
 	kout.SwitchTypeOnoff(Test,1);
 	kout.SwitchTypeOnoff(Warning,1);
+	
+	while (1);
 	return 0;
 }
 
@@ -414,10 +416,10 @@ void TestFuncs()
 	if (1)
 	{
 		PID id=CreateKernelThread(RunAllTestSuits,nullptr,0);
-//		Process *proc=POS_PM.Current(),*cp;
-//		while ((cp=proc->GetQuitingChild(id))==nullptr)
-//			proc->GetWaitSem()->Wait();
-//		cp->Destroy();
+		Process *proc=POS_PM.Current(),*cp;
+		while ((cp=proc->GetQuitingChild(id))==nullptr)
+			proc->GetWaitSem()->Wait();
+		cp->Destroy();
 	}
 }
 
