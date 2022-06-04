@@ -177,7 +177,7 @@ int RunAllTestSuits(void*)
 	kout.SwitchTypeOnoff(Info,0);
 	kout.SwitchTypeOnoff(Warning,0);
 	kout.SwitchTypeOnoff(Test,0);
-//	kout.SwitchTypeOnoff(Debug,0);
+	kout.SwitchTypeOnoff(Debug,0);
 //	kout.SetEnabledType(0);
 	kout<<"Test all suits..."<<endl;
 	POS_PM.Current()->SetCWD("/VFS/FAT32");
