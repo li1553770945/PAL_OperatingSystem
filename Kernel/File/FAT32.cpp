@@ -123,13 +123,11 @@ int FAT32::GetAllFileIn(const char* path, char* result[], int bufferSize, int sk
 			for (Uint32 j = 0; j < SECTORSIZE / 32; j++)
 			{
 //	kout[Debug]<<"GA6"<<endl;
-				kout[Debug]<<"j "<<j<<endl;
 				unsigned char temp[32];
 				POS::MemcpyT(temp, buffer + j * 32, 32);
 				Uint16 attr = temp[11];
 				if (attr == 0x0F && temp[0] != 0xE5 && temp[0] != 0x00)//长目录项
 				{
-					kout[Debug]<<"X"<<endl;
 				    Uint32 * temp_long_name = new Uint32[13]; //has delete
 					LoadLongFileNameFromBuffer(temp, temp_long_name);
 					long_name[long_name_cnt] = temp_long_name;
@@ -137,7 +135,6 @@ int FAT32::GetAllFileIn(const char* path, char* result[], int bufferSize, int sk
 				}
 				else //短目录项
 				{
-					kout[Debug]<<"Y"<<endl;
 					FAT32FileNode* p = (FAT32FileNode*)LoadShortFileInfoFromBuffer(temp);
 					
 					if (p != nullptr)
@@ -198,7 +195,6 @@ int FAT32::GetAllFileIn(const char* path, char* result[], int bufferSize, int sk
 					
 				}
 			}
-			kout[Debug]<<"Z"<<endl;
 		}
 		cluster = GetFATContentFromCluster(cluster);
 	}
@@ -880,7 +876,8 @@ Uint32 FAT32::GetFATContentFromCluster(Uint32 cluster)
 	kout[Debug]<<"R2 lba"<<lba<<" cluster "<<cluster<<" offset "<<offset<<endl;
 	ReadRawData(lba, offset, 4, buffer);
 	kout[Debug]<<"GetFATContentFromCluster buffer "<<DataWithSize(buffer,4)<<endl;
-	buffer[0]=0xff;
+	if (buffer[0]==0xf8) 
+		buffer[0]=0xff;
 	return ((Uint64)buffer[3] << 24) | ((Uint64)buffer[2] << 16) | ((Uint64)buffer[1] <<8) | buffer[0];
 }
 ErrorType FAT32::SetFATContentFromCluster(Uint32 cluster, Uint32 content)//设置cluster对应的FAT表中内容为content(自动将content转换为大端)
