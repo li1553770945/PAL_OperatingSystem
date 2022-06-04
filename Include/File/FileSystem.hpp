@@ -397,8 +397,12 @@ class VirtualFileSystem
 		
 		virtual int GetAllFileIn(FileNode *p,char *result[],int bufferSize,int skipCnt=0)
 		{
+			using namespace POS;
+	kout[Debug]<<"G9"<<endl;
 			char *path=p->GetPath<1>();
+	kout[Debug]<<"G10"<<endl;
 			int re=GetAllFileIn(path,result,bufferSize,skipCnt);
+	kout[Debug]<<"G11"<<endl;
 			Kfree(path);
 			return re;
 		}

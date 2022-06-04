@@ -88,8 +88,10 @@ FileNode* FAT32::FindFile(const char* path, const char* name)
 }
 int FAT32::GetAllFileIn(const char* path, char* result[], int bufferSize, int skipCnt) 
 {
+	kout[Debug]<<"GA1"<<endl;
 	FAT32FileNode* head = nullptr, * cur = nullptr;
 	FAT32FileNode* node = (FAT32FileNode*)FindFileByPath(path);
+	kout[Debug]<<"GA2"<<endl;
 	if (node == nullptr || !node->IsDir)
 	{
 		return -1;
@@ -100,16 +102,20 @@ int FAT32::GetAllFileIn(const char* path, char* result[], int bufferSize, int sk
 	int long_name_cnt = 0;//长文件名计数
 	Uint32 * long_name [100];//存储长文件名
 
+	kout[Debug]<<"GA3"<<endl;
 	while (cluster != CLUSTEREND)
 	{
+	kout[Debug]<<"GA4"<<endl;
 		Uint64 lba = GetLbaFromCluster(cluster);
 
 		for (Uint32 i = 0; i < Dbr.BPBSectorPerClus; i++)
 		{
+	kout[Debug]<<"GA5"<<endl;
 			unsigned char buffer[SECTORSIZE];
 			ReadRawData(lba + i, 0, 512, buffer);
 			for (Uint32 j = 0; j < SECTORSIZE / 32; j++)
 			{
+	kout[Debug]<<"GA6"<<endl;
 				unsigned char temp[32];
 				POS::MemcpyT(temp, buffer + j * 32, 32);
 				Uint16 attr = temp[11];
@@ -185,6 +191,7 @@ int FAT32::GetAllFileIn(const char* path, char* result[], int bufferSize, int sk
 		}
 		cluster = GetFATContentFromCluster(cluster);
 	}
+	kout[Debug]<<"GA7"<<endl;
 	return cnt;
 }
 ErrorType FAT32::CreateDirectory(const char* path)
