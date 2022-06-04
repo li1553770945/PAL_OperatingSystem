@@ -384,4 +384,26 @@ namespace POS
 		POS::kout[POS::Fault]<<s<<POS::endl;\
 }
 
+class CallingInfoController
+{
+	protected:
+		const char *name=nullptr;
+		
+	public:
+		
+		~CallingInfoController()
+		{
+			using namespace POS;
+			kout[Test]<<"Call "<<name<<" OK"<<endl;
+		}
+		
+		CallingInfoController(const char *_name):name(_name)
+		{
+			using namespace POS;
+			kout[Test]<<"Call "<<name<<endl;
+		}
+};
+
+#define CALLINGINFO CallingInfoController cic(__func__);
+
 #endif

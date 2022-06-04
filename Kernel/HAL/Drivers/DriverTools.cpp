@@ -68,3 +68,8 @@ void DebugInfo(const char *str)
 {
 	kout[Debug]<<str<<endl;
 }
+
+void DebugInfoI(const char *str,unsigned long long x)
+{
+	kout[Debug]<<str<<x<<endl;
+}
