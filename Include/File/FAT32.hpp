@@ -21,7 +21,7 @@ public:
 
 class FAT32Device :public StorageDevice {
 	unsigned char *disk=nullptr;
-	enum {size=1024*1024*4,shift=1024*1024*2};
+	enum {size=1024*1024*2,shift=1024*1024*2};
 public:
 	ErrorType Init()
 	{
@@ -40,6 +40,7 @@ public:
 	ErrorType Read(Uint64 lba, unsigned char* buffer)
 	{
 //		sdcard_read_sector((Sector*)buffer,lba);
+		
 		using namespace POS;
 		if (lba>=size/512+shift/512)
 			sdcard_read_sector((Sector*)buffer,lba);
@@ -49,6 +50,7 @@ public:
 	ErrorType Write(Uint64 lba, unsigned char* buffer)
 	{
 //		sdcard_write_sector((Sector*)buffer,lba);
+		
 		using namespace POS;
 		if (lba>=size/512+shift/512)
 			sdcard_write_sector((Sector*)buffer,lba);
