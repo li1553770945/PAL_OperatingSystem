@@ -20,7 +20,6 @@ extern "C"
 #include <HAL/Drivers/_sdcard.h>
 #include <File/FAT32.hpp>
 #include <Process/ELF.hpp>
-#include <File/FileNodeEX.hpp>
 //#include <HAL/DeviceTreeBlob.hpp>
 
 using namespace POS;
@@ -121,80 +120,63 @@ int RunAllTestSuits(void*)
 	auto RunAllFile=[](auto &self,const char *path,int dep=0)->void
 	{
 		kout<<dep<<": "<<path<<endl;
-		constexpr int bufferSize=64;
-		char *buffer[bufferSize];
+		char *buffer[16];
 		int skip=0;
 		while (1)
 		{
-//			kout[Debug]<<"A"<<endl; 
-			int cnt=VFSM.GetAllFileIn(POS_PM.Current(),path,buffer,bufferSize,skip);
-//			kout[Debug]<<"B"<<endl;
-//			for (int i=cnt-1;i>=0;--i)
+			int cnt=VFSM.GetAllFileIn(POS_PM.Current(),path,buffer,16,skip);
 			for (int i=0;i<cnt;++i)
 			{
-//				kout[Debug]<<"C"<<endl;
 				char *child=strSplice(path,"/",buffer[i]);
 				if (buffer[i][0]!='.')
 				{
-//					kout[Debug]<<"D"<<endl;
 					FileNode *node=VFSM.Open(POS_PM.Current(),child);
-//					kout[Debug]<<"E"<<endl;
 					if (!node)
 						kout[Error]<<"Cannot open file "<<child<<endl;
 					else if (node->IsDir())
 						self(self,child,dep+1);
 					else
 					{
-//						kout[Debug]<<"F"<<endl;
 						kout[Info]<<"Run "<<child<<endl; 
 						FileHandle *file=new FileHandle(node);
 						PID id=CreateProcessFromELF(file,0,path);
 						if (id>0)
 						{
-//							kout[Debug]<<"G"<<endl;
 							Process *proc=POS_PM.Current(),*cp=nullptr;
 							while ((cp=proc->GetQuitingChild(id))==nullptr)
 								proc->GetWaitSem()->Wait();
 							cp->Destroy();
 						}
-//						kout[Debug]<<"H"<<endl;
 						delete file;
 					}
 					VFSM.Close(node);
-//					kout[Debug]<<"I"<<endl;
 				}
 				Kfree(child);
 				Kfree(buffer[i]);
 			}
-			if (cnt<bufferSize)
+			if (cnt<16)
 				break;
-			else skip+=bufferSize;
+			else skip+=16;
 		}
 	};
 	
-	kout<<"Test all suits..."<<endl;
-	POS_PM.Current()->SetCWD("/VFS/FAT32");
-	VirtualFileSystem *vfs=new FAT32();
-	VFSM.LoadVFS(vfs);
-//	kout[Debug]<<"brk: "<<VFSM.Open("/VFS/FAT32/brk")<<endl;
-
 	kout.SetEnableEffect(0);
 	kout.SwitchTypeOnoff(Info,0);
 	kout.SwitchTypeOnoff(Warning,0);
 	kout.SwitchTypeOnoff(Test,0);
 //	kout.SwitchTypeOnoff(Debug,0);
 //	kout.SetEnabledType(0);
-
+	kout<<"Test all suits..."<<endl;
+	POS_PM.Current()->SetCWD("/VFS/FAT32");
+	VirtualFileSystem *vfs=new FAT32();
+	VFSM.LoadVFS(vfs);
+//	kout[Debug]<<"brk: "<<VFSM.Open("/VFS/FAT32/brk")<<endl;
 	RunAllFile(RunAllFile,".");
-	
+	kout<<"Test all suits OK"<<endl;
 //	kout.SetEnabledType(-1);
 	kout.SwitchTypeOnoff(Debug,1);
 	kout.SwitchTypeOnoff(Test,1);
 	kout.SwitchTypeOnoff(Warning,1);
-	
-	kout<<"Test all suits OK"<<endl;
-	
-	while (1);
 	return 0;
 }
 
@@ -419,7 +401,7 @@ void TestFuncs()
 	if (1)
 	{
 		PID id=CreateKernelThread(RunAllTestSuits,nullptr,0);
-		Process *proc=POS_PM.Current(),*cp;
+		Process *proc=POS_PM.Current(),*cp; 
 		while ((cp=proc->GetQuitingChild(id))==nullptr)
 			proc->GetWaitSem()->Wait();
 		cp->Destroy();

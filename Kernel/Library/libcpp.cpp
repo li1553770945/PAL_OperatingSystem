@@ -18,12 +18,6 @@ extern "C"
 		MemsetT<char>((char*)_dst,_Val,_Size);
 		return _dst;
 	}
-	
-	void* memcpy(void *_dst,void *_src,size_t _size)
-	{
-		MemcpyT<char>((char*)_dst,(char*)_src,_size);
-		return _dst;
-	}
 };
 
 void* operator new(size_t size)

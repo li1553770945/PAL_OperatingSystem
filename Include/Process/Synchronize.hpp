@@ -72,8 +72,7 @@ class Semaphore
 				{
 					Process *proc=POS_PM.Current();
 					Tail.PreInsert(&proc->SemWaitingLink);
-					if (timeOut!=KeepWait)
-						proc->SemWaitingTargetTime=GetClockTime()+timeOut;
+					proc->SemWaitingTargetTime=GetClockTime()+timeOut;
 					proc->SwitchStat(Process::S_Sleeping);
 					
 					UnlockProcess();
@@ -83,7 +82,7 @@ class Semaphore
 					
 					iss.Save();
 					LockProcess();
-					if (timeOut!=KeepWait&&GetClockTime()>=proc->SemWaitingTargetTime)
+					if (GetClockTime()>=proc->SemWaitingTargetTime)
 						re=0,++value;//??
 					proc->SemWaitingLink.Remove();//?? It may reach here because of timeout etc...
 					proc->SemWaitingTargetTime=0;

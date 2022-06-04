@@ -23,8 +23,6 @@ extern "C"
 #include <Library/Kout.hpp>
 using namespace POS;
 
-#define SPI_CHIP_SELECT_3 SPI_CHIP_SELECT_0
-
 #define NULL 0
 
 void SD_CS_HIGH(void) {
@@ -361,7 +359,6 @@ void sdcard_init(void) {
 }
 
 void sdcard_read_sector(Sector *sec, int sectorno) {
-//	kout[Debug]<<"SD1"<<endl;
 	Uint8 *buf=(Uint8*)sec;
 	Uint8 result;
 	Uint32 address;
@@ -379,49 +376,37 @@ void sdcard_read_sector(Sector *sec, int sectorno) {
 		address = sectorno;
 	}
 
-//	kout[Debug]<<"SD2"<<endl;
 	// enter critical section!
 //	acquiresleep(&sdcard_lock);
 	semSDCard->Wait();
-//	kout[Debug]<<"SD3"<<endl;
 	
 	sd_send_cmd(SD_CMD17, address, 0);
-//	kout[Debug]<<"SD4"<<endl;
 	result = sd_get_response_R1();
-//	kout[Debug]<<"SD5"<<endl;
 
 	if (0 != result) {
 //		releasesleep(&sdcard_lock);
-//	kout[Debug]<<"SD6"<<endl;
 		semSDCard->Signal();
 //		panic("sdcard: fail to read");
 		kout[Fault]<<"SDCard: failed to read"<<endl;
 	}
 
-//	kout[Debug]<<"SD7"<<endl;
 	int timeout = 0xffffff;
 	while (--timeout) {
 		sd_read_data(&result, 1);
 		if (0xfe == result) break;
 	}
-//	kout[Debug]<<"SD8"<<endl;
 	if (0 == timeout) {
 //		panic("sdcard: timeout waiting for reading");
 		kout[Fault]<<"SDCard: timeout waiting for reading"<<endl;
 	}
-//	kout[Debug]<<"SD9"<<endl;
 //	sd_read_data_dma(buf, sizeof(Sector));
 	sd_read_data(buf, sizeof(Sector));
 	sd_read_data(dummy_crc, 2);
-//	kout[Debug]<<"SD10"<<endl;
 
 	sd_end_cmd();
-	
-//	kout[Debug]<<"SD11"<<endl;
 
 //	releasesleep(&sdcard_lock);
 	semSDCard->Signal();
-//	kout[Debug]<<"SD12"<<endl;
 	// leave critical section!
 //	kout[Test]<<"SDCard read sector "<<(void*)sectorno<<" OK "<<endl;
 }

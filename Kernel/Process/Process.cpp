@@ -29,17 +29,11 @@ void ProcessManager::Schedule()
 	{
 //		kout[Test]<<"ProcessManager::Schedule: Start schedule, CurrentProcess "<<CurrentProcess->ID<<", TotalProcess "<<ProcessCount<<endl;
 		int i,p;
-		ClockTime minWaitingTarget=-1;
-	RetrySchedule:
 		for (i=1,p=CurrentProcess->ID;i<MaxProcessCount;++i)
 		{
 			Process *tar=&Processes[(i+p)%MaxProcessCount];
-			if (tar->stat==Process::S_Sleeping&&NotInSet(tar->SemWaitingTargetTime,0ull,(Uint64)-1))
-			{
-				minWaitingTarget=minN(minWaitingTarget,tar->SemWaitingTargetTime);
-				if (GetClockTime()>=tar->SemWaitingTargetTime)
-					tar->SwitchStat(Process::S_Ready);
-			}
+			if (tar->stat==Process::S_Sleeping&&tar->SemWaitingTargetTime!=0&&GetClockTime()>=tar->SemWaitingTargetTime)
+				tar->SwitchStat(Process::S_Ready);
 
 			if (tar->stat==Process::S_Ready)
 			{
@@ -53,11 +47,7 @@ void ProcessManager::Schedule()
 		}
 //		kout[Test]<<"ProcessManager::Schedule: Schedule complete, CurrentProcess "<<CurrentProcess->ID<<", TotalProcess "<<ProcessCount<<endl;
 		if (i==MaxProcessCount&&p!=0)
-			if (minWaitingTarget!=-1)//??
-				goto RetrySchedule;
-//			else if (POS_PM.Current()->stat==Process::S_Ready)
-//				DoNothing;
-			else kout[Fault]<<"Scheduler failed to switch!"<<endl;
+			kout[Fault]<<"Scheduler failed to switch!"<<endl;
 	}
 	else ASSERT(CurrentProcess!=nullptr,"ProcessManager::Schedule: CurrentProcess is nullptr!");
 }
@@ -348,7 +338,7 @@ ErrorType Process::SetFa(Process *_fa)
 {
 	ISAS
 	{
-		if ((flags&F_AutoDestroy)&&_fa!=nullptr)
+		if (F_AutoDestroy&&_fa!=nullptr)
 			flags&=~F_AutoDestroy;//Remove the auto destroy flag for process with parent.
 		if (fa!=nullptr)
 		{

@@ -120,31 +120,23 @@ FileNode* VirtualFileSystemManager::FindFile(const char *path,const char *name)
 
 int VirtualFileSystemManager::GetAllFileIn(const char *path,char *result[],int bufferSize,int skipCnt)
 {
-//	kout[Debug]<<"G3"<<endl;
 	FileNode *p=FindRecursive(root,path);
-//	kout[Debug]<<"G4"<<endl;
 	if (p==nullptr)
 		return 0;
-//	kout[Debug]<<"G5"<<endl;
 	if (p->Flags&FileNode::F_BelongVFS)
 		return p->Vfs->GetAllFileIn(p,result,bufferSize,skipCnt);
-//	kout[Debug]<<"G6"<<endl;
 	int re=0;
 	for (FileNode *u=p->child;u&&re<bufferSize;u=u->nxt)
 		if (skipCnt)
 			--skipCnt;
 		else result[re++]=strDump(u->Name);
-//	kout[Debug]<<"G7"<<endl;
 	return re;
 }
 
 int VirtualFileSystemManager::GetAllFileIn(Process *proc,const char *path,char *result[],int bufferSize,int skipCnt)
 {
-//	kout[Debug]<<"G1"<<endl;
 	char *pa=NormalizePath(path,proc->GetCWD());
-//	kout[Debug]<<"G3"<<endl;
 	int re=GetAllFileIn(pa,result,bufferSize,skipCnt);
-//	kout[Debug]<<"G8"<<endl;
 	Kfree(pa);
 	return re;
 }

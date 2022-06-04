@@ -55,6 +55,5 @@ void dmacSemSignal();
 void dmacSemInit();
 
 void DebugInfo(const char *str); 
-void DebugInfoI(const char *str,unsigned long long x); 
 
 #endif

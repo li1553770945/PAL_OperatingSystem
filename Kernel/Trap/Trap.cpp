@@ -45,7 +45,7 @@ extern "C"
 //					kout<<LightGray<<"*"<<Reset;
 				if (ClockTick%1000==0)
 				{
-					kout[Debug]<<(void*)tf->epc<<" "<<(void*)tf->badvaddr<<" "<<(void*)tf->reg.sp<<endl;
+//					kout[Debug]<<(void*)tf->epc<<" "<<(void*)tf->badvaddr<<" "<<(void*)tf->reg.sp<<endl;
 //					VirtualMemorySpace::EnableAccessUser();
 //					kout[Debug]<<DataWithSizeUnited((void*)tf->epc-16,40,4)<<endl;
 //					kout[Debug]<<Yellow<<DataWithSizeUnited((void*)InnerUserProcessStackAddr+4096*3,4096,32)<<endl;
