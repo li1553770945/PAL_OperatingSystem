@@ -879,6 +879,7 @@ Uint32 FAT32::GetFATContentFromCluster(Uint32 cluster)
 	unsigned char buffer[4];
 	kout[Debug]<<"R2 lba"<<lba<<" cluster "<<cluster<<" offset "<<offset<<endl;
 	ReadRawData(lba, offset, 4, buffer);
+	kout[Debug]<<"GetFATContentFromCluster buffer "<<DataWithSize(buffer,4)<<endl;
 	return ((Uint64)buffer[3] << 24) | ((Uint64)buffer[2] << 16) | ((Uint64)buffer[1] <<8) | buffer[0];
 }
 ErrorType FAT32::SetFATContentFromCluster(Uint32 cluster, Uint32 content)//设置cluster对应的FAT表中内容为content(自动将content转换为大端)
