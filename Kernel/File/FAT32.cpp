@@ -19,13 +19,19 @@ FAT32::FAT32()
 
 ErrorType FAT32::ReadRawData(Uint64 lba,Uint64 offset, Uint64 size, unsigned char* buffer)
 {
+	kout[Debug]<<"R1"<<endl;
 	unsigned char buffer_temp[SECTORSIZE];
+	kout[Debug]<<"R2"<<endl;
 	ErrorType error = device.Read(lba, buffer_temp);
+	kout[Debug]<<"R3"<<endl;
 	if (error != 0)
 	{
+	kout[Debug]<<"R4"<<endl;
 		return ERR_DeviceReadError;
 	}
+	kout[Debug]<<"R5"<<endl;
 	POS::MemcpyT(buffer, buffer_temp + offset, (Uint32)size);
+	kout[Debug]<<"R6"<<endl;
 	return  ERR_None;
 }
 ErrorType FAT32::WriteRawData(Uint64 lba, Uint64 offset, Uint64 size, unsigned char* buffer)
