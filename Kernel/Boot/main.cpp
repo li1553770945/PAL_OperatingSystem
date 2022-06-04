@@ -172,23 +172,27 @@ int RunAllTestSuits(void*)
 		}
 	};
 	
+	kout<<"Test all suits..."<<endl;
+	POS_PM.Current()->SetCWD("/VFS/FAT32");
+	VirtualFileSystem *vfs=new FAT32();
+	VFSM.LoadVFS(vfs);
+//	kout[Debug]<<"brk: "<<VFSM.Open("/VFS/FAT32/brk")<<endl;
+
 	kout.SetEnableEffect(0);
 	kout.SwitchTypeOnoff(Info,0);
 	kout.SwitchTypeOnoff(Warning,0);
 	kout.SwitchTypeOnoff(Test,0);
 //	kout.SwitchTypeOnoff(Debug,0);
 //	kout.SetEnabledType(0);
-	kout<<"Test all suits..."<<endl;
-	POS_PM.Current()->SetCWD("/VFS/FAT32");
-	VirtualFileSystem *vfs=new FAT32();
-	VFSM.LoadVFS(vfs);
-//	kout[Debug]<<"brk: "<<VFSM.Open("/VFS/FAT32/brk")<<endl;
+
 	RunAllFile(RunAllFile,".");
-	kout<<"Test all suits OK"<<endl;
+	
 //	kout.SetEnabledType(-1);
 	kout.SwitchTypeOnoff(Debug,1);
 	kout.SwitchTypeOnoff(Test,1);
 	kout.SwitchTypeOnoff(Warning,1);
+	
+	kout<<"Test all suits OK"<<endl;
 	
 	while (1);
 	return 0;
