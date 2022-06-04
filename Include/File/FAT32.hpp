@@ -27,18 +27,18 @@ public:
 	}
 	ErrorType Read(Uint64 lba, unsigned char* buffer)
 	{
-		using namespace POS;
-		kout[Debug]<<"ReadLBA "<<lba<<endl;
+//		using namespace POS;
+//		kout[Debug]<<"ReadLBA "<<lba<<endl;
 		sdcard_read_sector((Sector*)buffer,lba);
-		kout[Debug]<<"ReadLBA OK"<<endl;
+//		kout[Debug]<<"ReadLBA OK"<<endl;
 		return ERR_None;
 	}
 	ErrorType Write(Uint64 lba, unsigned char* buffer)
 	{
-		using namespace POS;
-		kout[Debug]<<"WriteLBA "<<lba<<endl;
+//		using namespace POS;
+//		kout[Debug]<<"WriteLBA "<<lba<<endl;
 		sdcard_write_sector((Sector*)buffer,lba);
-		kout[Debug]<<"WriteLBA OK"<<endl;
+//		kout[Debug]<<"WriteLBA OK"<<endl;
 		return ERR_None;
 	}
 };

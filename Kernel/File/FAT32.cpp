@@ -19,20 +19,13 @@ FAT32::FAT32()
 
 ErrorType FAT32::ReadRawData(Uint64 lba,Uint64 offset, Uint64 size, unsigned char* buffer)
 {
-	kout[Debug]<<"ReadRawData lba "<<lba<<" offset "<<offset<<" size "<<size<<" buffer "<<buffer<<endl;
-//	kout[Debug]<<"R1"<<endl;
 	unsigned char buffer_temp[SECTORSIZE];
-//	kout[Debug]<<"R2"<<endl;
 	ErrorType error = device.Read(lba, buffer_temp);
-//	kout[Debug]<<"R3"<<endl;
 	if (error != 0)
 	{
-//	kout[Debug]<<"R4"<<endl;
 		return ERR_DeviceReadError;
 	}
-//	kout[Debug]<<"R5"<<endl;
 	POS::MemcpyT(buffer, buffer_temp + offset, (Uint32)size);
-//	kout[Debug]<<"R6"<<endl;
 	return  ERR_None;
 }
 ErrorType FAT32::WriteRawData(Uint64 lba, Uint64 offset, Uint64 size, unsigned char* buffer)
@@ -94,10 +87,8 @@ FileNode* FAT32::FindFile(const char* path, const char* name)
 }
 int FAT32::GetAllFileIn(const char* path, char* result[], int bufferSize, int skipCnt) 
 {
-//	kout[Debug]<<"GA1"<<endl;
 	FAT32FileNode* head = nullptr, * cur = nullptr;
 	FAT32FileNode* node = (FAT32FileNode*)FindFileByPath(path);
-//	kout[Debug]<<"GA2"<<endl;
 	if (node == nullptr || !node->IsDir)
 	{
 		return -1;
@@ -108,21 +99,16 @@ int FAT32::GetAllFileIn(const char* path, char* result[], int bufferSize, int sk
 	int long_name_cnt = 0;//长文件名计数
 	Uint32 * long_name [100];//存储长文件名
 
-//	kout[Debug]<<"GA3"<<endl;
 	while (cluster != CLUSTEREND)
 	{
-//	kout[Debug]<<"GA4"<<endl;
 		Uint64 lba = GetLbaFromCluster(cluster);
 
 		for (Uint32 i = 0; i < Dbr.BPBSectorPerClus; i++)
 		{
-//	kout[Debug]<<"GA5"<<endl;
 			unsigned char buffer[SECTORSIZE];
-			kout[Debug]<<"R1 lba "<<lba<<" i "<<i<<endl;
 			ReadRawData(lba + i, 0, 512, buffer);
 			for (Uint32 j = 0; j < SECTORSIZE / 32; j++)
 			{
-//	kout[Debug]<<"GA6"<<endl;
 				unsigned char temp[32];
 				POS::MemcpyT(temp, buffer + j * 32, 32);
 				Uint16 attr = temp[11];
@@ -198,7 +184,6 @@ int FAT32::GetAllFileIn(const char* path, char* result[], int bufferSize, int sk
 		}
 		cluster = GetFATContentFromCluster(cluster);
 	}
-//	kout[Debug]<<"GA7"<<endl;
 	return cnt;
 }
 ErrorType FAT32::CreateDirectory(const char* path)
@@ -805,7 +790,6 @@ char* FAT32::MergeLongNameAndToUtf8(Uint32* unicode[], Uint32 cnt)
 }
 Uint64 FAT32::GetLbaFromCluster(Uint64 cluster)
 {
-	kout[Debug]<<"GetLbaFromCluster cluster "<<cluster<<endl;
 	return RootLba + (cluster - 2)*Dbr.BPBSectorPerClus;
 
 }
@@ -873,9 +857,7 @@ Uint32 FAT32::GetFATContentFromCluster(Uint32 cluster)
 	Uint64 lba = FAT1Lba + (Uint64)cluster * 4 / SECTORSIZE;//对应扇区lba
 	Uint64 offset = ((Uint64)cluster * 4) % SECTORSIZE;
 	unsigned char buffer[4];
-	kout[Debug]<<"R2 lba"<<lba<<" cluster "<<cluster<<" offset "<<offset<<endl;
 	ReadRawData(lba, offset, 4, buffer);
-	kout[Debug]<<"GetFATContentFromCluster buffer "<<DataWithSize(buffer,4)<<endl;
 	if (buffer[0]==0xf8) 
 		buffer[0]=0xff;
 	return ((Uint64)buffer[3] << 24) | ((Uint64)buffer[2] << 16) | ((Uint64)buffer[1] <<8) | buffer[0];
@@ -893,7 +875,6 @@ ErrorType FAT32::SetFATContentFromCluster(Uint32 cluster, Uint32 content)//设�
 }
 FileNode* FAT32::FindFileByNameFromCluster(Uint32 cluster, const char* name)
 {
-	kout[Debug]<<"FindFileByNameFromCluster cluster "<<cluster<<" name "<<name<<endl;
 	FAT32FileNode* result;
 	
 	Uint64 lba = GetLbaFromCluster(cluster);
@@ -906,7 +887,6 @@ FileNode* FAT32::FindFileByNameFromCluster(Uint32 cluster, const char* name)
 		for (Uint32 i = 0; i < Dbr.BPBSectorPerClus; i++)
 		{
 			unsigned char buffer[SECTORSIZE];
-			kout[Debug]<<"R3 lba "<<lba<<" i "<<i<<endl;
 			ReadRawData(lba + i, 0, 512, buffer);
 			for (Uint32 j = 0; j < SECTORSIZE / 32; j++)
 			{
@@ -1042,7 +1022,6 @@ bool FAT32::IsExist(const char* path)
 Uint32 FAT32::GetFreeClusterAndPlusOne()//返回一个空闲簇的簇号
 {
 	unsigned char buffer[8];
-	kout[Debug]<<"DBRlba "<<DBRLba<<endl;
 	ReadRawData(DBRLba + 1ull,0x1E8,8,buffer);
 	Uint32 free_cluster = (buffer[7] << 24) | (buffer[6] << 16) | (buffer[5] << 8) | buffer[4];
 	Uint32 free_cluster_num = (buffer[3] << 24) | (buffer[2] << 16) | (buffer[1] << 8) | buffer[0];
@@ -1077,7 +1056,6 @@ PAL_DS::Triplet<Uint32, Uint64,Uint64> FAT32::GetFreeClusterAndLbaAndOffsetFromC
 		for (Uint32 i = 0; i < Dbr.BPBSectorPerClus; i++)
 		{
 			unsigned char buffer[SECTORSIZE];
-			kout[Debug]<<"R4 lba "<<lba<<" i "<<i<<endl;
 			ReadRawData(lba + i, 0, 512, buffer);
 			for (Uint32 j = 0; j < SECTORSIZE / 32; j++)
 			{
