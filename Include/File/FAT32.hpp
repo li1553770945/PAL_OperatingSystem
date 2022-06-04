@@ -25,11 +25,14 @@ public:
 	ErrorType Init()
 	{
 		using namespace POS;
-		constexpr int size=1024*1024*3;
+		kout[Debug]<<"FAT32Device init"<<endl;
+		constexpr int size=1024*1024*2;
 		disk=new unsigned char[size];
 		if (disk==nullptr)
 			kout[Fault]<<"Failed to new disk buffer!"<<endl;
+		else kout[Info]<<"Allocate disk buffer OK"<<endl;
 		for (int lba=0;lba<size/512;++lba)
+			kout<<"ReadLBA "<<lba<<endl,
 			sdcard_read_sector((Sector*)disk+lba,lba);
 		kout[Info]<<"Init disk buffer OK"<<endl;
 		return ERR_None;;
