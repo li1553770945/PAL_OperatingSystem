@@ -566,9 +566,9 @@ inline int Syscall_getdents64(int fd,RegisterData _buf,Uint64 bufSize)
 	{
 	    Uint64 d_ino;   // 索引结点号
 	    Sint64 d_off;    // 到下一个dirent的偏移
-	    unsigned d_reclen;    // 当前dirent的长度
-	    unsigned d_type;   // 文件类型
-	    char d_name[];  //文件名
+	    unsigned short d_reclen;    // 当前dirent的长度
+	    unsigned char d_type;   // 文件类型
+	    char d_name[0];  //文件名
 	}__attribute__((packed));
 	char *dir=CurrentPathFromFileNameAndFD(fd,".");
 
@@ -585,8 +585,7 @@ inline int Syscall_getdents64(int fd,RegisterData _buf,Uint64 bufSize)
 	{
 		return 0;
 	}
-	int n_read;
-	int b_pos = 0;
+	int n_read = 0;
 	for(int i=0;i<cnt;i++)
 	{
 		Dirent * dirent = (Dirent *)(_buf + n_read) ;
@@ -597,7 +596,7 @@ inline int Syscall_getdents64(int fd,RegisterData _buf,Uint64 bufSize)
 		int j = 0;
 		for(;j<strLen(name);j++)
 		{
-			dirent->d_name[j] = name[i];
+			dirent->d_name[j] = name[j];
 		}
 		dirent->d_name[j] = 0;
 		dirent->d_reclen = sizeof(Uint64) * 2 + sizeof(unsigned) * 2 + strLen(name) + 1;
