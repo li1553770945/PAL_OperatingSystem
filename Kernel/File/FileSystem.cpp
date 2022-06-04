@@ -219,7 +219,27 @@ ErrorType VirtualFileSystemManager::LoadVFS(VirtualFileSystem *vfs,const char *p
 	AddNewNode(v,p);
 	return ERR_None;
 }
+ErrorType VirtualFileSystemManager::Unlink(const char *path)
+{
+	FileNode *p=FindRecursive(root,path);
+	if (p==nullptr)
+		return 0;
+	if (p->Flags&FileNode::F_BelongVFS)
+	{
+		char * pa = p->GetPath<1>();
+		ErrorType err = p->Vfs->Delete(pa);
+		delete pa;
+		Close(p);
+		return err;
+	}
 
+	
+}
+ErrorType VirtualFileSystemManager::Unlink(Process *proc,const char *path)
+{
+	char *pa=NormalizePath(path,proc->GetCWD());
+	return Unlink(pa);
+}
 FileNode* VirtualFileSystemManager::Open(const char *path)
 {
 	return FindRecursive(root,path);
@@ -235,7 +255,7 @@ FileNode* VirtualFileSystemManager::Open(Process *proc,const char *path)
 
 ErrorType VirtualFileSystemManager::Close(FileNode *p)
 {
-	kout[Warning]<<"VirtualFileSystemManager::Close "<<p<<" is not usable yet!"<<endl;
+	delete p;
 	return ERR_Todo;
 }
 

@@ -366,6 +366,8 @@ class VirtualFileSystemManager
 		int GetAllFileIn(const char *path,char *result[],int bufferSize,int skipCnt=0);//if unused ,user should free the char*
 		int GetAllFileIn(const char *path,FileNode *result[],int bufferSize,int skipCnt=0);
 		int GetAllFileIn(Process *proc,const char *path,char *result[],int bufferSize,int skipCnt=0);
+		ErrorType Unlink(const char *path);
+		ErrorType Unlink(Process *proc,const char *path);
 		ErrorType CreateDirectory(const char *path);
 		ErrorType CreateDirectory(Process *proc,const char *path);
 		ErrorType CreateFile(const char *path);

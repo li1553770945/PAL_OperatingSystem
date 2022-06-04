@@ -749,7 +749,14 @@ ErrorType FAT32::Copy(const char* src, const char* dst)
 }
 ErrorType FAT32::Delete(const char* path)
 {
-
+	FAT32FileNode* node = (FAT32FileNode*)FindFileByPath(path);
+	if (node == nullptr)
+	{
+		return ERR_FilePathNotExist;
+	}
+	unsigned char buffer[1];
+	buffer[0] = 0xE5;
+	WriteRawData(node->ContentLba, node->ContentOffset, 1,buffer);
 	return 0;
 }
 FileNode* FAT32::GetNextFile(const char* base)

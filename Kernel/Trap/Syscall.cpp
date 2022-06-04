@@ -236,10 +236,7 @@ inline int Syscall_linkat(int olddirfd,char *oldpath,int newdirfd,char *newpath,
 	return -1;
 }
 
-inline int Syscall_unlinkat(int dirfd,char *path,unsigned flags)
-{
-	return -1;
-}
+
 
 inline int Syscall_mkdirat(int fd,char *filename,int mode)//Currently,mode will be ignored...
 {
@@ -298,6 +295,8 @@ inline int Syscall_fstat(int fd,RegisterData _kst)
 	VirtualMemorySpace::EnableAccessUser();
 	MemsetT<char>((char*)kst,0,sizeof(kstat));
 	kst->st_size=node->Size();
+	kst->st_mode = 1;
+	kst->st_nlink = 1;
 	//<<Other info...
 	VirtualMemorySpace::DisableAccessUser();
 	return 0;
@@ -603,8 +602,24 @@ inline int Syscall_getdents64(int fd,RegisterData _buf,Uint64 bufSize)
 		n_read += dirent->d_reclen;
 	}
 	VirtualMemorySpace::DisableAccessUser();
-	return 512;
+	int return_value = 512;//应该是n_read
+	kout<<"return value:"<<return_value<<endl;
+	return return_value;
 	
+}
+
+inline int Syscall_unlinkat(int dirfd,char *path,unsigned flags)
+{
+	char *abs_path=CurrentPathFromFileNameAndFD(dirfd,path);
+	if (abs_path==nullptr)
+	{
+		return -1;
+
+	}
+	VirtualMemorySpace::EnableAccessUser();
+	int re = VFSM.Unlink(abs_path);
+	VirtualMemorySpace::DisableAccessUser();
+	return 0;
 }
 
 ErrorType TrapFunc_Syscall(TrapFrame *tf)
@@ -655,6 +670,7 @@ ErrorType TrapFunc_Syscall(TrapFrame *tf)
 			break;
 		case	SYS_getdents64	:
 			tf->reg.a0=Syscall_getdents64(tf->reg.a0,tf->reg.a1,tf->reg.a2);
+			kout[Debug]<<"a0:"<<tf->reg.a0<<endl;
 			break;
 		case	SYS_read		:
 			tf->reg.a0=Syscall_Read(tf->reg.a0,(void*)tf->reg.a1,tf->reg.a2);
