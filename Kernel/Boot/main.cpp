@@ -182,11 +182,7 @@ int RunAllTestSuits(void*)
 	kout.SwitchTypeOnoff(Info,0);
 	kout.SwitchTypeOnoff(Warning,0);
 	kout.SwitchTypeOnoff(Test,0);
-<<<<<<< HEAD
-	kout.SwitchTypeOnoff(Debug,0);
-=======
 //	kout.SwitchTypeOnoff(Debug,0);
->>>>>>> 633ead0dc4684e76ebc57db313add6baa26fcc1d
 //	kout.SetEnabledType(0);
 
 	RunAllFile(RunAllFile,".");
