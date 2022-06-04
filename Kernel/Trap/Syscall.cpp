@@ -603,7 +603,7 @@ inline int Syscall_getdents64(int fd,RegisterData _buf,Uint64 bufSize)
 		n_read += dirent->d_reclen;
 	}
 	VirtualMemorySpace::DisableAccessUser();
-	return n_read;
+	return 512;
 	
 }
 
