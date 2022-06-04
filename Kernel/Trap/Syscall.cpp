@@ -603,7 +603,6 @@ inline RegisterData Syscall_getdents64(int fd,RegisterData _buf,Uint64 bufSize)
 	}
 	VirtualMemorySpace::DisableAccessUser();
 	Sint64 return_value = 512;//应该是n_read
-	kout[Debug]<<"return value:"<<return_value<<endl;
 	return return_value;
 	
 }
