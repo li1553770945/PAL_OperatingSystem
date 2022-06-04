@@ -126,43 +126,42 @@ int RunAllTestSuits(void*)
 		int skip=0;
 		while (1)
 		{
-			kout[Debug]<<"A"<<endl; 
+//			kout[Debug]<<"A"<<endl; 
 			int cnt=VFSM.GetAllFileIn(POS_PM.Current(),path,buffer,bufferSize,skip);
-			kout[Debug]<<"B"<<endl;
+//			kout[Debug]<<"B"<<endl;
 //			for (int i=cnt-1;i>=0;--i)
 			for (int i=0;i<cnt;++i)
 			{
-				kout[Debug]<<"C"<<endl;
+//				kout[Debug]<<"C"<<endl;
 				char *child=strSplice(path,"/",buffer[i]);
 				if (buffer[i][0]!='.')
 				{
-					kout[Debug]<<"D"<<endl;
+//					kout[Debug]<<"D"<<endl;
 					FileNode *node=VFSM.Open(POS_PM.Current(),child);
-					kout[Debug]<<"E"<<endl;
+//					kout[Debug]<<"E"<<endl;
 					if (!node)
 						kout[Error]<<"Cannot open file "<<child<<endl;
 					else if (node->IsDir())
 						self(self,child,dep+1);
 					else
 					{
-						kout[Debug]<<"F"<<endl;
+//						kout[Debug]<<"F"<<endl;
 						kout[Info]<<"Run "<<child<<endl; 
 						FileHandle *file=new FileHandle(node);
 						PID id=CreateProcessFromELF(file,0,path);
 						if (id>0)
 						{
-							kout[Debug]<<"G"<<endl;
+//							kout[Debug]<<"G"<<endl;
 							Process *proc=POS_PM.Current(),*cp=nullptr;
 							while ((cp=proc->GetQuitingChild(id))==nullptr)
 								proc->GetWaitSem()->Wait();
 							cp->Destroy();
 						}
-						kout[Debug]<<"H"<<endl;
+//						kout[Debug]<<"H"<<endl;
 						delete file;
 					}
 					VFSM.Close(node);
-					CmpKernelText();
-					kout[Debug]<<"I"<<endl;
+//					kout[Debug]<<"I"<<endl;
 				}
 				Kfree(child);
 				Kfree(buffer[i]);
@@ -177,7 +176,7 @@ int RunAllTestSuits(void*)
 	kout.SwitchTypeOnoff(Info,0);
 	kout.SwitchTypeOnoff(Warning,0);
 	kout.SwitchTypeOnoff(Test,0);
-	kout.SwitchTypeOnoff(Debug,0);
+//	kout.SwitchTypeOnoff(Debug,0);
 //	kout.SetEnabledType(0);
 	kout<<"Test all suits..."<<endl;
 	POS_PM.Current()->SetCWD("/VFS/FAT32");
@@ -222,7 +221,7 @@ void TestFuncs()
 	
 	VirtualMemorySpace::EnableAccessUser();
 	
-	if (1)
+	if (0)
 	{
 		KernelTextRemember=(char*)Kmalloc(rodataend-kernelstart);
 		MemcpyT<char>(KernelTextRemember,kernelstart,rodataend-kernelstart);
