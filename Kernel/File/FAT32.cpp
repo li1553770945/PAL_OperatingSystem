@@ -41,7 +41,6 @@ ErrorType FAT32::WriteRawData(Uint64 lba, Uint64 offset, Uint64 size, unsigned c
 }
 ErrorType FAT32::Init()
 {
-#
 	kout << "initing fat32 file system..." << endl;
 	ErrorType err = device.Init();
 	if (err != 0)
@@ -791,7 +790,6 @@ char* FAT32::MergeLongNameAndToUtf8(Uint32* unicode[], Uint32 cnt)
 }
 Uint64 FAT32::GetLbaFromCluster(Uint64 cluster)
 {
-
 	return RootLba + (cluster - 2)*Dbr.BPBSectorPerClus;
 
 }
@@ -860,7 +858,9 @@ Uint32 FAT32::GetFATContentFromCluster(Uint32 cluster)
 	Uint64 offset = ((Uint64)cluster * 4) % SECTORSIZE;
 	unsigned char buffer[4];
 	ReadRawData(lba, offset, 4, buffer);
-	return (buffer[3] << 24) | (buffer[2] << 16) | (buffer[1] <<8) | buffer[0];
+	if (buffer[0]==0xf8) 
+		buffer[0]=0xff;
+	return ((Uint64)buffer[3] << 24) | ((Uint64)buffer[2] << 16) | ((Uint64)buffer[1] <<8) | buffer[0];
 }
 ErrorType FAT32::SetFATContentFromCluster(Uint32 cluster, Uint32 content)//设置cluster对应的FAT表中内容为content(自动将content转换为大端)
 {
