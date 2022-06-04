@@ -66,6 +66,7 @@ public:
 
 	virtual FileNode* FindFile(const char* path, const char* name) override;
 	virtual int GetAllFileIn(const char* path, char* result[], int bufferSize, int skipCnt = 0) override;//if unused,result should be empty when input , user should free the char*
+	virtual int GetAllFileIn(const char* path, FileNode* nodes[], int bufferSize, int skipCnt = 0) override;
 	virtual ErrorType CreateDirectory(const char* path) override;
 	virtual ErrorType CreateFile(const char* path) override;
 	virtual ErrorType Move(const char* src, const char* dst) override;

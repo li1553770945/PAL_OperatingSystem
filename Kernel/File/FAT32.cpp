@@ -186,6 +186,102 @@ int FAT32::GetAllFileIn(const char* path, char* result[], int bufferSize, int sk
 	}
 	return cnt;
 }
+
+
+int FAT32::GetAllFileIn(const char* path, FileNode* nodes[], int bufferSize, int skipCnt)
+{
+	if (bufferSize <= 0)
+	{
+		return 0;
+	}
+
+	FAT32FileNode* node = (FAT32FileNode*)FindFileByPath(path);
+	if (node == nullptr || !node->IsDir)
+	{
+		return -1;
+	}
+	Uint32  cluster = node->FirstCluster;
+	delete node;
+	int cnt = 0; //一共找到了几个文件（夹）
+	int long_name_cnt = 0;//长文件名计数
+	Uint32* long_name[100];//存储长文件名
+
+	while (cluster != CLUSTEREND)
+	{
+		Uint64 lba = GetLbaFromCluster(cluster);
+
+		for (Uint32 i = 0; i < Dbr.BPBSectorPerClus; i++)
+		{
+			unsigned char buffer[SECTORSIZE];
+			ReadRawData(lba + i, 0, 512, buffer);
+			for (Uint32 j = 0; j < SECTORSIZE / 32; j++)
+			{
+				unsigned char temp[32];
+				POS::MemcpyT(temp, buffer + j * 32, 32);
+				Uint16 attr = temp[11];
+				if (attr == 0x0F && temp[0] != 0xE5 && temp[0] != 0x00)//长目录项
+				{
+					Uint32* temp_long_name = new Uint32[13]; //has delete
+					LoadLongFileNameFromBuffer(temp, temp_long_name);
+					long_name[long_name_cnt] = temp_long_name;
+					long_name_cnt++;
+				}
+				else //短目录项
+				{
+					FAT32FileNode* p = (FAT32FileNode*)LoadShortFileInfoFromBuffer(temp);
+
+					if (p != nullptr)
+					{
+						p->ContentLba = lba + i;
+						p->ContentOffset = j * 32;
+						if (skipCnt)
+						{
+							skipCnt--;
+							if (long_name_cnt)
+							{
+								for (int i = 0; i < long_name_cnt; i++)
+								{
+									delete[] long_name[i];
+								}
+								long_name_cnt = 0;
+							}
+
+						}
+						else
+						{
+
+							if (long_name_cnt) //如果是长目录对应的短目录
+							{
+								char* full_name;
+								full_name = MergeLongNameAndToUtf8(long_name, long_name_cnt);
+								for (int i = 0; i < long_name_cnt; i++)
+								{
+									delete[] long_name[i];
+								}
+								long_name_cnt = 0;
+								p->SetFileName(full_name, false);
+								delete[] full_name;
+							}
+
+							nodes[cnt] = p;
+							cnt++;
+							if (cnt == bufferSize)
+							{
+								return cnt;
+							}
+						}
+
+					}
+
+
+				}
+			}
+		}
+		cluster = GetFATContentFromCluster(cluster);
+	}
+	return cnt;
+}
+
 ErrorType FAT32::CreateDirectory(const char* path)
 {
 	FAT32FileNode* node = (FAT32FileNode*)FindFileByPath(path);

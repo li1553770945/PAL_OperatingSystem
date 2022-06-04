@@ -364,6 +364,7 @@ class VirtualFileSystemManager
 		static char* NormalizePath(const char *path,const char *base=nullptr);//if base is nullptr, or path is absolute, base will be ignored.
 		FileNode* FindFile(const char *path,const char *name);
 		int GetAllFileIn(const char *path,char *result[],int bufferSize,int skipCnt=0);//if unused ,user should free the char*
+		int GetAllFileIn(const char *path,FileNode *result[],int bufferSize,int skipCnt=0);
 		int GetAllFileIn(Process *proc,const char *path,char *result[],int bufferSize,int skipCnt=0);
 		ErrorType CreateDirectory(const char *path);
 		ErrorType CreateDirectory(Process *proc,const char *path);
@@ -406,9 +407,16 @@ class VirtualFileSystem
 			Kfree(path);
 			return re;
 		}
-		
+		virtual int GetAllFileIn(FileNode *p,FileNode *result[],int bufferSize,int skipCnt=0)
+		{
+			char *path=p->GetPath<1>();
+			int re=GetAllFileIn(path,result,bufferSize,skipCnt);
+			Kfree(path);
+			return re;
+		}
 		virtual FileNode* FindFile(const char *path,const char *name)=0;
 		virtual int GetAllFileIn(const char *path,char *result[],int bufferSize,int skipCnt=0)=0;//if unused,result should be empty when input , user should free the char*
+		virtual int GetAllFileIn(const char* path, FileNode * nodes[], int bufferSize, int skipCnt = 0) = 0;
 		virtual ErrorType CreateDirectory(const char *path)=0;
 		virtual ErrorType CreateFile(const char *path)=0;
 		virtual ErrorType Move(const char *src,const char *dst)=0;

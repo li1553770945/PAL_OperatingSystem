@@ -137,7 +137,21 @@ int VirtualFileSystemManager::GetAllFileIn(const char *path,char *result[],int b
 //	kout[Debug]<<"G7"<<endl;
 	return re;
 }
-
+int VirtualFileSystemManager::GetAllFileIn(const char *path,FileNode *result[],int bufferSize,int skipCnt)
+{
+	FileNode *p=FindRecursive(root,path);
+	if (p==nullptr)
+		return 0;
+	if (p->Flags&FileNode::F_BelongVFS)
+		return p->Vfs->GetAllFileIn(p,result,bufferSize,skipCnt);
+	int re=0;
+	// for (FileNode *u=p->child;u&&re<bufferSize;u=u->nxt)
+	// 	if (skipCnt)
+	// 		--skipCnt;
+	// 	else result[re++]=strDump(u->Name); 
+	
+	return re;
+}
 int VirtualFileSystemManager::GetAllFileIn(Process *proc,const char *path,char *result[],int bufferSize,int skipCnt)
 {
 //	kout[Debug]<<"G1"<<endl;

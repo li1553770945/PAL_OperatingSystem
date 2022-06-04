@@ -181,7 +181,7 @@ inline int Syscall_openat(int fd,char *filename,int flags,int mode)//Currently, 
 		else VFSM.CreateFile(path);
 	node=VFSM.Open(path);
 	if (node!=nullptr)
-		if (node->IsDir()&&!(flags&O_DIRECTORY)||!node->IsDir()&&(flags&O_DIRECTORY))
+		if (!node->IsDir()&&(flags&O_DIRECTORY))
 			node=nullptr;
 	FileHandle *re=nullptr;
 	if (node!=nullptr)
@@ -207,41 +207,6 @@ inline int Syscall_close(int fd)
 		return -1;
 	delete fh;//??
 	return 0;
-}
-
-inline Sint64 Syscall_getdents64(int fd,RegisterData _buf,Uint64 bufSize)
-{
-	struct dirent
-	{
-		Uint64 ino;
-		Sint64 off;
-		Uint16 reclen;
-		Uint8 name[0];
-	}__attribute__((packed));
-	char *dir=CurrentPathFromFileNameAndFD(fd,".");
-	if (dir==nullptr)
-		return -1;
-	char *buf=(char*)_buf;
-	char *childs[16];
-	VirtualMemorySpace::EnableAccessUser();
-	int skip=0,re=0;
-	while (1)
-	{
-		int i=0,cnt=VFSM.GetAllFileIn(dir,childs,16,skip);
-		while (i<cnt)
-		{
-			
-			//...
-			Kfree(childs[i]);
-			++i;
-		}
-		if (cnt<16||i<cnt)
-			break;
-		else skip+=cnt;
-	}
-	VirtualMemorySpace::DisableAccessUser();
-	//...
-	
 }
 
 inline RegisterData Syscall_Read(int fd,void *dst,Uint64 size)
@@ -593,6 +558,55 @@ inline RegisterData Syscall_nanosleep(RegisterData _req,RegisterData _rem)
 	VirtualMemorySpace::DisableAccessUser();
 	return 0;
 }
+inline int Syscall_getdents64(int fd,RegisterData _buf,Uint64 bufSize)
+{
+
+
+	struct Dirent
+	{
+	    Uint64 d_ino;   // 索引结点号
+	    Sint64 d_off;    // 到下一个dirent的偏移
+	    unsigned d_reclen;    // 当前dirent的长度
+	    unsigned d_type;   // 文件类型
+	    char d_name[];  //文件名
+	}__attribute__((packed));
+	char *dir=CurrentPathFromFileNameAndFD(fd,".");
+
+	if (dir==nullptr)
+	{
+		return -1;
+
+	}
+	VirtualMemorySpace::EnableAccessUser();
+
+	FileNode* *nodes  = new FileNode* [bufSize];
+	int cnt=VFSM.GetAllFileIn(dir,nodes,bufSize,0);
+	if(cnt == 0)
+	{
+		return 0;
+	}
+	int n_read;
+	int b_pos = 0;
+	for(int i=0;i<cnt;i++)
+	{
+		Dirent * dirent = (Dirent *)(_buf + n_read) ;
+		dirent->d_ino = i+1;
+		dirent->d_off = 32;
+		dirent->d_type = 0;
+		const char * name = nodes[i]->GetName();
+		int j = 0;
+		for(;j<strLen(name);j++)
+		{
+			dirent->d_name[j] = name[i];
+		}
+		dirent->d_name[j] = 0;
+		dirent->d_reclen = sizeof(Uint64) * 2 + sizeof(unsigned) * 2 + strLen(name) + 1;
+		n_read += dirent->d_reclen;
+	}
+	VirtualMemorySpace::DisableAccessUser();
+	return n_read;
+	
+}
 
 ErrorType TrapFunc_Syscall(TrapFrame *tf)
 {
@@ -641,7 +655,8 @@ ErrorType TrapFunc_Syscall(TrapFrame *tf)
 			tf->reg.a0=Syscall_close(tf->reg.a0);
 			break;
 		case	SYS_getdents64	:
-			goto Default;
+			tf->reg.a0=Syscall_getdents64(tf->reg.a0,tf->reg.a1,tf->reg.a2);
+			break;
 		case	SYS_read		:
 			tf->reg.a0=Syscall_Read(tf->reg.a0,(void*)tf->reg.a1,tf->reg.a2);
 			break;

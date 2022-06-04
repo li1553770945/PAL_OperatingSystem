@@ -268,7 +268,10 @@ class StupidFileSystem:public VirtualFileSystem
 					else --skipCnt;
 			return re;
 		}
-		
+		int GetAllFileIn(const char* path, FileNode* nodes[], int bufferSize, int skipCnt)
+		{
+			return -1; //未完成，且未使用的函数
+		}
 		ErrorType CreateDirectoryFile(const char *path,int atttributes)
 		{
 			using namespace POS;
