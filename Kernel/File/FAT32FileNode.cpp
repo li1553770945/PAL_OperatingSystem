@@ -59,7 +59,8 @@ Sint64 FAT32FileNode::Read(void* dst, Uint64 pos, Uint64 size)
 			sector_need_read_size = SECTORSIZE - sector_offset;
 			size -= sector_need_read_size;
 		}
-
+		
+		kout[Debug]<<"R5 lba "<<lba<<" size "<<size<<endl;
 		vfs->ReadRawData(lba, sector_offset, sector_need_read_size, (unsigned char*)dst + total_has_read_size);
 		total_has_read_size += sector_need_read_size;
 		cluster_offset += sector_need_read_size;

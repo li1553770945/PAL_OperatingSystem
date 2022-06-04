@@ -19,6 +19,7 @@ FAT32::FAT32()
 
 ErrorType FAT32::ReadRawData(Uint64 lba,Uint64 offset, Uint64 size, unsigned char* buffer)
 {
+	kout[Debug]<<"ReadRawData lba "<<lba<<" offset "<<offset<<" size "<<size<<" buffer "<<buffer<<endl;
 //	kout[Debug]<<"R1"<<endl;
 	unsigned char buffer_temp[SECTORSIZE];
 //	kout[Debug]<<"R2"<<endl;
@@ -117,6 +118,7 @@ int FAT32::GetAllFileIn(const char* path, char* result[], int bufferSize, int sk
 		{
 //	kout[Debug]<<"GA5"<<endl;
 			unsigned char buffer[SECTORSIZE];
+			kout[Debug]<<"R1 lba "<<lba<<" i "<<i<<endl;
 			ReadRawData(lba + i, 0, 512, buffer);
 			for (Uint32 j = 0; j < SECTORSIZE / 32; j++)
 			{
@@ -871,6 +873,7 @@ Uint32 FAT32::GetFATContentFromCluster(Uint32 cluster)
 	Uint64 lba = FAT1Lba + (Uint64)cluster * 4 / SECTORSIZE;//对应扇区lba
 	Uint64 offset = ((Uint64)cluster * 4) % SECTORSIZE;
 	unsigned char buffer[4];
+	kout[Debug]<<"R2 lba"<<lba<<" cluster "<<cluster<<" offset "<<offset<<endl;
 	ReadRawData(lba, offset, 4, buffer);
 	return (buffer[3] << 24) | (buffer[2] << 16) | (buffer[1] <<8) | buffer[0];
 }
@@ -899,6 +902,7 @@ FileNode* FAT32::FindFileByNameFromCluster(Uint32 cluster, const char* name)
 		for (Uint32 i = 0; i < Dbr.BPBSectorPerClus; i++)
 		{
 			unsigned char buffer[SECTORSIZE];
+			kout[Debug]<<"R3 lba "<<lba<<" i "<<i<<endl;
 			ReadRawData(lba + i, 0, 512, buffer);
 			for (Uint32 j = 0; j < SECTORSIZE / 32; j++)
 			{
@@ -1034,6 +1038,7 @@ bool FAT32::IsExist(const char* path)
 Uint32 FAT32::GetFreeClusterAndPlusOne()//返回一个空闲簇的簇号
 {
 	unsigned char buffer[8];
+	kout[Debug]<<"DBRlba "<<DBRLba<<endl;
 	ReadRawData(DBRLba + 1ull,0x1E8,8,buffer);
 	Uint32 free_cluster = (buffer[7] << 24) | (buffer[6] << 16) | (buffer[5] << 8) | buffer[4];
 	Uint32 free_cluster_num = (buffer[3] << 24) | (buffer[2] << 16) | (buffer[1] << 8) | buffer[0];
@@ -1068,6 +1073,7 @@ PAL_DS::Triplet<Uint32, Uint64,Uint64> FAT32::GetFreeClusterAndLbaAndOffsetFromC
 		for (Uint32 i = 0; i < Dbr.BPBSectorPerClus; i++)
 		{
 			unsigned char buffer[SECTORSIZE];
+			kout[Debug]<<"R4 lba "<<lba<<" i "<<i<<endl;
 			ReadRawData(lba + i, 0, 512, buffer);
 			for (Uint32 j = 0; j < SECTORSIZE / 32; j++)
 			{
