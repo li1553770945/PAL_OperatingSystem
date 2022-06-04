@@ -557,7 +557,7 @@ inline RegisterData Syscall_nanosleep(RegisterData _req,RegisterData _rem)
 	VirtualMemorySpace::DisableAccessUser();
 	return 0;
 }
-inline int Syscall_getdents64(int fd,RegisterData _buf,Uint64 bufSize)
+inline RegisterData Syscall_getdents64(int fd,RegisterData _buf,Uint64 bufSize)
 {
 
 
@@ -585,7 +585,7 @@ inline int Syscall_getdents64(int fd,RegisterData _buf,Uint64 bufSize)
 		return 0;
 	}
 	int n_read = 0;
-	for(int i=0;i<cnt;i++)
+	for(int i=0;i<1;i++)//size会超掉
 	{
 		Dirent * dirent = (Dirent *)(_buf + n_read) ;
 		dirent->d_ino = i+1;
@@ -602,7 +602,7 @@ inline int Syscall_getdents64(int fd,RegisterData _buf,Uint64 bufSize)
 		n_read += dirent->d_reclen;
 	}
 	VirtualMemorySpace::DisableAccessUser();
-	int return_value = 512;//应该是n_read
+	Sint64 return_value = 512;//应该是n_read
 	kout[Debug]<<"return value:"<<return_value<<endl;
 	return return_value;
 	
@@ -669,9 +669,7 @@ ErrorType TrapFunc_Syscall(TrapFrame *tf)
 			tf->reg.a0=Syscall_close(tf->reg.a0);
 			break;
 		case	SYS_getdents64	:
-			Syscall_getdents64(tf->reg.a0,tf->reg.a1,tf->reg.a2);
-			tf->reg.a0 = 3;
-			kout[Debug]<<"a0:"<<tf->reg.a0<<endl;
+			tf->reg.a0 = Syscall_getdents64(tf->reg.a0,tf->reg.a1,tf->reg.a2);
 			break;
 		case	SYS_read		:
 			tf->reg.a0=Syscall_Read(tf->reg.a0,(void*)tf->reg.a1,tf->reg.a2);
