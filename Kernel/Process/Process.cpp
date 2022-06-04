@@ -55,8 +55,8 @@ void ProcessManager::Schedule()
 		if (i==MaxProcessCount&&p!=0)
 			if (minWaitingTarget!=-1)//??
 				goto RetrySchedule;
-			else if (POS_PM.Current()->stat==Process::S_Ready)
-				DoNothing;
+//			else if (POS_PM.Current()->stat==Process::S_Ready)
+//				DoNothing;
 			else kout[Fault]<<"Scheduler failed to switch!"<<endl;
 	}
 	else ASSERT(CurrentProcess!=nullptr,"ProcessManager::Schedule: CurrentProcess is nullptr!");
