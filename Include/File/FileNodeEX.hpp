@@ -18,6 +18,7 @@ class UartFileNode:public FileNode
 		
 		virtual Sint64 Write(void *src,Uint64 pos,Uint64 size)//pos is not used...
 		{
+			using namespace POS;
 			char *s=(char*)src,*e=s+size;
 			while (s!=e)
 				POS::Putchar(*s++);
