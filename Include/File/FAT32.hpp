@@ -20,19 +20,30 @@ public:
 };
 
 class FAT32Device :public StorageDevice {
+	unsigned char *disk=nullptr;
 public:
 	ErrorType Init()
 	{
+		using namespace POS;
+		constexpr int size=1024*1024*3;
+		disk=new unsigned char[size];
+		if (disk==nullptr)
+			kout[Fault]<<"Failed to new disk buffer!"<<endl;
+		for (int lba=0;lba<size/512;++lba)
+			sdcard_read_sector((Sector*)disk+lba,lba);
+		kout[Info]<<"Init disk buffer OK"<<endl;
 		return ERR_None;;
 	}
 	ErrorType Read(Uint64 lba, unsigned char* buffer)
 	{
-		sdcard_read_sector((Sector*)buffer,lba);
+//		sdcard_read_sector((Sector*)buffer,lba);
+		POS::MemcpyT<unsigned char>(buffer,disk+lba*512,512);
 		return ERR_None;
 	}
 	ErrorType Write(Uint64 lba, unsigned char* buffer)
 	{
-		sdcard_write_sector((Sector*)buffer,lba);
+//		sdcard_write_sector((Sector*)buffer,lba);
+		POS::MemcpyT<unsigned char>(disk+lba*512,buffer,512);
 		return ERR_None;
 	}
 };

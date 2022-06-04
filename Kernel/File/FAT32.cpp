@@ -47,7 +47,6 @@ ErrorType FAT32::WriteRawData(Uint64 lba, Uint64 offset, Uint64 size, unsigned c
 }
 ErrorType FAT32::Init()
 {
-#
 	kout << "initing fat32 file system..." << endl;
 	ErrorType err = device.Init();
 	if (err != 0)
