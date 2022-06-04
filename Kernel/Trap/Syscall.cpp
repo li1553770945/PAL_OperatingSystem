@@ -603,7 +603,7 @@ inline int Syscall_getdents64(int fd,RegisterData _buf,Uint64 bufSize)
 	}
 	VirtualMemorySpace::DisableAccessUser();
 	int return_value = 512;//应该是n_read
-	kout<<"return value:"<<return_value<<endl;
+	kout[Debug]<<"return value:"<<return_value<<endl;
 	return return_value;
 	
 }
@@ -669,7 +669,8 @@ ErrorType TrapFunc_Syscall(TrapFrame *tf)
 			tf->reg.a0=Syscall_close(tf->reg.a0);
 			break;
 		case	SYS_getdents64	:
-			tf->reg.a0=Syscall_getdents64(tf->reg.a0,tf->reg.a1,tf->reg.a2);
+			Syscall_getdents64(tf->reg.a0,tf->reg.a1,tf->reg.a2);
+			tf->reg.a0 = 3;
 			kout[Debug]<<"a0:"<<tf->reg.a0<<endl;
 			break;
 		case	SYS_read		:
