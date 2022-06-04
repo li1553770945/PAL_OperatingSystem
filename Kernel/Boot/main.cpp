@@ -134,7 +134,7 @@ int RunAllTestSuits(void*)
 			{
 //				kout[Debug]<<"C"<<endl;
 				char *child=strSplice(path,"/",buffer[i]);
-				if (buffer[i][0]!='.'&&strComp(buffer[i],"uname")!=0)
+				if (buffer[i][0]!='.')
 				{
 //					kout[Debug]<<"D"<<endl;
 					FileNode *node=VFSM.Open(POS_PM.Current(),child);
