@@ -23,6 +23,8 @@ extern "C"
 #include <Library/Kout.hpp>
 using namespace POS;
 
+#define SPI_CHIP_SELECT_3 SPI_CHIP_SELECT_0
+
 #define NULL 0
 
 void SD_CS_HIGH(void) {
