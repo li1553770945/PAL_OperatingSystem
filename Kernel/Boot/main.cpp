@@ -120,15 +120,16 @@ int RunAllTestSuits(void*)
 	auto RunAllFile=[](auto &self,const char *path,int dep=0)->void
 	{
 		kout<<dep<<": "<<path<<endl;
-		char *buffer[16];
+		constexpr int bufferSize=64;
+		char *buffer[bufferSize];
 		int skip=0;
 		while (1)
 		{
-			int cnt=VFSM.GetAllFileIn(POS_PM.Current(),path,buffer,16,skip);
-			for (int i=0;i<cnt;++i)
+			int cnt=VFSM.GetAllFileIn(POS_PM.Current(),path,buffer,bufferSize,skip);
+			for (int i=cnt-1;i>=0;--i)
 			{
 				char *child=strSplice(path,"/",buffer[i]);
-				if (buffer[i][0]!='.'&&strComp(buffer[i],"unlink")!=0)
+				if (buffer[i][0]!='.')
 				{
 					FileNode *node=VFSM.Open(POS_PM.Current(),child);
 					if (!node)
@@ -148,29 +149,15 @@ int RunAllTestSuits(void*)
 							cp->Destroy();
 						}
 						delete file;
-						
-						
-						{
-							FileHandle *file=new FileHandle(node);
-							PID id=CreateProcessFromELF(file,0,path);
-							if (id>0)
-							{
-								Process *proc=POS_PM.Current(),*cp=nullptr;
-								while ((cp=proc->GetQuitingChild(id))==nullptr)
-									proc->GetWaitSem()->Wait();
-								cp->Destroy();
-							}
-							delete file;
-						}
 					}
 					VFSM.Close(node);
 				}
 				Kfree(child);
 				Kfree(buffer[i]);
 			}
-			if (cnt<16)
+			if (cnt<bufferSize)
 				break;
-			else skip+=16;
+			else skip+=bufferSize;
 		}
 	};
 	
@@ -415,7 +402,7 @@ void TestFuncs()
 	if (1)
 	{
 		PID id=CreateKernelThread(RunAllTestSuits,nullptr,0);
-		Process *proc=POS_PM.Current(),*cp; 
+		Process *proc=POS_PM.Current(),*cp;
 		while ((cp=proc->GetQuitingChild(id))==nullptr)
 			proc->GetWaitSem()->Wait();
 		cp->Destroy();
