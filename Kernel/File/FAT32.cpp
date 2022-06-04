@@ -879,7 +879,7 @@ Uint32 FAT32::GetFATContentFromCluster(Uint32 cluster)
 	unsigned char buffer[4];
 	kout[Debug]<<"R2 lba"<<lba<<" cluster "<<cluster<<" offset "<<offset<<endl;
 	ReadRawData(lba, offset, 4, buffer);
-	return (buffer[3] << 24) | (buffer[2] << 16) | (buffer[1] <<8) | buffer[0];
+	return ((Uint64)buffer[3] << 24) | ((Uint64)buffer[2] << 16) | ((Uint64)buffer[1] <<8) | buffer[0];
 }
 ErrorType FAT32::SetFATContentFromCluster(Uint32 cluster, Uint32 content)//设置cluster对应的FAT表中内容为content(自动将content转换为大端)
 {
@@ -894,6 +894,7 @@ ErrorType FAT32::SetFATContentFromCluster(Uint32 cluster, Uint32 content)//设�
 }
 FileNode* FAT32::FindFileByNameFromCluster(Uint32 cluster, const char* name)
 {
+	kout[Debug]<<"FindFileByNameFromCluster cluster "<<cluster<<" name "<<name<<endl;
 	FAT32FileNode* result;
 	
 	Uint64 lba = GetLbaFromCluster(cluster);
