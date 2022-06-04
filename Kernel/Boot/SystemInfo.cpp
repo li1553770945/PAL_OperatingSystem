@@ -7,7 +7,7 @@ void PrintSystemInfo()
 	kout<<DarkGrayBG<<LightRed
 		<<"PAL_OperatingSystem       "<<ResetBG<<endline
 		<<DarkGrayBG<<LightYellow
-		<<"Version 0.3               "<<ResetBG<<endline
+		<<"Version 0.4               "<<ResetBG<<endline
 		<<DarkGrayBG<<LightBlue
 		<<"By: qianpinyi&&peaceSheep "<<ResetBG<<endl;
 	kout<<LightCyan<<R"(

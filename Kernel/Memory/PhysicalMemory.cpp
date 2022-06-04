@@ -53,9 +53,9 @@ void PhysicalMemoryManager::Free(void *p)
 ErrorType PhysicalMemoryManager::Init()
 {
     kout[Info]<<"Initing PhysicalMemoryManager..."<<endl;
-    MemsetT<Uint64>((Uint64*)FreeMemBase(),0,(PhysicalMemoryVirtualEnd()-FreeMemBase())/sizeof(Uint64));//Init free memory to 0 in k210
-    int code = zone.Init();
-    if(code)
+	MemsetT<Uint64>((Uint64*)FreeMemBase(),0,(PhysicalMemoryVirtualEnd()-FreeMemBase())/sizeof(Uint64));//Init free memory to 0 in k210
+	int code = zone.Init();
+	if(code)
     {
         return code;
     }

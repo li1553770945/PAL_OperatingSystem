@@ -3,7 +3,7 @@
 
 #define PAL_OperatingSystem_Version_Main  1
 #define PAL_OperatingSystem_Version_Sub   0
-#define PAL_OperatingSystem_Version_Third 202205070
+#define PAL_OperatingSystem_Version_Third 202206040
 #define PAL_OperatingSystem_Author "qianpinyi&&peacesheep"
 
 //#define QEMU

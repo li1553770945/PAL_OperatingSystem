@@ -11,7 +11,7 @@ const ClockTime Timer_1ms=1e4;
 const ClockTime Timer_10ms=Timer_1ms*10;
 const ClockTime Timer_100ms=Timer_1ms*100;
 const ClockTime Timer_1s=Timer_1ms*1000;
-const ClockTime TickDuration=Timer_1ms;//??
+const ClockTime TickDuration=Timer_1s;//??
 
 extern volatile TickType ClockTick;
 
