@@ -400,6 +400,7 @@ class VirtualFileSystem
 		{
 //			using namespace POS;
 //	kout[Debug]<<"G9"<<endl;
+<<<<<<< HEAD
 			char *path=p->GetPath<1>();
 //	kout[Debug]<<"G10"<<endl;
 			int re=GetAllFileIn(path,result,bufferSize,skipCnt);
@@ -409,8 +410,12 @@ class VirtualFileSystem
 		}
 		virtual int GetAllFileIn(FileNode *p,FileNode *result[],int bufferSize,int skipCnt=0)
 		{
+=======
+>>>>>>> 633ead0dc4684e76ebc57db313add6baa26fcc1d
 			char *path=p->GetPath<1>();
+//	kout[Debug]<<"G10"<<endl;
 			int re=GetAllFileIn(path,result,bufferSize,skipCnt);
+//	kout[Debug]<<"G11"<<endl;
 			Kfree(path);
 			return re;
 		}
