@@ -8,6 +8,12 @@ riscv64-unknown-elf-g++ -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/Trap/Tr
 riscv64-unknown-elf-g++ -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/Trap/TrapEntry.S               -o Build/Kernel/TrapEntry.o         -I"Include" -mcmodel=medany 
 riscv64-unknown-elf-g++ -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/Trap/Syscall.cpp               -o Build/Kernel/Syscall.o           -I"Include" -mcmodel=medany 
 riscv64-unknown-elf-g++ -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/Memory/PhysicalMemory.cpp      -o Build/Kernel/PhysicalMemory.o    -I"Include" -mcmodel=medany 
+riscv64-unknown-elf-g++ -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/Memory/Buddy.cpp               -o Build/Kernel/Buddy.o             -I"Include" -mcmodel=medany 
+riscv64-unknown-elf-g++ -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/Memory/Page.cpp                -o Build/Kernel/Page.o              -I"Include" -mcmodel=medany 
+riscv64-unknown-elf-g++ -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/Memory/Slab.cpp                -o Build/Kernel/Slab.o              -I"Include" -mcmodel=medany 
+
+
+
 riscv64-unknown-elf-g++ -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/Memory/VirtualMemory.cpp       -o Build/Kernel/VirtualMemory.o     -I"Include" -mcmodel=medany 
 riscv64-unknown-elf-g++ -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/Process/Process.S              -o Build/Kernel/Process_S.o         -I"Include" -mcmodel=medany 
 riscv64-unknown-elf-g++ -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/Process/Process.cpp            -o Build/Kernel/Process.o           -I"Include" -mcmodel=medany 

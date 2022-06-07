@@ -907,61 +907,13 @@ Uint64 FAT32::GetSectorOffsetFromlba(Uint64 lba)//当前lba是所属簇的第几
 	return lba / Dbr.BPBSectorPerClus;
 }
 
-//FileNode* FAT32::GetFileNodesFromCluster(Uint64 cluster) // cluster对应的是目录项
-//{
-//	FAT32FileNode* head = nullptr,* cur = nullptr;
-//	Uint64 lba = GetLbaFromCluster(cluster);
-//	for (Uint32 i = 0; i < Dbr.BPBSectionPerClus; i++)
-//	{
-//		unsigned char buffer[SECTORSIZE];
-//		ReadRawData(lba+i, 0, 512, buffer);
-//		for (Uint32 j = 0; j < SECTORSIZE / 32; j++)
-//		{
-//			unsigned char temp[32];
-//			POS::MemcpyT(temp, buffer + j * 32, 32);
-//			Uint16 attr = temp[11];
-//			if (attr == 0x0F)//长目录项
-//			{
-//
-//			}
-//			else //短目录项
-//			{
-//				FAT32FileNode* p = (FAT32FileNode*)LoadShortFileInfoFromBuffer(temp);
-//				if (p == nullptr)
-//				{
-//					continue;
-//				}
-//				
-//				if (head == nullptr)
-//				{
-//					head = p;
-//					cur = head;
-//					cur->nxt = nullptr;
-//				}
-//				else
-//				{
-//					cur->nxt = (FAT32FileNode*)LoadShortFileInfoFromBuffer(temp);
-//					cur = cur->nxt;
-//					cur->nxt = nullptr;
-//				}
-//			}
-//		}
-//	}
-//	Uint64 nxt = GetFATContentFromCluster(cluster);
-//	if (nxt != CLUSTEREND)
-//	{
-//
-//	}
-//	return head;
-//	
-//}
 Uint32 FAT32::GetFATContentFromCluster(Uint32 cluster)
 {
 	Uint64 lba = FAT1Lba + (Uint64)cluster * 4 / SECTORSIZE;//对应扇区lba
 	Uint64 offset = ((Uint64)cluster * 4) % SECTORSIZE;
 	unsigned char buffer[4];
 	ReadRawData(lba, offset, 4, buffer);
-	if (buffer[0]==0xf8) 
+	if (0xf8<=buffer[0] && buffer[0]<= 0xfe) 
 		buffer[0]=0xff;
 	return ((Uint64)buffer[3] << 24) | ((Uint64)buffer[2] << 16) | ((Uint64)buffer[1] <<8) | buffer[0];
 }
