@@ -1,5 +1,8 @@
 cd ../..
 
+mkdir Build
+mkdir Build/User
+
 for file in User/Library/*{.cpp,.S}
 do
 	namean=${file##*/}

@@ -2,6 +2,9 @@ echo "############################################################"
 
 cd ../..
 
+mkdir Build
+mkdir Build/Kernel
+
 riscv64-unknown-elf-g++ -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/Boot/main.cpp                  -o Build/Kernel/main.o              -I"Include" -mcmodel=medany 
 riscv64-unknown-elf-g++ -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/Boot/Start.S                   -o Build/Kernel/Start.o             -I"Include" -mcmodel=medany 
 riscv64-unknown-elf-g++ -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/Boot/SystemInfo.cpp            -o Build/Kernel/SystemInfo.o        -I"Include" -mcmodel=medany 
@@ -34,6 +37,6 @@ riscv64-unknown-elf-g++ -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/HAL/Dri
 
 rm Build/Kernel.img
 riscv64-unknown-elf-ld -o Build/Kernel/kernel.elf -T Linker/kernel.ld Build/Kernel/*.o --format=binary Build/*.img --format=default
-riscv64-unknown-elf-objcopy Build/Kernel/kernel.elf --strip-all -O binary os.bin
+riscv64-unknown-elf-objcopy Build/Kernel/kernel.elf --strip-all -O binary Build/Kernel.img
 
 cd Tools/Scripts

@@ -4,7 +4,7 @@
 #include "Process.hpp"
 #include "../Trap/Interrupt.hpp"
 #include "../Trap/Clock.h"
-#include "../SYscallID.hpp"
+#include "../SyscallID.hpp"
 
 extern bool OnTrap;
 class Semaphore
