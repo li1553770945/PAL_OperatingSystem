@@ -32,7 +32,8 @@ class FileNode
 			A_Root		=1ull<<1,
 			A_VFS		=1ull<<2,//root of VFS
 			A_Device	=1ull<<3,
-//			A_Virtual	=1ull<<4,
+			A_Temp		=1ull<<4,
+//			A_Virtual	=1ull<<,
 //			A_Deleted	=1ull<<,
 //			A_Link		=1ull<<,
 		};
@@ -250,7 +251,7 @@ class FileHandle:public POS::LinkTableT<FileHandle>
 			return ERR_None;
 		}
 		
-		inline Uint64 Size()
+		inline Sint64 Size()
 		{
 			if (!(Flags&F_Size))
 				return -ERR_InvalidFileHandlePermission;
@@ -300,7 +301,7 @@ class FileHandle:public POS::LinkTableT<FileHandle>
 					proc->FileTable[0]->NxtInsert(this);
 				return ERR_None;
 			}
-			FileHandle *p=proc->FileTable[1];
+			FileHandle *p=proc->FileTable[1]?proc->FileTable[1]:proc->FileTable[0];//Need improve...
 			while (p)
 				if (fd==-1)
 					if (p->nxt==nullptr||p->nxt->FD>p->FD+1)
@@ -337,6 +338,7 @@ class FileHandle:public POS::LinkTableT<FileHandle>
 		
 		FileHandle(FileNode *filenode,Uint64 flags=F_ALL):Flags(flags)
 		{
+			ASSERTEX(filenode,"Construct FileHandle "<<this<<" from nullptr FileNode with flags "<<(void*)flags);
 			file=filenode;
 			file->Ref(this);
 			LinkTableT<FileHandle>::Init();
@@ -400,7 +402,7 @@ class VirtualFileSystem
 		
 		virtual int GetAllFileIn(FileNode *p,char *result[],int bufferSize,int skipCnt=0)
 		{
-//			using namespace POS;
+//	using namespace POS;
 //	kout[Debug]<<"G9"<<endl;
 			char *path=p->GetPath<1>();
 //	kout[Debug]<<"G10"<<endl;
@@ -411,6 +413,7 @@ class VirtualFileSystem
 		}
 		virtual int GetAllFileIn(FileNode *p,FileNode *result[],int bufferSize,int skipCnt=0)
 		{
+//	using namespace POS;
 			char *path=p->GetPath<1>();
 //	kout[Debug]<<"G10"<<endl;
 			int re=GetAllFileIn(path,result,bufferSize,skipCnt);

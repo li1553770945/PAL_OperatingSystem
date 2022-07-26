@@ -10,6 +10,7 @@ namespace POS
 	int strComp(const char *s1,const char *se1,const char *s2);
 	int strComp(const char *s1,const char *se1,const char *s2,const char *se2);
 	unsigned long long strLen(const char *src);
+	const char* strFind(const char *s,char ch);
 	
 	template <typename ...Ts> inline unsigned long long strLen(const char *src,const Ts *...others)
 	{return strLen(src)+strLen(others...);}

@@ -19,11 +19,18 @@ FAT32::FAT32()
 
 ErrorType FAT32::ReadRawData(Uint64 lba,Uint64 offset, Uint64 size, unsigned char* buffer)
 {
+	CALLINGSTACK
+	if (offset+size>SectorSize)
+		kout[Fault]<<offset<<" "<<size<<endl;
+		CallingStackController csc2("RRD0");
 	unsigned char buffer_temp[SECTORSIZE];
+	{
+		CallingStackController csc("RRD1");
 	ErrorType error = device.Read(lba, buffer_temp);
 	if (error != 0)
 	{
 		return ERR_DeviceReadError;
+	}
 	}
 	POS::MemcpyT(buffer, buffer_temp + offset, (Uint32)size);
 	return  ERR_None;
@@ -58,20 +65,20 @@ ErrorType FAT32::Init()
 	kout << "DBR_lba:" << DBRLba << endl;
 
 
-	device.Read(DBRLba, buffer); //bufferæ˜¯DBRåˆ†åŒºå†…å®¹
+	device.Read(DBRLba, buffer); //bufferÊÇDBR·ÖÇøÄÚÈİ
 
 	Dbr.BPBSectorPerClus = buffer[0x0d];
 	Dbr.BPB_RsvdSectorNum = (buffer[0x0f] << 8) | buffer[0x0e];
 	Dbr.BPB_FATNum = buffer[0x10];
 	Dbr.BPB_HidenSectorNum = (buffer[0x1f] << 24) | (buffer[0x1e] << 16) | (buffer[0x1d] << 8) | (buffer[0x1c]);
-	Dbr.BPB_SectorPerFATArea = (buffer[0x27] << 24) | (buffer[0x26] << 16) | (buffer[0x25] << 8) | (buffer[0x24]); //FATåŒºå¤§å°
+	Dbr.BPB_SectorPerFATArea = (buffer[0x27] << 24) | (buffer[0x26] << 16) | (buffer[0x25] << 8) | (buffer[0x24]); //FATÇø´óĞ¡
 	kout << "Dbr.BPBSectionPerClus:" << Dbr.BPBSectorPerClus << endl;
 	kout << "BPB reserved sector count:" << Dbr.BPB_RsvdSectorNum<<endl;
 	kout << "BPB FAT number:" << Dbr.BPB_FATNum << endl;
 	kout << "BPB hiden sector num:" << Dbr.BPB_HidenSectorNum << endl;
 	kout << "BPB FAT sector num:" << Dbr.BPB_SectorPerFATArea << endl;
-	FAT1Lba = DBRLba + Dbr.BPB_RsvdSectorNum; //FAT1 = DBR + ä¿ç•™æ‰‡åŒº
-	FAT2Lba = FAT1Lba + Dbr.BPB_SectorPerFATArea; //FAT2 = FAT1 + FATåŒºå¤§å°
+	FAT1Lba = DBRLba + Dbr.BPB_RsvdSectorNum; //FAT1 = DBR + ±£ÁôÉÈÇø
+	FAT2Lba = FAT1Lba + Dbr.BPB_SectorPerFATArea; //FAT2 = FAT1 + FATÇø´óĞ¡
 	RootLba = FAT1Lba + Dbr.BPB_SectorPerFATArea * (Uint64)Dbr.BPB_FATNum;
 	kout <<"FAT1_lba:" << FAT1Lba << " FAT2_lba:" << FAT2Lba << endl;
 	kout << "root lba:" << RootLba << endl;
@@ -95,14 +102,14 @@ int FAT32::GetAllFileIn(const char* path, char* result[], int bufferSize, int sk
 	}
 	Uint32  cluster = node->FirstCluster;
 	delete node;
-	int cnt = 0; //ä¸€å…±æ‰¾åˆ°äº†å‡ ä¸ªæ–‡ä»¶ï¼ˆå¤¹ï¼‰
-	int long_name_cnt = 0;//é•¿æ–‡ä»¶åè®¡æ•°
-	Uint32 * long_name [100];//å­˜å‚¨é•¿æ–‡ä»¶å
-
-	while (cluster != CLUSTEREND)
+	int cnt = 0; //Ò»¹²ÕÒµ½ÁË¼¸¸öÎÄ¼ş£¨¼Ğ£©
+	int long_name_cnt = 0;//³¤ÎÄ¼şÃû¼ÆÊı
+	Uint32 * long_name [100];//´æ´¢³¤ÎÄ¼şÃû
+	
+	while (!IsClusterEnd(cluster))
 	{
 		Uint64 lba = GetLbaFromCluster(cluster);
-
+		
 		for (Uint32 i = 0; i < Dbr.BPBSectorPerClus; i++)
 		{
 			unsigned char buffer[SECTORSIZE];
@@ -112,14 +119,14 @@ int FAT32::GetAllFileIn(const char* path, char* result[], int bufferSize, int sk
 				unsigned char temp[32];
 				POS::MemcpyT(temp, buffer + j * 32, 32);
 				Uint16 attr = temp[11];
-				if (attr == 0x0F && temp[0] != 0xE5 && temp[0] != 0x00)//é•¿ç›®å½•é¡¹
+				if (attr == 0x0F && temp[0] != 0xE5 && temp[0] != 0x00)//³¤Ä¿Â¼Ïî
 				{
 				    Uint32 * temp_long_name = new Uint32[13]; //has delete
 					LoadLongFileNameFromBuffer(temp, temp_long_name);
 					long_name[long_name_cnt] = temp_long_name;
 					long_name_cnt++;
 				}
-				else //çŸ­ç›®å½•é¡¹
+				else //¶ÌÄ¿Â¼Ïî
 				{
 					FAT32FileNode* p = (FAT32FileNode*)LoadShortFileInfoFromBuffer(temp);
 					
@@ -143,7 +150,7 @@ int FAT32::GetAllFileIn(const char* path, char* result[], int bufferSize, int sk
 						else
 						{
 							char* full_name;
-							if (long_name_cnt) //å¦‚æœæ˜¯é•¿ç›®å½•å¯¹åº”çš„çŸ­ç›®å½•
+							if (long_name_cnt) //Èç¹ûÊÇ³¤Ä¿Â¼¶ÔÓ¦µÄ¶ÌÄ¿Â¼
 							{
 
 								full_name = MergeLongNameAndToUtf8(long_name, long_name_cnt);
@@ -173,7 +180,7 @@ int FAT32::GetAllFileIn(const char* path, char* result[], int bufferSize, int sk
 								return cnt;
 							}
 						}
-						
+
 						
 						delete p;
 					}
@@ -202,11 +209,11 @@ int FAT32::GetAllFileIn(const char* path, FileNode* nodes[], int bufferSize, int
 	}
 	Uint32  cluster = node->FirstCluster;
 	delete node;
-	int cnt = 0; //ä¸€å…±æ‰¾åˆ°äº†å‡ ä¸ªæ–‡ä»¶ï¼ˆå¤¹ï¼‰
-	int long_name_cnt = 0;//é•¿æ–‡ä»¶åè®¡æ•°
-	Uint32* long_name[100];//å­˜å‚¨é•¿æ–‡ä»¶å
+	int cnt = 0; //Ò»¹²ÕÒµ½ÁË¼¸¸öÎÄ¼ş£¨¼Ğ£©
+	int long_name_cnt = 0;//³¤ÎÄ¼şÃû¼ÆÊı
+	Uint32* long_name[100];//´æ´¢³¤ÎÄ¼şÃû
 
-	while (cluster != CLUSTEREND)
+	while (!IsClusterEnd(cluster))
 	{
 		Uint64 lba = GetLbaFromCluster(cluster);
 
@@ -219,14 +226,14 @@ int FAT32::GetAllFileIn(const char* path, FileNode* nodes[], int bufferSize, int
 				unsigned char temp[32];
 				POS::MemcpyT(temp, buffer + j * 32, 32);
 				Uint16 attr = temp[11];
-				if (attr == 0x0F && temp[0] != 0xE5 && temp[0] != 0x00)//é•¿ç›®å½•é¡¹
+				if (attr == 0x0F && temp[0] != 0xE5 && temp[0] != 0x00)//³¤Ä¿Â¼Ïî
 				{
 					Uint32* temp_long_name = new Uint32[13]; //has delete
 					LoadLongFileNameFromBuffer(temp, temp_long_name);
 					long_name[long_name_cnt] = temp_long_name;
 					long_name_cnt++;
 				}
-				else //çŸ­ç›®å½•é¡¹
+				else //¶ÌÄ¿Â¼Ïî
 				{
 					FAT32FileNode* p = (FAT32FileNode*)LoadShortFileInfoFromBuffer(temp);
 
@@ -250,7 +257,7 @@ int FAT32::GetAllFileIn(const char* path, FileNode* nodes[], int bufferSize, int
 						else
 						{
 
-							if (long_name_cnt) //å¦‚æœæ˜¯é•¿ç›®å½•å¯¹åº”çš„çŸ­ç›®å½•
+							if (long_name_cnt) //Èç¹ûÊÇ³¤Ä¿Â¼¶ÔÓ¦µÄ¶ÌÄ¿Â¼
 							{
 								char* full_name;
 								full_name = MergeLongNameAndToUtf8(long_name, long_name_cnt);
@@ -313,27 +320,27 @@ ErrorType FAT32::CreateDirectory(const char* path)
 
 		Uint32 cluster = GetFreeClusterAndPlusOne();
 
-		buffer[0x14] = (cluster & 0x00FF0000) >> 16;//è®¾ç½®æ–‡ä»¶ç°‡å·
+		buffer[0x14] = (cluster & 0x00FF0000) >> 16;//ÉèÖÃÎÄ¼ş´ØºÅ
 		buffer[0x15] = (cluster & 0xFF000000) >> 24;
 		buffer[0x1A] = cluster & 0x000000FF;
 		buffer[0x1B] = (cluster & 0x0000FF00) >> 8;
 		buffer[0x0B] = 1 << 4;
 	
-		buffer[0x0D] = 0xB6;//åˆ›å»ºæ—¶é—´10msçš„å€¼
-		buffer[0x0E] = 0x05;//åˆ›å»ºæ—¶é—´
+		buffer[0x0D] = 0xB6;//´´½¨Ê±¼ä10msµÄÖµ
+		buffer[0x0E] = 0x05;//´´½¨Ê±¼ä
 		buffer[0x0F] = 0x7A;
 
-		buffer[0x10] = 0xC1;//åˆ›å»ºæ—¥æœŸ
+		buffer[0x10] = 0xC1;//´´½¨ÈÕÆÚ
 		buffer[0x11] = 0x54;
 
-		buffer[0x12] = 0xC1;//æœ€åè®¿é—®æ—¥æœŸ
+		buffer[0x12] = 0xC1;//×îºó·ÃÎÊÈÕÆÚ
 		buffer[0x13] = 0x54;
 
 
-		buffer[0x16] = 0x06;//ä¿®æ”¹æ—¶é—´
+		buffer[0x16] = 0x06;//ĞŞ¸ÄÊ±¼ä
 		buffer[0x17] = 0x7A;
 
-		buffer[0x18] = 0xC1;//ä¿®æ”¹æ—¥æœŸ
+		buffer[0x18] = 0xC1;//ĞŞ¸ÄÈÕÆÚ
 		buffer[0x19] = 0x54;
 
 		AddContentToCluster(node->FirstCluster, buffer, 32ull);
@@ -354,27 +361,27 @@ ErrorType FAT32::CreateDirectory(const char* path)
 		unsigned char* temp = buffer + (total_content_num - 1) * 32;
 		Uint32 cluster = GetFreeClusterAndPlusOne();
 
-		temp[0x14] = (cluster & 0x00FF0000) >> 16;//è®¾ç½®æ–‡ä»¶ç°‡å·
+		temp[0x14] = (cluster & 0x00FF0000) >> 16;//ÉèÖÃÎÄ¼ş´ØºÅ
 		temp[0x15] = (cluster & 0xFF000000) >> 24;
 		temp[0x1A] = cluster & 0x000000FF;
 		temp[0x1B] = (cluster & 0x0000FF00) >> 8;
 		temp[0x0B] = 1 << 4;
 
-		temp[0x0D] = 0xB6;//åˆ›å»ºæ—¶é—´10msçš„å€¼
+		temp[0x0D] = 0xB6;//´´½¨Ê±¼ä10msµÄÖµ
 
-		temp[0x0E] = 0x05;//åˆ›å»ºæ—¶é—´
+		temp[0x0E] = 0x05;//´´½¨Ê±¼ä
 		temp[0x0F] = 0x7A;
 
-		temp[0x10] = 0xC1;//åˆ›å»ºæ—¥æœŸ
+		temp[0x10] = 0xC1;//´´½¨ÈÕÆÚ
 		temp[0x11] = 0x54;
 
-		temp[0x12] = 0xC1;//æœ€åè®¿é—®æ—¥æœŸ
+		temp[0x12] = 0xC1;//×îºó·ÃÎÊÈÕÆÚ
 		temp[0x13] = 0x54;
 
-		temp[0x16] = 0x06;//ä¿®æ”¹æ—¶é—´
+		temp[0x16] = 0x06;//ĞŞ¸ÄÊ±¼ä
 		temp[0x17] = 0x7A;
 
-		temp[0x18] = 0xC1;//ä¿®æ”¹æ—¥æœŸ
+		temp[0x18] = 0xC1;//ĞŞ¸ÄÈÕÆÚ
 		temp[0x19] = 0x54;
 
 		AddContentToCluster(node->FirstCluster, buffer, total_content_num * 32ull);
@@ -493,10 +500,10 @@ PAL_DS::Doublet <unsigned char*, Uint8 > FAT32::GetShortName(const char* name)
 			buffer[i] -= 32;
 		}
 	}
-	//1. æ­¤å€¼ä¸º18Hæ—¶ï¼Œæ–‡ä»¶åå’Œæ‰©å±•åéƒ½å°å†™ã€‚
-	//2. æ­¤å€¼ä¸º10Hæ—¶ï¼Œæ–‡ä»¶åå¤§å†™è€Œæ‰©å±•åå°å†™ã€‚
-	//3. æ­¤å€¼ä¸º08Hæ—¶ï¼Œæ–‡ä»¶åå°å†™è€Œæ‰©å±•åå¤§å†™ã€‚
-	//4. æ­¤å€¼ä¸º00Hæ—¶ï¼Œæ–‡ä»¶åå’Œæ‰©å±•åéƒ½å¤§å†™ã€‚
+	//1. ´ËÖµÎª18HÊ±£¬ÎÄ¼şÃûºÍÀ©Õ¹Ãû¶¼Ğ¡Ğ´¡£
+	//2. ´ËÖµÎª10HÊ±£¬ÎÄ¼şÃû´óĞ´¶øÀ©Õ¹ÃûĞ¡Ğ´¡£
+	//3. ´ËÖµÎª08HÊ±£¬ÎÄ¼şÃûĞ¡Ğ´¶øÀ©Õ¹Ãû´óĞ´¡£
+	//4. ´ËÖµÎª00HÊ±£¬ÎÄ¼şÃûºÍÀ©Õ¹Ãû¶¼´óĞ´¡£
 	if (have_ext)
 	{
 		if (!name_upper_case && !ext_upper_case)
@@ -635,6 +642,7 @@ PAL_DS::Doublet <unsigned char*, Uint64> FAT32::GetLongName(const char *name)
 }
 ErrorType FAT32::CreateFile(const char* path)
 {
+	CallingStackController csc("FAT32::CreateFile");
 	FAT32FileNode* node = (FAT32FileNode*)FindFileByPath(path);
 	if (node != nullptr)
 	{
@@ -665,26 +673,26 @@ ErrorType FAT32::CreateFile(const char* path)
 
 		Uint32 cluster = GetFreeClusterAndPlusOne();
 
-		buffer[0x14] = (cluster & 0x00FF0000) >> 16;//è®¾ç½®æ–‡ä»¶ç°‡å·
+		buffer[0x14] = (cluster & 0x00FF0000) >> 16;//ÉèÖÃÎÄ¼ş´ØºÅ
 		buffer[0x15] = (cluster & 0xFF000000) >> 24;
 		buffer[0x1A] = cluster & 0x000000FF;
 		buffer[0x1B] = (cluster & 0x0000FF00) >> 8;
 
-		buffer[0x0D] = 0xB6;//åˆ›å»ºæ—¶é—´10msçš„å€¼
-		buffer[0x0E] = 0x05;//åˆ›å»ºæ—¶é—´
+		buffer[0x0D] = 0xB6;//´´½¨Ê±¼ä10msµÄÖµ
+		buffer[0x0E] = 0x05;//´´½¨Ê±¼ä
 		buffer[0x0F] = 0x7A;
 
-		buffer[0x10] = 0xC1;//åˆ›å»ºæ—¥æœŸ
+		buffer[0x10] = 0xC1;//´´½¨ÈÕÆÚ
 		buffer[0x11] = 0x54;
 
-		buffer[0x12] = 0xC1;//æœ€åè®¿é—®æ—¥æœŸ
+		buffer[0x12] = 0xC1;//×îºó·ÃÎÊÈÕÆÚ
 		buffer[0x13] = 0x54;
 
 
-		buffer[0x16] = 0x06;//ä¿®æ”¹æ—¶é—´
+		buffer[0x16] = 0x06;//ĞŞ¸ÄÊ±¼ä
 		buffer[0x17] = 0x7A;
 
-		buffer[0x18] = 0xC1;//ä¿®æ”¹æ—¥æœŸ
+		buffer[0x18] = 0xC1;//ĞŞ¸ÄÈÕÆÚ
 		buffer[0x19] = 0x54;
 
 		AddContentToCluster(node->FirstCluster, buffer, 32ull);
@@ -706,26 +714,26 @@ ErrorType FAT32::CreateFile(const char* path)
 		unsigned char* temp = buffer + (total_content_num - 1)*32;
 		Uint32 cluster = GetFreeClusterAndPlusOne();
 
-		temp[0x14] = (cluster & 0x00FF0000) >> 16;//è®¾ç½®æ–‡ä»¶ç°‡å·
+		temp[0x14] = (cluster & 0x00FF0000) >> 16;//ÉèÖÃÎÄ¼ş´ØºÅ
 		temp[0x15] = (cluster & 0xFF000000) >> 24;
 		temp[0x1A] = cluster & 0x000000FF;
 		temp[0x1B] = (cluster & 0x0000FF00) >> 8;
 
-		temp[0x0D] = 0xB6;//åˆ›å»ºæ—¶é—´10msçš„å€¼
+		temp[0x0D] = 0xB6;//´´½¨Ê±¼ä10msµÄÖµ
 
-		temp[0x0E] = 0x05;//åˆ›å»ºæ—¶é—´
+		temp[0x0E] = 0x05;//´´½¨Ê±¼ä
 		temp[0x0F] = 0x7A;
 
-		temp[0x10] = 0xC1;//åˆ›å»ºæ—¥æœŸ
+		temp[0x10] = 0xC1;//´´½¨ÈÕÆÚ
 		temp[0x11] = 0x54;
 
-		temp[0x12] = 0xC1;//æœ€åè®¿é—®æ—¥æœŸ
+		temp[0x12] = 0xC1;//×îºó·ÃÎÊÈÕÆÚ
 		temp[0x13] = 0x54;
 
-		temp[0x16] = 0x06;//ä¿®æ”¹æ—¶é—´
+		temp[0x16] = 0x06;//ĞŞ¸ÄÊ±¼ä
 		temp[0x17] = 0x7A;
 
-		temp[0x18] = 0xC1;//ä¿®æ”¹æ—¥æœŸ
+		temp[0x18] = 0xC1;//ĞŞ¸ÄÈÕÆÚ
 		temp[0x19] = 0x54;
 
 		AddContentToCluster(node->FirstCluster, buffer, total_content_num * 32ull);
@@ -771,10 +779,10 @@ ErrorType FAT32::Close(FileNode* p)
 {
 	return 0;
 }
-FileNode* FAT32::LoadShortFileInfoFromBuffer(unsigned char * buffer) //ä»ç¬¬lbaæ‰‡åŒºåç§»offsetçš„ä½ç½®è¯»å–æ–‡ä»¶å¤´ä¿¡æ¯
+FileNode* FAT32::LoadShortFileInfoFromBuffer(unsigned char * buffer) //´ÓµÚlbaÉÈÇøÆ«ÒÆoffsetµÄÎ»ÖÃ¶ÁÈ¡ÎÄ¼şÍ·ĞÅÏ¢
 {
 	
-	if (buffer[0] == 0x00 || buffer[0] == 0xE5)//å¦‚æœè¿™ä¸ªä½ç½®å·²ç»è¢«åˆ é™¤æˆ–æ²¡æœ‰æ•°æ®åˆ™è¿”å›Null
+	if (buffer[0] == 0x00 || buffer[0] == 0xE5)//Èç¹ûÕâ¸öÎ»ÖÃÒÑ¾­±»É¾³ı»òÃ»ÓĞÊı¾İÔò·µ»ØNull
 	{
 		return nullptr;
 	}
@@ -788,7 +796,7 @@ FileNode* FAT32::LoadShortFileInfoFromBuffer(unsigned char * buffer) //ä»ç¬¬lba
 	node->IsDir = attr & (1 << 4);
 	if (node->IsDir)
 		node->Attributes |= FileNode::A_Dir;
-	Uint16 file_name_length = 0; //è·å–æ–‡ä»¶å
+	Uint16 file_name_length = 0; //»ñÈ¡ÎÄ¼şÃû
 	for (int i = 0; i < 8; i++)
 	{
 		
@@ -802,7 +810,7 @@ FileNode* FAT32::LoadShortFileInfoFromBuffer(unsigned char * buffer) //ä»ç¬¬lba
 	Uint16 extend_name_length = 0;
 	unsigned char* file_name;
 	int total_length;
-	for (int i = 0x08; i < 0x0B; i++)//è¯»å–æ‹“å±•å
+	for (int i = 0x08; i < 0x0B; i++)//¶ÁÈ¡ÍØÕ¹Ãû
 	{
 		if (buffer[i] == 0x20)
 		{
@@ -810,7 +818,7 @@ FileNode* FAT32::LoadShortFileInfoFromBuffer(unsigned char * buffer) //ä»ç¬¬lba
 		}
 		extend_name_length++;
 	}
-	if (!node->IsDir&&extend_name_length!=0)//ä¸æ˜¯æ–‡ä»¶å¤¹ï¼Œä¸”æœ‰æ‹“å±•å
+	if (!node->IsDir&&extend_name_length!=0)//²»ÊÇÎÄ¼ş¼Ğ£¬ÇÒÓĞÍØÕ¹Ãû
 	{
 		
 		total_length = file_name_length + extend_name_length + 1;
@@ -825,11 +833,11 @@ FileNode* FAT32::LoadShortFileInfoFromBuffer(unsigned char * buffer) //ä»ç¬¬lba
 		file_name = new unsigned char[total_length + 1];
 		POS::MemcpyT(file_name, buffer, file_name_length);
 	}
-
-	//1. æ­¤å€¼ä¸º18Hæ—¶ï¼Œæ–‡ä»¶åå’Œæ‰©å±•åéƒ½å°å†™ã€‚
-	//2. æ­¤å€¼ä¸º10Hæ—¶ï¼Œæ–‡ä»¶åå¤§å†™è€Œæ‰©å±•åå°å†™ã€‚
-	//3. æ­¤å€¼ä¸º08Hæ—¶ï¼Œæ–‡ä»¶åå°å†™è€Œæ‰©å±•åå¤§å†™ã€‚
-	//4. æ­¤å€¼ä¸º00Hæ—¶ï¼Œæ–‡ä»¶åå’Œæ‰©å±•åéƒ½å¤§å†™ã€‚
+	
+	//1. ´ËÖµÎª18HÊ±£¬ÎÄ¼şÃûºÍÀ©Õ¹Ãû¶¼Ğ¡Ğ´¡£
+	//2. ´ËÖµÎª10HÊ±£¬ÎÄ¼şÃû´óĞ´¶øÀ©Õ¹ÃûĞ¡Ğ´¡£
+	//3. ´ËÖµÎª08HÊ±£¬ÎÄ¼şÃûĞ¡Ğ´¶øÀ©Õ¹Ãû´óĞ´¡£
+	//4. ´ËÖµÎª00HÊ±£¬ÎÄ¼şÃûºÍÀ©Õ¹Ãû¶¼´óĞ´¡£
 
 	if (buffer[0x0C] == 0x08 || buffer[0x0C] == 0x18)
 	{
@@ -852,12 +860,12 @@ FileNode* FAT32::LoadShortFileInfoFromBuffer(unsigned char * buffer) //ä»ç¬¬lba
 		}
 	}
 	file_name[total_length] = '\0';
-
+	
 	node->SetFileName((char*)file_name,false);
 	node->nxt = nullptr;
-	node->FileSize = (buffer[0x1F] << 24) | (buffer[0x1E] << 16) | (buffer[0x1D] << 8) | (buffer[0x1C]);//è·å–æ–‡ä»¶å¤§å°
+	node->FileSize = (buffer[0x1F] << 24) | (buffer[0x1E] << 16) | (buffer[0x1D] << 8) | (buffer[0x1C]);//»ñÈ¡ÎÄ¼ş´óĞ¡
 	node->FirstCluster = (buffer[0x15] << 24) | (buffer[0x14] << 16) | (buffer[0x1B] << 8) | (buffer[0x1A]);
-	delete [] file_name; //ç§»æ¤çš„æ—¶å€™è®°å¾—åŠ ä¸Š
+	delete [] file_name; //ÒÆÖ²µÄÊ±ºò¼ÇµÃ¼ÓÉÏ
 	return node;
 
 }
@@ -893,10 +901,10 @@ char* FAT32::MergeLongNameAndToUtf8(Uint32* unicode[], Uint32 cnt)
 }
 Uint64 FAT32::GetLbaFromCluster(Uint64 cluster)
 {
+	CALLINGSTACK
 	return RootLba + (cluster - 2)*Dbr.BPBSectorPerClus;
-
 }
-Uint64 FAT32::GetSectorOffsetFromlba(Uint64 lba)//å½“å‰lbaæ˜¯æ‰€å±ç°‡çš„ç¬¬å‡ ä¸ªæ‰‡åŒº
+Uint64 FAT32::GetSectorOffsetFromlba(Uint64 lba)//µ±Ç°lbaÊÇËùÊô´ØµÄµÚ¼¸¸öÉÈÇø
 {
 	lba -= RootLba;
 	if (lba < 0)
@@ -907,24 +915,73 @@ Uint64 FAT32::GetSectorOffsetFromlba(Uint64 lba)//å½“å‰lbaæ˜¯æ‰€å±ç°‡çš„ç¬¬å‡ 
 	return lba / Dbr.BPBSectorPerClus;
 }
 
+//FileNode* FAT32::GetFileNodesFromCluster(Uint64 cluster) // cluster¶ÔÓ¦µÄÊÇÄ¿Â¼Ïî
+//{
+//	FAT32FileNode* head = nullptr,* cur = nullptr;
+//	Uint64 lba = GetLbaFromCluster(cluster);
+//	for (Uint32 i = 0; i < Dbr.BPBSectionPerClus; i++)
+//	{
+//		unsigned char buffer[SECTORSIZE];
+//		ReadRawData(lba+i, 0, 512, buffer);
+//		for (Uint32 j = 0; j < SECTORSIZE / 32; j++)
+//		{
+//			unsigned char temp[32];
+//			POS::MemcpyT(temp, buffer + j * 32, 32);
+//			Uint16 attr = temp[11];
+//			if (attr == 0x0F)//³¤Ä¿Â¼Ïî
+//			{
+//
+//			}
+//			else //¶ÌÄ¿Â¼Ïî
+//			{
+//				FAT32FileNode* p = (FAT32FileNode*)LoadShortFileInfoFromBuffer(temp);
+//				if (p == nullptr)
+//				{
+//					continue;
+//				}
+//				
+//				if (head == nullptr)
+//				{
+//					head = p;
+//					cur = head;
+//					cur->nxt = nullptr;
+//				}
+//				else
+//				{
+//					cur->nxt = (FAT32FileNode*)LoadShortFileInfoFromBuffer(temp);
+//					cur = cur->nxt;
+//					cur->nxt = nullptr;
+//				}
+//			}
+//		}
+//	}
+//	Uint64 nxt = GetFATContentFromCluster(cluster);
+//	if (nxt != CLUSTEREND)
+//	{
+//
+//	}
+//	return head;
+//	
+//}
 Uint32 FAT32::GetFATContentFromCluster(Uint32 cluster)
 {
-	Uint64 lba = FAT1Lba + (Uint64)cluster * 4 / SECTORSIZE;//å¯¹åº”æ‰‡åŒºlba
+	CALLINGSTACK
+	Uint64 lba = FAT1Lba + (Uint64)cluster * 4 / SECTORSIZE;//¶ÔÓ¦ÉÈÇølba
 	Uint64 offset = ((Uint64)cluster * 4) % SECTORSIZE;
 	unsigned char buffer[4];
 	ReadRawData(lba, offset, 4, buffer);
-	if (0xf8<=buffer[0] && buffer[0]<= 0xfe) 
-		buffer[0]=0xff;
+//	if (buffer[0]==0xf8) //Need fix...
+//		buffer[0]=0xff;
 	return ((Uint64)buffer[3] << 24) | ((Uint64)buffer[2] << 16) | ((Uint64)buffer[1] <<8) | buffer[0];
 }
-ErrorType FAT32::SetFATContentFromCluster(Uint32 cluster, Uint32 content)//è®¾ç½®clusterå¯¹åº”çš„FATè¡¨ä¸­å†…å®¹ä¸ºcontent(è‡ªåŠ¨å°†contentè½¬æ¢ä¸ºå¤§ç«¯)
+ErrorType FAT32::SetFATContentFromCluster(Uint32 cluster, Uint32 content)//ÉèÖÃcluster¶ÔÓ¦µÄFAT±íÖĞÄÚÈİÎªcontent(×Ô¶¯½«content×ª»»Îª´ó¶Ë)
 {
 	unsigned char buffer[4];
 	buffer[0] = content & 0x000000FF;
 	buffer[1] = (content & 0x0000FF00) >> 8;
 	buffer[2] = (content & 0x00FF0000) >> 16;
 	buffer[3] = (content & 0xFF000000) >> 24;
-	Uint64 lba = FAT1Lba + (Uint64)cluster * 4ull / SECTORSIZE;//å¯¹åº”æ‰‡åŒºlba
+	Uint64 lba = FAT1Lba + (Uint64)cluster * 4ull / SECTORSIZE;//¶ÔÓ¦ÉÈÇølba
 	Uint64 offset = ((Uint64)cluster * 4ull) % SECTORSIZE;
 	return WriteRawData(lba, offset, 4, buffer);
 }
@@ -932,13 +989,13 @@ FileNode* FAT32::FindFileByNameFromCluster(Uint32 cluster, const char* name)
 {
 	FAT32FileNode* result;
 	
-	Uint64 lba = GetLbaFromCluster(cluster);
 
-	int long_name_cnt = 0;//é•¿æ–‡ä»¶åè®¡æ•°
-	Uint32* long_name[100];//å­˜å‚¨é•¿æ–‡ä»¶å
+	int long_name_cnt = 0;//³¤ÎÄ¼şÃû¼ÆÊı
+	Uint32* long_name[100];//´æ´¢³¤ÎÄ¼şÃû
 
-	while (cluster != CLUSTEREND)
+	while (!IsClusterEnd(cluster))
 	{
+		Uint64 lba = GetLbaFromCluster(cluster);
 		for (Uint32 i = 0; i < Dbr.BPBSectorPerClus; i++)
 		{
 			unsigned char buffer[SECTORSIZE];
@@ -947,19 +1004,19 @@ FileNode* FAT32::FindFileByNameFromCluster(Uint32 cluster, const char* name)
 			{
 				unsigned char temp[32];
 				POS::MemcpyT(temp, buffer + j * 32, 32);
-				if (temp[0] == 0x00) //é‡åˆ°ç›®å½•ç»“å°¾
+				if (temp[0] == 0x00) //Óöµ½Ä¿Â¼½áÎ²
 				{
 					return nullptr;
 				}
 				Uint16 attr = temp[11];
-				if (attr == 0x0F)//é•¿ç›®å½•é¡¹
+				if (attr == 0x0F)//³¤Ä¿Â¼Ïî
 				{
 					Uint32* temp_long_name = new Uint32[13];
 					LoadLongFileNameFromBuffer(temp, temp_long_name);
 					long_name[long_name_cnt] = temp_long_name;
 					long_name_cnt++;
 				}
-				else //çŸ­ç›®å½•é¡¹
+				else //¶ÌÄ¿Â¼Ïî
 				{
 					result = (FAT32FileNode*)LoadShortFileInfoFromBuffer(temp);
 					
@@ -974,7 +1031,7 @@ FileNode* FAT32::FindFileByNameFromCluster(Uint32 cluster, const char* name)
 					}
 					result->ContentLba = lba + i;
 					result->ContentOffset = j * 32;
-					if (long_name_cnt) //å¦‚æœæ˜¯é•¿ç›®å½•å¯¹åº”çš„çŸ­ç›®å½•
+					if (long_name_cnt) //Èç¹ûÊÇ³¤Ä¿Â¼¶ÔÓ¦µÄ¶ÌÄ¿Â¼
 					{
 						char* long_full_name = MergeLongNameAndToUtf8(long_name, long_name_cnt);
 						result->SetFileName(long_full_name,false);
@@ -1018,16 +1075,16 @@ FileNode* FAT32::FindFileByPath(const char* path)
 	}
 	if (POS::strLen(path) == 1)
 	{
-		FAT32FileNode* node = new FAT32FileNode(this, 2,GetLbaFromCluster(2),0);
+		FAT32FileNode* node = new FAT32FileNode(this, 2,GetLbaFromCluster(2),0);//Need fix...
 		node->IsDir = true;
 		node->Attributes |= FileNode::A_Dir;
 		return node;
 	}
 
 
-	FAT32FileNode* node = new FAT32FileNode(this, 2,GetLbaFromCluster(2),0);
-	Uint64 index, last_index = 1;
- 	for (index= 1; index < POS::strLen(path); index++)
+	FAT32FileNode* node = new FAT32FileNode(this, 2,GetLbaFromCluster(2),0);//Need fix...
+	Uint64 index, last_index = 1,pathlen=POS::strLen(path);
+ 	for (index= 1; index < pathlen; index++)
 	{
 		if (path[index] == '/')
 		{
@@ -1049,7 +1106,7 @@ FileNode* FAT32::FindFileByPath(const char* path)
 				return nullptr;
 			}
 			
-			if (index != POS::strLen(path) && node->IsDir == false)
+			if (index != pathlen && node->IsDir == false)
 			{
 				delete node;
 				return nullptr;
@@ -1057,11 +1114,11 @@ FileNode* FAT32::FindFileByPath(const char* path)
 			last_index = index + 1;
 		}
 	}
-	if (last_index < POS::strLen(path)) //æœ€åä¸€ä¸ªsection
+	if (last_index < pathlen) //×îºóÒ»¸ösection
 	{
-		char* temp = new char[(Uint32)(POS::strLen(path)- last_index + 1)];
-		POS::MemcpyT(temp, path + last_index, POS::strLen(path) - last_index);
-		temp[POS::strLen(path) - last_index] = '\0';
+		char* temp = new char[(Uint32)(pathlen- last_index + 1)];
+		POS::MemcpyT(temp, path + last_index, pathlen - last_index);
+		temp[pathlen - last_index] = '\0';
 		FAT32FileNode* last_node = node;
 		node = (FAT32FileNode*)FindFileByNameFromCluster(node->FirstCluster, temp);
 		delete[] temp;
@@ -1074,7 +1131,7 @@ bool FAT32::IsExist(const char* path)
 	return FindFileByPath(path) != nullptr;
 }
 
-Uint32 FAT32::GetFreeClusterAndPlusOne()//è¿”å›ä¸€ä¸ªç©ºé—²ç°‡çš„ç°‡å·
+Uint32 FAT32::GetFreeClusterAndPlusOne()//·µ»ØÒ»¸ö¿ÕÏĞ´ØµÄ´ØºÅ
 {
 	unsigned char buffer[8];
 	ReadRawData(DBRLba + 1ull,0x1E8,8,buffer);
@@ -1096,14 +1153,14 @@ Uint32 FAT32::GetFreeClusterAndPlusOne()//è¿”å›ä¸€ä¸ªç©ºé—²ç°‡çš„ç°‡å·
 
 	WriteRawData(DBRLba + 1,0x1E8, 8, buffer);
 
-	SetFATContentFromCluster(free_cluster, CLUSTEREND);
+	SetFATContentFromCluster(free_cluster, ClusterEndFlag);
 	return free_cluster;
 }
-PAL_DS::Doublet<Uint64, Uint64> FAT32::GetContentLbaAndOffsetFromPath()//å¾—åˆ°æ–‡ä»¶æ‰€åœ¨ç›®å½•é¡¹çš„ä½ç½®ï¼Œä¾‹å¦‚è¦åˆ é™¤æ–‡ä»¶å°±è¦æŠŠæ–‡ä»¶å¯¹åº”ç›®å½•é¡¹è®¾ç½®ä¸ºE5
+PAL_DS::Doublet<Uint64, Uint64> FAT32::GetContentLbaAndOffsetFromPath()//µÃµ½ÎÄ¼şËùÔÚÄ¿Â¼ÏîµÄÎ»ÖÃ£¬ÀıÈçÒªÉ¾³ıÎÄ¼ş¾ÍÒª°ÑÎÄ¼ş¶ÔÓ¦Ä¿Â¼ÏîÉèÖÃÎªE5
 {
 	return PAL_DS::Doublet<Uint64, Uint64>(0,0);
 }
-PAL_DS::Triplet<Uint32, Uint64,Uint64> FAT32::GetFreeClusterAndLbaAndOffsetFromCluster(Uint32 cluster)//å¾—åˆ°ç›®å½•clusterä¸­ä¸‹ä¸€ä¸ªç©ºç™½çš„ä½ç½®ç”¨äºæ”¾ç½®ç›®å½•é¡¹
+PAL_DS::Triplet<Uint32, Uint64,Uint64> FAT32::GetFreeClusterAndLbaAndOffsetFromCluster(Uint32 cluster)//µÃµ½Ä¿Â¼clusterÖĞÏÂÒ»¸ö¿Õ°×µÄÎ»ÖÃÓÃÓÚ·ÅÖÃÄ¿Â¼Ïî
 {
 	while (true)
 	{
@@ -1122,11 +1179,11 @@ PAL_DS::Triplet<Uint32, Uint64,Uint64> FAT32::GetFreeClusterAndLbaAndOffsetFromC
 		}
 		Uint32 last_cluster = cluster;
 		cluster = GetFATContentFromCluster(cluster);
-		if (cluster == CLUSTEREND)
+		if (IsClusterEnd(cluster))
 		{
 			cluster = GetFreeClusterAndPlusOne();
 			SetFATContentFromCluster(last_cluster, cluster);
-			SetFATContentFromCluster(cluster, CLUSTEREND);
+			SetFATContentFromCluster(cluster, ClusterEndFlag);
 			return PAL_DS::Triplet<Uint32, Uint64, Uint64>(cluster,GetLbaFromCluster(cluster), 0);;
 		}
 	}
@@ -1138,7 +1195,7 @@ ErrorType FAT32::AddContentToCluster(Uint32 _cluster, unsigned char* buffer, Uin
 	Triplet <Uint32, Uint64,Uint64> cluster_lba_offset = GetFreeClusterAndLbaAndOffsetFromCluster(_cluster);
 	Uint32 cluster = cluster_lba_offset.a;
 	Uint64 lba = cluster_lba_offset.b, offset = cluster_lba_offset.c;
-	if (size % 32 != 0)//ç›®å½•é¡¹å¿…é¡»æ˜¯32çš„å€æ•°
+	if (size % 32 != 0)//Ä¿Â¼Ïî±ØĞëÊÇ32µÄ±¶Êı
 	{
 		return ERR_InvalidParameter;
 	}
@@ -1159,11 +1216,11 @@ ErrorType FAT32::AddContentToCluster(Uint32 _cluster, unsigned char* buffer, Uin
 		{
 			Uint32 last_cluster = cluster;
 			cluster = GetFATContentFromCluster(cluster);
-			if (cluster == CLUSTEREND)
+			if (IsClusterEnd(cluster))
 			{
 				cluster = GetFreeClusterAndPlusOne();
 				SetFATContentFromCluster(last_cluster, cluster);
-				SetFATContentFromCluster(cluster, CLUSTEREND);
+				SetFATContentFromCluster(cluster, ClusterEndFlag);
 				lba = GetLbaFromCluster(cluster);
 			}
 		}
@@ -1175,7 +1232,7 @@ ErrorType FAT32::AddContentToCluster(Uint32 _cluster, unsigned char* buffer, Uin
 unsigned char FAT32::CheckSum(unsigned char* data)
 {
 	short name_len;
-	unsigned char sum;  //å¿…é¡»ä¸ºæ— ç¬¦å·å‹.
+	unsigned char sum;  //±ØĞëÎªÎŞ·ûºÅĞÍ.
 
 	sum = 0;
 	for (name_len = 11; name_len != 0; name_len--) {

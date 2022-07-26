@@ -196,6 +196,7 @@ class VirtualMemorySpace;
 class VirtualMemoryRegion:public POS::LinkTableT <VirtualMemoryRegion>
 {
 	friend class VirtualMemorySpace;
+	friend void KernelFaultSolver();
 	public:
 		enum:Uint32
 		{
@@ -245,6 +246,9 @@ class VirtualMemoryRegion:public POS::LinkTableT <VirtualMemoryRegion>
 			return re;
 		}
 		
+		inline void Memset0()
+		{POS::MemsetT<char>((char*)Start,0,End-Start);}
+		
 		inline bool Intersect(PtrInt l,PtrInt r) const
 		{return r>Start&&End>l;}
 		
@@ -270,6 +274,7 @@ class Process;
 
 class VirtualMemorySpace:protected SpinLock
 {
+	friend void KernelFaultSolver();
 	public:
 		enum
 		{

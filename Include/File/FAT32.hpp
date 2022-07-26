@@ -2,14 +2,19 @@
 #define POS_FAT32_HPP
 
 #include "FileSystem.hpp"
-#include "../HAL/Drivers/_sdcard.h"
+//#include "../HAL/Drivers/_sdcard.h"
 #include <Library/TemplateTools.hpp>
 #include <Library/DataStructure/PAL_Tuple.hpp>
+#include "../HAL/Disk.hpp"
 
 //#undef CreateFile
 //#undef CreateDirectory
 const Uint64 SECTORSIZE = 512;
-const Uint64 CLUSTEREND = 0x0FFFFFFF;
+//const Uint64 CLUSTEREND = 0x0FFFFFFF;
+constexpr Uint64 ClusterEndFlag=0x0FFFFFFF;
+
+inline bool IsClusterEnd(Uint64 cluster)
+{return POS::InRange(cluster,0x0FFFFFF8,0x0FFFFFFF);}
 
 class StorageDevice {
 	
@@ -25,11 +30,13 @@ public:
 	{
 		return ERR_None;;
 	}
-	ErrorType Read(Uint64 lba, unsigned char* buffer)
+	ErrorType Read(Uint64 lba, unsigned char* buffer)//Need improve: replace buffer with Sector
 	{
+		CallingStackController csc("DeviceRead");
 //		using namespace POS;
 //		kout[Debug]<<"ReadLBA "<<lba<<endl;
-		sdcard_read_sector((Sector*)buffer,lba);
+//		sdcard_read_sector((Sector*)buffer,lba);
+		DiskReadSector(lba,(Sector*)buffer);
 //		kout[Debug]<<"ReadLBA OK"<<endl;
 		return ERR_None;
 	}
@@ -37,7 +44,8 @@ public:
 	{
 //		using namespace POS;
 //		kout[Debug]<<"WriteLBA "<<lba<<endl;
-		sdcard_write_sector((Sector*)buffer,lba);
+//		sdcard_write_sector((Sector*)buffer,lba);
+		DiskReadSector(lba,(Sector*)buffer);
 //		kout[Debug]<<"WriteLBA OK"<<endl;
 		return ERR_None;
 	}
@@ -45,11 +53,11 @@ public:
 class VirtualFileSystem;
 
 struct DBR {
-	Uint32 BPB_RsvdSectorNum;  //ä¿ç•™æ‰‡åŒºæ•°â½¬ 
-	Uint32 BPB_FATNum;   //æ­¤å·ä¸­FATè¡¨æ•° 
-	Uint32 BPB_SectorPerFATArea;   //â¼€ä¸ªFATè¡¨æ‰‡åŒºæ•° 
-	Uint32 BPB_HidenSectorNum; //éšè—æ‰‡åŒºæ•°
-	Uint64 BPBSectorPerClus;//æ¯ä¸ªç°‡æœ‰å¤šå°‘ä¸ªæ‰‡åŒº
+	Uint32 BPB_RsvdSectorNum;  //±£ÁôÉÈÇøÊı? 
+	Uint32 BPB_FATNum;   //´Ë¾íÖĞFAT±íÊı 
+	Uint32 BPB_SectorPerFATArea;   //?¸öFAT±íÉÈÇøÊı 
+	Uint32 BPB_HidenSectorNum; //Òş²ØÉÈÇøÊı
+	Uint64 BPBSectorPerClus;//Ã¿¸ö´ØÓĞ¶àÉÙ¸öÉÈÇø
 };
 //class ShortContent {
 //	unsigned char buffer[32];
@@ -81,7 +89,7 @@ public:
 	DBR Dbr;
 	Uint64 FAT1Lba;
 	Uint64 FAT2Lba;
-	Uint64 RootLba;//æ•°æ®åŒº(æ ¹ç›®å½•)èµ·å§‹lba
+	Uint64 RootLba;//Êı¾İÇø(¸ùÄ¿Â¼)ÆğÊ¼lba
 	FAT32Device device;
 
 
@@ -90,25 +98,25 @@ public:
 	ErrorType LoadLongFileNameFromBuffer(unsigned char* buffer,Uint32* name);
 	char*  MergeLongNameAndToUtf8(Uint32* buffer[], Uint32 cnt);
 	Uint64 GetLbaFromCluster(Uint64 cluster);
-	Uint64 GetSectorOffsetFromlba(Uint64 lba);//å½“å‰lbaæ˜¯æ‰€å±ç°‡çš„ç¬¬å‡ ä¸ªæ‰‡åŒº
+	Uint64 GetSectorOffsetFromlba(Uint64 lba);//µ±Ç°lbaÊÇËùÊô´ØµÄµÚ¼¸¸öÉÈÇø
 
-	//FileNode * GetFileNodesFromCluster(Uint64 cluster);//è¯»å–clusterå¼€å§‹çš„ç›®å½•å¯¹åº”çš„æ‰€æœ‰ç›®å½•é¡¹
+	//FileNode * GetFileNodesFromCluster(Uint64 cluster);//¶ÁÈ¡cluster¿ªÊ¼µÄÄ¿Â¼¶ÔÓ¦µÄËùÓĞÄ¿Â¼Ïî
 
-	Uint32 GetFATContentFromCluster(Uint32 cluster);//è¯»å–clusterå¯¹åº”çš„FATè¡¨ä¸­å†…å®¹(è‡ªåŠ¨å°†è¯»å–çš„å†…å®¹è½¬æ¢ä¸ºå°ç«¯)
-	ErrorType SetFATContentFromCluster(Uint32 cluster,Uint32 content);//è®¾ç½®clusterå¯¹åº”çš„FATè¡¨ä¸­å†…å®¹ä¸ºcontent(è‡ªåŠ¨å°†contentè½¬æ¢ä¸ºå¤§ç«¯)
-	ErrorType ReadRawData(Uint64 lba, Uint64 offset, Uint64 size, unsigned char* buffer);//ä»lbaåç§»offsetå­—èŠ‚çš„ä½ç½®è¯»å–sizeå­—èŠ‚å¤§å°çš„æ•°æ®
+	Uint32 GetFATContentFromCluster(Uint32 cluster);//¶ÁÈ¡cluster¶ÔÓ¦µÄFAT±íÖĞÄÚÈİ(×Ô¶¯½«¶ÁÈ¡µÄÄÚÈİ×ª»»ÎªĞ¡¶Ë)
+	ErrorType SetFATContentFromCluster(Uint32 cluster,Uint32 content);//ÉèÖÃcluster¶ÔÓ¦µÄFAT±íÖĞÄÚÈİÎªcontent(×Ô¶¯½«content×ª»»Îª´ó¶Ë)
+	ErrorType ReadRawData(Uint64 lba, Uint64 offset, Uint64 size, unsigned char* buffer);//´ÓlbaÆ«ÒÆoffset×Ö½ÚµÄÎ»ÖÃ¶ÁÈ¡size×Ö½Ú´óĞ¡µÄÊı¾İ
 	ErrorType WriteRawData(Uint64 lba, Uint64 offset, Uint64 size, unsigned char* buffer);
-	FileNode* FindFileByNameFromCluster(Uint32 cluster, const char* name);//ä»clusterå¯»æ‰¾ä¸€ä¸ªfileï¼Œclusterå¯¹åº”çš„å¿…é¡»æ˜¯ç›®å½•é¡¹æ‰€åœ¨çš„ä½ç½®
+	FileNode* FindFileByNameFromCluster(Uint32 cluster, const char* name);//´ÓclusterÑ°ÕÒÒ»¸öfile£¬cluster¶ÔÓ¦µÄ±ØĞëÊÇÄ¿Â¼ÏîËùÔÚµÄÎ»ÖÃ
 	FileNode* FindFileByPath(const char* path);
 	bool IsExist(const char* path);
 	bool IsShortContent(const char* name);
 	PAL_DS::Doublet <unsigned char*,Uint8 > GetShortName(const char*);
 	PAL_DS::Doublet <unsigned char*, Uint64> GetLongName(const char *);
-	Uint32 GetFreeClusterAndPlusOne();//è¿”å›ä¸€ä¸ªç©ºé—²ç°‡çš„ç°‡å·ï¼Œå¹¶ä¸”æŠŠè¿™ä¸ªå€¼åŠ 1
+	Uint32 GetFreeClusterAndPlusOne();//·µ»ØÒ»¸ö¿ÕÏĞ´ØµÄ´ØºÅ£¬²¢ÇÒ°ÑÕâ¸öÖµ¼Ó1
 	ErrorType AddContentToCluster(Uint32 cluster,unsigned char * buffer,Uint64 size);
-	//åœ¨clusteræ‰€åœ¨çš„ä½ç½®æ‰¾åˆ°ä¸€ä¸ªç©ºçš„ä½ç½®ï¼Œå†™å…¥bufferé‡Œé¢çš„å†…å®¹ï¼Œå¤§å°ä¸ºsizeï¼Œå¦‚æœä¸å¤Ÿäº†ä¼šè‡ªåŠ¨å¼€æ–°çš„ç°‡
-	PAL_DS::Doublet<Uint64,Uint64> GetContentLbaAndOffsetFromPath();//å¾—åˆ°æ–‡ä»¶æ‰€åœ¨ç›®å½•é¡¹çš„ä½ç½®ï¼Œä¾‹å¦‚è¦åˆ é™¤æ–‡ä»¶å°±è¦æŠŠæ–‡ä»¶å¯¹åº”ç›®å½•é¡¹è®¾ç½®ä¸ºE5
-	PAL_DS::Triplet<Uint32, Uint64,Uint64>  GetFreeClusterAndLbaAndOffsetFromCluster(Uint32 cluster);//å¾—åˆ°ç›®å½•clusterä¸­ä¸‹ä¸€ä¸ªç©ºç™½çš„ä½ç½®ç”¨äºæ”¾ç½®ç›®å½•é¡¹
+	//ÔÚclusterËùÔÚµÄÎ»ÖÃÕÒµ½Ò»¸ö¿ÕµÄÎ»ÖÃ£¬Ğ´ÈëbufferÀïÃæµÄÄÚÈİ£¬´óĞ¡Îªsize£¬Èç¹û²»¹»ÁË»á×Ô¶¯¿ªĞÂµÄ´Ø
+	PAL_DS::Doublet<Uint64,Uint64> GetContentLbaAndOffsetFromPath();//µÃµ½ÎÄ¼şËùÔÚÄ¿Â¼ÏîµÄÎ»ÖÃ£¬ÀıÈçÒªÉ¾³ıÎÄ¼ş¾ÍÒª°ÑÎÄ¼ş¶ÔÓ¦Ä¿Â¼ÏîÉèÖÃÎªE5
+	PAL_DS::Triplet<Uint32, Uint64,Uint64>  GetFreeClusterAndLbaAndOffsetFromCluster(Uint32 cluster);//µÃµ½Ä¿Â¼clusterÖĞÏÂÒ»¸ö¿Õ°×µÄÎ»ÖÃÓÃÓÚ·ÅÖÃÄ¿Â¼Ïî
 	unsigned char CheckSum(unsigned char* data);
 
 public:
@@ -123,16 +131,16 @@ class FAT32FileNode :public FileNode {
 	friend class FAT32;
 public:
 
-	Uint32 FirstCluster; //èµ·å§‹ç°‡å·
+	Uint32 FirstCluster; //ÆğÊ¼´ØºÅ
 	FAT32FileNode* nxt;
-	bool IsDir; //æ˜¯å¦æ˜¯æ–‡ä»¶å¤¹
-	Uint64 ReadSize;//å·²ç»è¯»å–çš„æ•°æ®å¤§å°
-	Uint64 ContentLba;//ç›®å½•é¡¹æ‰€åœ¨lba
-	Uint64 ContentOffset;//ç›®å½•é¡¹æ‰€åœ¨åç§»
+	bool IsDir; //ÊÇ·ñÊÇÎÄ¼ş¼Ğ
+	Uint64 ReadSize;//ÒÑ¾­¶ÁÈ¡µÄÊı¾İ´óĞ¡
+	Uint64 ContentLba;//Ä¿Â¼ÏîËùÔÚlba
+	Uint64 ContentOffset;//Ä¿Â¼ÏîËùÔÚÆ«ÒÆ
 
 	virtual Sint64 Read(void* dst, Uint64 pos, Uint64 size) override;
 	virtual Sint64 Write(void* src, Uint64 pos, Uint64 size) override;
-	ErrorType SetSize(Uint32 size);//è®¾ç½®æ–‡ä»¶å¤§å°ï¼Œåªèƒ½ç¼©å°ï¼Œä¸èƒ½æ”¾å¤§
+	ErrorType SetSize(Uint32 size);//ÉèÖÃÎÄ¼ş´óĞ¡£¬Ö»ÄÜËõĞ¡£¬²»ÄÜ·Å´ó
 	PAL_DS::Doublet <Uint32, Uint64> GetCLusterAndLbaFromOffset(Uint64 offset);
 	FAT32FileNode(FAT32* _vfs,Uint32 cluster,Uint64 _ContentLba,Uint64 _ContentOffset);
 	~FAT32FileNode();

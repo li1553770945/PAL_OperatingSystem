@@ -9,8 +9,9 @@ UartFileNode *stdIO=nullptr;
 
 void VirtualFileSystemManager::AddNewNode(FileNode *p,FileNode *fa)
 {
+	ASSERTEX(p!=nullptr&&fa!=nullptr,"VirtualFileSystemManager::AddNewNode p "<<p<<" or fa "<<fa<<" is nullptr");
 	p->SetFa(fa);
-	//Do something else?
+	//Do something else? For example chech same name file?
 }
 
 FileNode* VirtualFileSystemManager::AddFileInVFS(FileNode *p,char *name)
@@ -62,6 +63,7 @@ FileNode* VirtualFileSystemManager::FindRecursive(FileNode *p,const char *path)
 
 PAL_DS::Doublet <VirtualFileSystem*,const char*> VirtualFileSystemManager::FindPathOfVFS(FileNode *p,const char *path)
 {
+	CALLINGSTACK;
 	if (*path==0)
 		return {nullptr,nullptr};
 	const char *s=path+1;
@@ -89,7 +91,7 @@ PAL_DS::Doublet <VirtualFileSystem*,const char*> VirtualFileSystemManager::FindP
 char* VirtualFileSystemManager::NormalizePath(const char *path,const char *base)
 {
 	char *tmp=base==nullptr||IsAbsolutePath(path)?strDump(path):strSplice(base,"/",path);
-	ASSERTEX(*tmp=='/',"VirtualFileSystemManager::NormalizePath "<<tmp<<" is not regular!");
+	ASSERTEX(*tmp=='/',"VirtualFileSystemManager::NormalizePath \""<<tmp<<"\" is not regular!");
 	char *s=tmp,*p=tmp+1,*q=tmp+1;
 	while (1)
 		if (InThisSet(*q,0,'/'))
@@ -165,8 +167,16 @@ int VirtualFileSystemManager::GetAllFileIn(Process *proc,const char *path,char *
 
 ErrorType VirtualFileSystemManager::CreateDirectory(const char *path)//Need improve...
 {
+	CALLINGSTACK;
+	kout[Debug]<<"VirtualFileSystemManager::CreateDirectory "<<path<<endl;
 	auto vfs=FindPathOfVFS(root,path);
-	return vfs.a->CreateDirectory(vfs.b);
+	kout[Debug]<<"VirtualFileSystemManager::CreateDirectory "<<vfs.a<<" "<<vfs.b<<endl;
+	if (vfs.a==nullptr)
+	{
+		kout[Fault]<<__FILE__<<__LINE__<<"Uncompleted function..."<<endl;
+		return ERR_Todo;
+	}
+	else return vfs.a->CreateDirectory(vfs.b);
 }
 
 ErrorType VirtualFileSystemManager::CreateDirectory(Process *proc,const char *path)
@@ -179,8 +189,24 @@ ErrorType VirtualFileSystemManager::CreateDirectory(Process *proc,const char *pa
 
 ErrorType VirtualFileSystemManager::CreateFile(const char *path)
 {
+	CALLINGSTACK;
+	if (path==nullptr)
+		return ERR_PathIsNull;
 	auto vfs=FindPathOfVFS(root,path);
-	return vfs.a->CreateFile(vfs.b);
+	if (vfs.a==nullptr)
+	{
+		const char *s=FindFirstSection(path);
+		if (*s=='/'&&*(s+1)!=0&&strComp(path,s,"/tmp")==0&&strFind(s+1,'/')==nullptr)
+		{
+			FileNode *tmp=Open("/tmp");
+			FileNode *tfn=new TempFileNode(s+1);
+			AddNewNode(tfn,tmp);
+			return ERR_None;
+		}
+		kout[Error]<<"CreateFile in "<<path<<" is not supported currently!"<<endl;
+		return ERR_Todo;
+	}
+	else return vfs.a->CreateFile(vfs.b);
 }
 
 ErrorType VirtualFileSystemManager::CreateFile(Process *proc,const char *path)
@@ -219,6 +245,7 @@ ErrorType VirtualFileSystemManager::LoadVFS(VirtualFileSystem *vfs,const char *p
 	AddNewNode(v,p);
 	return ERR_None;
 }
+
 ErrorType VirtualFileSystemManager::Unlink(const char *path)
 {
 	FileNode *p=FindRecursive(root,path);
@@ -232,8 +259,7 @@ ErrorType VirtualFileSystemManager::Unlink(const char *path)
 		Close(p);
 		return err;
 	}
-
-	
+	return ERR_None;
 }
 ErrorType VirtualFileSystemManager::Unlink(Process *proc,const char *path)
 {
@@ -255,7 +281,7 @@ FileNode* VirtualFileSystemManager::Open(Process *proc,const char *path)
 
 ErrorType VirtualFileSystemManager::Close(FileNode *p)
 {
-	delete p;
+	delete p;//??
 	return ERR_Todo;
 }
 
@@ -265,16 +291,27 @@ ErrorType VirtualFileSystemManager::Init()
 	
 	root=new FileNode(nullptr,FileNode::A_Root|FileNode::A_Dir,FileNode::F_Managed|FileNode::F_Base);
 
-	FileNode *Dir_VFS=new FileNode(nullptr,FileNode::A_Dir,FileNode::F_Managed|FileNode::F_Base);
-	Dir_VFS->SetFileName("VFS",1);
-	AddNewNode(Dir_VFS,root);
-
-	FileNode *Dir_Dev=new FileNode(nullptr,FileNode::A_Dir,FileNode::F_Managed|FileNode::F_Base);
-	Dir_Dev->SetFileName("Dev",1);
-	AddNewNode(Dir_Dev,root);
-
-	stdIO=new UartFileNode();//??
-	AddNewNode(stdIO,Dir_Dev);
+	{
+		FileNode *Dir_VFS=new FileNode(nullptr,FileNode::A_Dir,FileNode::F_Managed|FileNode::F_Base);
+		Dir_VFS->SetFileName("VFS",1);
+		AddNewNode(Dir_VFS,root);
+	}
+	
+	{
+		FileNode *Dir_Dev=new FileNode(nullptr,FileNode::A_Dir,FileNode::F_Managed|FileNode::F_Base);
+		Dir_Dev->SetFileName("Dev",1);
+		AddNewNode(Dir_Dev,root);
+	
+		stdIO=new UartFileNode();//??
+		AddNewNode(stdIO,Dir_Dev);
+	}
+	
+	{
+		FileNode *Dir_tmp=new FileNode(nullptr,FileNode::A_Dir,FileNode::F_Managed|FileNode::F_Base);
+		Dir_tmp->SetFileName("tmp",1);
+		AddNewNode(Dir_tmp,root);
+	}
+	
 	return ERR_Todo;
 }
 

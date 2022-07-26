@@ -541,3 +541,45 @@ void test_sdcard(void) {
 
 //	while (1) ;
 }
+
+
+
+ErrorType DiskInit()
+{
+	using namespace POS;
+	kout[Info]<<"Disk init..."<<endl;
+	kout[Info]<<"plic init..."<<endl;
+	plicinit();
+	kout[Info]<<"plic init hart..."<<endl;
+    plicinithart();
+	kout[Info]<<"fpioa init..."<<endl;
+    fpioa_pin_init();
+	kout[Info]<<"dmac init..."<<endl;
+    dmac_init();
+	kout[Info]<<"SDCard init..."<<endl;
+	sdcard_init();
+	kout[Info]<<"Disk init OK"<<endl;
+	return ERR_None;
+}
+
+ErrorType DiskReadSector(unsigned long long LBA,Sector *sec,int cnt)
+{
+//	for (int i=0;i<=1e3;++i);//Read to frequent may cause problem?
+	for (int i=0;i<cnt;++i)
+		sdcard_read_sector(sec+i,LBA+i);
+	return ERR_None;//??
+}
+
+ErrorType DiskWriteSector(unsigned long long LBA,const Sector *sec,int cnt)
+{
+//	for (int i=0;i<=1e3;++i);
+	for (int i=0;i<cnt;++i)
+		sdcard_write_sector(sec+i,LBA+i);
+	return ERR_None;
+}
+
+ErrorType DiskInterruptSolve()
+{
+	
+	return ERR_Todo;
+}

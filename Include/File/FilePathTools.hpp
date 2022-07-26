@@ -9,6 +9,19 @@ namespace POS
 {
 	using namespace PAL_DS;
 	
+	inline const char* FindFirstSection(const char *path,bool includeFirst=0)
+	{
+		if (path==nullptr)
+			return nullptr;
+		if (!includeFirst)
+			++path;
+		while (*path)
+			if (*path=='/')
+				break;
+			else ++path;
+		return path;
+	}
+	
 	inline char* GetLastSection(const char *path)
 	{
 		const char *s=path;
@@ -92,6 +105,7 @@ namespace POS
 			}
 			else {
 				// error 
+				kout[Fault] << "UnicodeToUtf8 fault!"<<endl;
 				return 0;
 			}
 		}

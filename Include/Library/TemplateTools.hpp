@@ -207,14 +207,23 @@ namespace POS
 			Uint64 size;
 			
 			DataWithSize(void *_data,Uint64 _size):data(_data),size(_size) {}
+			DataWithSize() {};
 	};
 	
 	class DataWithSizeUnited:public DataWithSize
 	{
 		public:
-			Uint64 unitSize;
+			enum//bit 0~7:mode 8~X feature
+			{
+				F_Hex=0,
+				F_Char=1,
+				F_Mixed=2,
+			};
 			
-			DataWithSizeUnited(void *_data,Uint64 _size,Uint64 _unitsize):DataWithSize(_data,_size),unitSize(_unitsize) {}
+			Uint64 unitSize;
+			Uint64 flags;
+			
+			DataWithSizeUnited(void *_data,Uint64 _size,Uint64 _unitsize,Uint64 _flags=F_Hex):DataWithSize(_data,_size),unitSize(_unitsize),flags(_flags) {}
 	};
 	
 	template <typename T> inline bool GetBitMask(T tar,unsigned i)

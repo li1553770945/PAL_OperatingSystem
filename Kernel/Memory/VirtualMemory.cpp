@@ -249,7 +249,7 @@ void VirtualMemorySpace::Enter()
 {
 	if (this==CurrentVMS)
 		return;
-	kout[Test]<<"VirtualMemorySpace::Enter: "<<this<<endl;
+//	kout[Test]<<"VirtualMemorySpace::Enter: "<<this<<endl;
 	CurrentVMS=this;
 	lcr3((Uint64/*??!*/)PDT->PAddr());//??
 	asm volatile("sfence.vma \n fence.i \n fence");
@@ -265,7 +265,7 @@ ErrorType VirtualMemorySpace::CreatePDT()
 
 ErrorType VirtualMemorySpace::Create(int type)
 {
-	kout[Test]<<"VirtualMemorySpace::Create "<<this<<" "<<type<<endl;
+//	kout[Test]<<"VirtualMemorySpace::Create "<<this<<" as type "<<type<<endl;
 	CreatePDT();
 	{
 		auto vmr=KmallocT<VirtualMemoryRegion>();
@@ -286,7 +286,7 @@ ErrorType VirtualMemorySpace::Create(int type)
 		default:
 			kout[Fault]<<"VirtualMemorySpace::Create unknown type VMS "<<type<<endl;
 	}
-	kout[Test]<<"VirtualMemorySpace::Create "<<this<<" OK"<<endl;
+//	kout[Test]<<"VirtualMemorySpace::Create "<<this<<" OK"<<endl;
 	return ERR_None;
 }
 
@@ -310,7 +310,7 @@ ErrorType VirtualMemorySpace::CreateFrom(VirtualMemorySpace *vms)
 
 ErrorType VirtualMemorySpace::SolvePageFault(TrapFrame *tf)
 {
-	kout[Test]<<"SolvePageFault in "<<(void*)tf->badvaddr<<endl;
+//	kout[Test]<<"SolvePageFault in "<<(void*)tf->badvaddr<<endl;
 	VirtualMemoryRegion* vmr=FindVMR(tf->badvaddr);
 	if (vmr==nullptr)
 		return ERR_AccessInvalidVMR;
@@ -356,7 +356,7 @@ ErrorType VirtualMemorySpace::SolvePageFault(TrapFrame *tf)
 		asm volatile("sfence.vma \n fence.i \n fence");//Test usage... Need improve!
 //		asm volatile("sfence.vm");
 	}
-	kout[Test]<<"SolvePageFault OK"<<endl;
+//	kout[Test]<<"SolvePageFault OK"<<endl;
 	return ERR_None;
 }
 
@@ -373,14 +373,14 @@ ErrorType VirtualMemorySpace::Init()
 
 ErrorType VirtualMemorySpace::Destroy()
 {
-	kout[Test]<<"VirtualMemorySpace::Destroy "<<this<<endl;
+//	kout[Test]<<"VirtualMemorySpace::Destroy "<<this<<endl;
 	ASSERT(this!=Current(),"VirtualMemorySpace::Destroy this is current!");
 	if (SharedCount!=0)
 		kout[Fault]<<"VirtualMemorySpace::Destroy "<<this<<" while SharedCount "<<SharedCount<<" is not zero!"<<endl;
 	ClearVMR();
 	if (PDT!=nullptr)
 		PDT->Destroy(2);//??
-	kout[Test]<<"VirtualMemorySpace::Destroy "<<this<<" OK"<<endl;
+//	kout[Test]<<"VirtualMemorySpace::Destroy "<<this<<" OK"<<endl;
 	return ERR_None;
 }
 

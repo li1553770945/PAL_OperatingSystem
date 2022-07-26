@@ -4,35 +4,9 @@
 #include "Process.hpp"
 #include "../Trap/Interrupt.hpp"
 #include "../Trap/Clock.h"
+#include "../SYscallID.hpp"
 
-class Mutex
-{
-	protected:
-		
-		
-	public:
-		inline void Lock()
-		{
-			
-		}
-		
-		inline void Unlock()
-		{
-			
-		}
-		
-		inline bool TryLock()
-		{
-			
-			return 0;
-		}
-		
-		void Init()
-		{
-			
-		}
-};
-
+extern bool OnTrap;
 class Semaphore
 {
 	public:
@@ -79,7 +53,15 @@ class Semaphore
 					UnlockProcess();
 					iss.Restore();
 					
-					POS_PM.Schedule();
+//					POS_PM.Schedule();
+					
+					if (OnTrap)
+						ProcessManager::Schedule();
+					else
+					{
+						RegisterData a7=SYS_Rest;
+						asm volatile("ld a7,%0; ebreak"::"m"(a7):"memory");
+					}
 					
 					iss.Save();
 					LockProcess();
@@ -137,5 +119,20 @@ class Semaphore
 		Semaphore& operator = (const Semaphore&)=delete;
 		Semaphore& operator = (const Semaphore&&)=delete;
 }; 
+
+class Mutex:public Semaphore
+{
+	public:
+		inline void Lock()
+		{Wait();}
+		
+		inline void Unlock()
+		{Signal();}
+		
+		inline bool TryLock()
+		{return Wait(TryWait);}
+		
+		Mutex():Semaphore(1) {}
+};
 
 #endif

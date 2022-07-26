@@ -34,6 +34,8 @@ void ProcessManager::Schedule()
 		for (i=1,p=CurrentProcess->ID;i<MaxProcessCount;++i)
 		{
 			Process *tar=&Processes[(i+p)%MaxProcessCount];
+//			if (tar->GetPID()<ProcessCount)
+//				kout[Debug]<<"tar "<<tar->GetPID()<<" stat "<<tar->GetStat()<<endl;
 			if (tar->stat==Process::S_Sleeping&&NotInSet(tar->SemWaitingTargetTime,0ull,(Uint64)-1))
 			{
 				minWaitingTarget=minN(minWaitingTarget,tar->SemWaitingTargetTime);
@@ -43,7 +45,7 @@ void ProcessManager::Schedule()
 
 			if (tar->stat==Process::S_Ready)
 			{
-				kout[Test]<<"Switch from "<<CurrentProcess->ID<<" to "<<tar->ID<<endl;
+//				kout[Test]<<"Switch from "<<CurrentProcess->ID<<" to "<<tar->ID<<endl;
 				tar->Run();
 //				kout[Test]<<"Schedule return from "<<tar->ID<<"? to self "<<CurrentProcess->ID<<endl;
 				break;
@@ -62,6 +64,7 @@ void ProcessManager::Schedule()
 	else ASSERT(CurrentProcess!=nullptr,"ProcessManager::Schedule: CurrentProcess is nullptr!");
 }
 
+extern bool OnTrap;
 void KernelThreadExit(int re)
 {
 	RegisterData a0=re,a7=SYS_Exit;
@@ -133,6 +136,7 @@ ErrorType ProcessManager::Destroy()
 
 ErrorType Process::SwitchStat(Uint32 tar)
 {
+//	kout[Debug]<<"Switch stat of "<<ID<<" from "<<stat<<" to "<<tar<<endl;
 	ClockTime t=GetClockTime();
 	ClockTime d=t-CountingBase;
 	CountingBase=t;
@@ -166,7 +170,16 @@ ErrorType Process::SwitchStat(Uint32 tar)
 ErrorType Process::Rest()
 {
 	if (stat==S_Running)
-		ProcessManager::Schedule();//?
+	{
+		if (OnTrap)
+			ProcessManager::Schedule();
+		else
+		{
+			RegisterData a7=SYS_Rest;
+			asm volatile("ld a7,%0; ebreak"::"m"(a7):"memory");
+		}
+	}
+//		ProcessManager::Schedule();//?
 //		Process::Process0()->Run();//??
 	else kout[Warning]<<"Process::Rest only current running Process is able to rest!"<<endl;
 	return ERR_None;
@@ -213,11 +226,11 @@ ErrorType Process::Start(int (*func)(void*),void *funcdata,PtrInt userStartAddr)
 	ASSERT(Stack!=nullptr,"Process::Start: Stack is nullptr!");
 	if (flags&F_Kernel)
 	{
-		context.ra  =(RegisterData)KernelThreadEntry;
+		context.ra  =(RegisterData)KernelThreadEntry2;
     	context.sp  =(RegisterData)Stack+StackSize;
     	context.s[0]=(RegisterData)func;
     	context.s[1]=(RegisterData)funcdata;
-    	context.s[2]=(RegisterData)((read_csr(sstatus)|SSTATUS_SPP|SSTATUS_SPIE)&~SSTATUS_SIE);
+//    	context.s[2]=(RegisterData)((read_csr(sstatus)|SSTATUS_SPP|SSTATUS_SPIE)&~SSTATUS_SIE);
 	}
 	else
 	{
@@ -226,7 +239,7 @@ ErrorType Process::Start(int (*func)(void*),void *funcdata,PtrInt userStartAddr)
     	context.sp   =(RegisterData)tf;
     	context.s[0] =(RegisterData)func;
     	context.s[1] =(RegisterData)funcdata;
-    	tf->reg.sp	 =(RegisterData)InnerUserProcessStackAddr/*??*/+InnerUserProcessStackSize-32;
+    	tf->reg.sp	 =(RegisterData)InnerUserProcessStackAddr/*??*/+InnerUserProcessStackSize-256;
 		tf->epc      =(RegisterData)userStartAddr;
 		tf->status   =(RegisterData)((read_csr(sstatus)|SSTATUS_SPIE)&~SSTATUS_SPP&~SSTATUS_SIE);//??
 //		tf->status   =(RegisterData)((read_csr(sstatus)|SSTATUS_SPP|SSTATUS_SPIE)&~SSTATUS_SIE);//??
@@ -319,9 +332,10 @@ ErrorType Process::CopyOthers(Process *src)
 	UserDuration=src->UserDuration;
 	SetFa(src->fa);//??
 	flags=src->flags;//??
-	if (Name==nullptr)//??
+	if (Name!=nullptr)//??
 		Name=strDump(src->Name);
 	Namespace=src->Namespace;
+	CurrentWorkDirectory=strDump(src->CurrentWorkDirectory);
 	CopyFileTable(src);
 //	stat=src->stat;
 	return ERR_None;
@@ -462,6 +476,7 @@ ErrorType Process::Init(Uint64 _flags)
 	WaitSem=new Semaphore(0);
 	Heap=nullptr;
 	InitFileTable();
+	CallingStack=nullptr;
 	return ERR_None;
 }
 
@@ -487,6 +502,8 @@ ErrorType Process::Destroy()
 	WaitSem=nullptr;
 	SetName(nullptr,1);
 	DestroyFileTable();
+	if (CallingStack)
+		kout[Warning]<<"DestroyProcess while CallingStack is not freed"<<endl;
 	PM->FreeProcess(this);
 	return ERR_None;
 }

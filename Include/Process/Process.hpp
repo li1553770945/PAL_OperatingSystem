@@ -30,6 +30,7 @@ class ProcessManager
 {
 	friend class Process;
 	friend class Semaphore;
+	friend void KernelFaultSolver();
 	protected:
 		static Process Processes[MaxProcessCount];//temp for test...
 		static Process *CurrentProcess;
@@ -59,6 +60,9 @@ class Process
 	friend class FileHandle;
 	friend void Trap(TrapFrame *tf);
 	friend PID Syscall_Clone(TrapFrame *tf,Uint64 flags,void *stack,PID ppid,Uint64 tls,PID cid);//??
+	friend void KernelFaultSolver();
+	friend int Thread_CreateProcessFromELF(void *userdata);
+	friend void TrapFailedInfo(TrapFrame *tf);
 	public:
 		enum
 		{
@@ -85,7 +89,8 @@ class Process
 			Exit_Normal=0,
 			Exit_Destroy=-10000,
 			Exit_BadSyscall,
-			Exit_Execve
+			Exit_Execve,
+			Exit_SegmentationFault
 		};
 		
 		struct RegContext
@@ -142,6 +147,8 @@ class Process
 		ErrorType DestroyFileTable();
 		
 	public:
+		char **CallingStack;//For Debug...
+		
 		ErrorType Rest();//Hand out CPU and schedule other Process
 		ErrorType Run();
 		ErrorType Exit(int re);
@@ -267,7 +274,7 @@ extern "C"
 	void KernelThreadExit(int re);
 	void SwitchToUserStat();
 	void SwitchBackKernelStat();
-	extern void KernelThreadEntry();
+	extern void KernelThreadEntry2();
 	extern void UserThreadEntry();
 	extern void ProcessSwitchContext(Process::RegContext *from,Process::RegContext *to);
 };

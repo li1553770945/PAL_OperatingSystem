@@ -11,16 +11,11 @@
 #include <Library/String/SysStringTools.hpp>
 #include <Process/Synchronize.hpp>
 #include <Riscv.h>
-extern "C"
-{
-	#include <HAL/Drivers/_plic.h>
-	#include <HAL/Drivers/_fpioa.h>
-	#include <HAL/Drivers/_dmac.h>
-};
-#include <HAL/Drivers/_sdcard.h>
+#include <HAL/Disk.hpp>
 #include <File/FAT32.hpp>
 #include <Process/ELF.hpp>
 #include <File/FileNodeEX.hpp>
+#include <Library/String/String.hpp>
 //#include <HAL/DeviceTreeBlob.hpp>
 
 using namespace POS;
@@ -98,13 +93,13 @@ int SemaphoreTest2(void *data)
 	return 0;
 }
 
-int SDTest(void*)
-{
-	kout[Test]<<"SDCard test ..."<<endl;
-	test_sdcard();
-	kout[Test]<<"SDCard test OK"<<endl;
-	return 0;
-}
+//int SDTest(void*)
+//{
+//	kout[Test]<<"SDCard test ..."<<endl;
+//	test_sdcard();
+//	kout[Test]<<"SDCard test OK"<<endl;
+//	return 0;
+//}
 
 char *KernelTextRemember=nullptr;
 void CmpKernelText()
@@ -134,6 +129,7 @@ int RunAllTestSuits(void*)
 			{
 //				kout[Debug]<<"C"<<endl;
 				char *child=strSplice(path,"/",buffer[i]);
+//				kout[Debug]<<"Child: "<<DataWithSize(buffer[i],strLen(buffer[i])+1)<<endl;
 				if (buffer[i][0]!='.')
 				{
 //					kout[Debug]<<"D"<<endl;
@@ -178,23 +174,109 @@ int RunAllTestSuits(void*)
 	VFSM.LoadVFS(vfs);
 //	kout[Debug]<<"brk: "<<VFSM.Open("/VFS/FAT32/brk")<<endl;
 
-	kout.SetEnableEffect(0);
-	kout.SwitchTypeOnoff(Info,0);
-	kout.SwitchTypeOnoff(Warning,0);
-	kout.SwitchTypeOnoff(Test,0);
-	kout.SwitchTypeOnoff(Debug,0);
+//	kout.SetEnableEffect(0);
+//	kout.SwitchTypeOnoff(Info,0);
+//	kout.SwitchTypeOnoff(Warning,0);
+//	kout.SwitchTypeOnoff(Test,0);
+//	kout.SwitchTypeOnoff(Debug,0);
 //	kout.SetEnabledType(0);
 
 	RunAllFile(RunAllFile,".");
 	
 //	kout.SetEnabledType(-1);
-	kout.SwitchTypeOnoff(Debug,1);
-	kout.SwitchTypeOnoff(Test,1);
-	kout.SwitchTypeOnoff(Warning,1);
+//	kout.SwitchTypeOnoff(Debug,1);
+//	kout.SwitchTypeOnoff(Test,1);
+//	kout.SwitchTypeOnoff(Warning,1);
 	
 	kout<<"Test all suits OK"<<endl;
 	
-	while (1);
+//	while (1);
+	return 0;
+}
+
+int RunLibcTest(void*)
+{
+	auto Run=[](const char *path,int argc=0,char ** const argv=nullptr)
+	{
+		FileNode *node=VFSM.Open(POS_PM.Current(),path);
+		if (!node)
+			kout[Error]<<"Cannot open file "<<path<<endl;
+		else if (node->IsDir())
+			kout[Error]<<"Cannot run directory "<<path<<endl;
+		else
+		{
+			kout[Info]<<"Run "<<path<<endl; 
+			FileHandle *file=new FileHandle(node);
+			PID id=CreateProcessFromELF(file,0,".",argc,argv);
+			if (id>0)
+			{
+				Process *proc=POS_PM.Current(),*cp=nullptr;
+				while ((cp=proc->GetQuitingChild(id))==nullptr)
+					proc->GetWaitSem()->Wait();
+				cp->Destroy();
+			}
+			delete file;
+		}
+		VFSM.Close(node);
+	};
+	
+	auto RunList=[Run](const char *path)
+	{
+		FileNode *node=VFSM.Open(POS_PM.Current(),path);
+		if (!node||node->IsDir())
+			kout[Error]<<"RunList: Target "<<path<<" is not shell list"<<endl;
+		else
+		{
+			kout[Info]<<"RunList "<<path<<endl;
+			FileHandle *file=new FileHandle(node);
+			char *str=new char[file->Size()+1];//Bad in efficiency??
+			if (ErrorType err=file->Read(str,file->Size());err<0||err!=file->Size())
+				kout[Error]<<"Read string failed!"<<endl;
+			auto [lineCnt,lineStr]=divideStringByChar(str,'\n',1);
+			kout[Info]<<"RunList "<<path<<" total "<<lineCnt<<" lines program."<<endl;
+			for (int i=0;i<lineCnt;++i)
+				if (lineStr[i])
+				{
+					kout[Info]<<"RunList "<<path<<" line "<<i<<" is "<<lineStr[i]<<endl;
+					auto [cnt,ss]=divideStringByChar(lineStr[i],' ',1);
+					if (cnt>0
+					   &&strComp(ss[3],"daemon_failure")
+						&&strComp(ss[3],"pthread_exit_cancel")
+						&&strComp(ss[3],"regex_bracket_icase")
+						&&strComp(ss[3],"rlimit_open_files")
+						)
+						Run(ss[0],cnt,ss);
+					for (int j=0;j<cnt;++j)
+						delete ss[j];
+					delete ss;
+					delete lineStr[i];
+				}
+				else kout[Info]<<"RunList "<<path<<" line "<<i<<" is empty line."<<endl;
+			delete str;
+			delete file;
+		}
+		VFSM.Close(node);
+	};
+	
+	kout<<"RunLibcTest..."<<endl;
+	POS_PM.Current()->SetCWD("/VFS/FAT32");
+	VirtualFileSystem *vfs=new FAT32();
+	VFSM.LoadVFS(vfs);
+	
+	kout.SwitchTypeOnoff(Info,0);
+	kout.SwitchTypeOnoff(Warning,0);
+	kout.SwitchTypeOnoff(Test,0);
+	RunList("run-static.sh");
+	kout.SwitchTypeOnoff(Info,1);
+	kout.SwitchTypeOnoff(Warning,1);
+	kout.SwitchTypeOnoff(Test,1);
+	
+	kout<<"RunLibcTest OK"<<endl;
+	#ifdef QEMU
+	SBI_SHUTDOWN();
+	#else
+	kout[Fault]<<"No task to run. User control:"<<endl;
+	#endif
 	return 0;
 }
 
@@ -368,18 +450,18 @@ void TestFuncs()
 		delete vfs;
 	}
 	
-	if (0) CreateKernelThread(SDTest,nullptr);
+//	if (0) CreateKernelThread(SDTest,nullptr);
 	
-	if (0)
-	{
-		Sector sec;
-		sdcard_read_sector(&sec,0);
-		kout[Debug]<<DataWithSizeUnited(&sec,sizeof(Sector),32)<<endl;
-		sdcard_read_sector(&sec,32);
-		kout[Debug]<<DataWithSizeUnited(&sec,sizeof(Sector),32)<<endl;
-		sdcard_read_sector(&sec,8098);
-		kout[Debug]<<DataWithSizeUnited(&sec,sizeof(Sector),32)<<endl;
-	}
+//	if (0)
+//	{
+//		Sector sec;
+//		sdcard_read_sector(&sec,0);
+//		kout[Debug]<<DataWithSizeUnited(&sec,sizeof(Sector),32)<<endl;
+//		sdcard_read_sector(&sec,32);
+//		kout[Debug]<<DataWithSizeUnited(&sec,sizeof(Sector),32)<<endl;
+//		sdcard_read_sector(&sec,8098);
+//		kout[Debug]<<DataWithSizeUnited(&sec,sizeof(Sector),32)<<endl;
+//	}
 		
 	if (0)
 	{
@@ -416,13 +498,28 @@ void TestFuncs()
 //		kout<<"Test ELF OK"<<endl;
 	}
 	
-	if (1)
+	if (0)
 	{
 		PID id=CreateKernelThread(RunAllTestSuits,nullptr,0);
-		Process *proc=POS_PM.Current(),*cp;
-		while ((cp=proc->GetQuitingChild(id))==nullptr)
-			proc->GetWaitSem()->Wait();
-		cp->Destroy();
+		if (0)
+		{
+			Process *proc=POS_PM.Current(),*cp;
+			while ((cp=proc->GetQuitingChild(id))==nullptr)
+				proc->GetWaitSem()->Wait();
+			cp->Destroy();
+		}
+	}
+	
+	if (1)
+	{
+		PID id=CreateKernelThread(RunLibcTest,nullptr,0);
+		if (0)
+		{
+			Process *proc=POS_PM.Current(),*cp;
+			while ((cp=proc->GetQuitingChild(id))==nullptr)
+				proc->GetWaitSem()->Wait();
+			cp->Destroy();
+		}
 	}
 }
 
@@ -443,26 +540,19 @@ int main()
 	VirtualMemorySpace::InitStatic();
 	POS_PM.Init();
 //	PrintDeviceTree((void*)DTB+PhymemVirmemOffset()+PhysicalMemoryPhysicalStart());
-	
-	kout[Info]<<"plic init..."<<endl;
-	plicinit();
-	kout[Info]<<"plic init hart..."<<endl;
-    plicinithart();
-	kout[Info]<<"fpioa init..."<<endl;
-    fpioa_pin_init();
-	kout[Info]<<"dmac init..."<<endl;
-    dmac_init();
-	kout[Info]<<"SDCard init..."<<endl;
-	sdcard_init();
-	kout[Info]<<"Drivers init OK"<<endl;
-	
+	DiskInit();
 	VFSM.Init();
-	ForkServer.Init();
+//	ForkServer.Init();
 	InterruptEnable();
 	
 	TestFuncs();
 	
 	//Below do nothing...
+	
+	Process *cur=POS_PM.Current();
+	while (1)
+		cur->Rest();
+	
 	auto Sleep=[](int n){while (n-->0);};
 	auto DeadLoop=[Sleep](const char *str)
 	{

@@ -23,6 +23,7 @@ enum
 	ERR_DirectoryPathNotExist,
 	ERR_PathIsNotDirectory,
 	ERR_PathIsNotFile,
+	ERR_PathIsNull,
 	ERR_FileNameTooLong,
 	ERR_InvalidClusterNumInFAT32,
 	ERR_InvalidFileHandlePermission,

@@ -65,7 +65,7 @@ class PipeFileNode:public FileNode
 				}
 				else
 				{
-					if (WriterCount==0)
+//					if (WriterCount==0)//??
 						flag=1;
 					Lock.Signal();
 					if (flag)
@@ -134,6 +134,117 @@ class PipeFileNode:public FileNode
 			if (name!=nullptr)
 				SetFileName((char*)name,0);
 			buffer=new char[BufferSize];
+		}
+};
+
+class TempFileNode:public FileNode
+{
+	protected:
+		static constexpr Uint64 FragmentSize=PageSize;
+		
+		struct DataFragment
+		{
+			Uint64 size=0,
+				   capacity=0,
+				   pos=0;
+			DataFragment *nxt=nullptr;
+			char *data=nullptr;
+			
+			DataFragment* Extend()
+			{
+				if (nxt!=nullptr)//??
+					return nxt->Extend();
+				else if (size!=capacity)
+					return nullptr;
+				else return nxt=new DataFragment(pos+capacity);
+			}
+			
+			~DataFragment()
+			{
+				delete nxt;
+				delete[] data;
+			}
+			
+			DataFragment(Uint64 _pos,Uint64 _cap=FragmentSize):pos(_pos),capacity(_cap)
+			{
+				data=new char[capacity];
+			}
+		};
+		DataFragment *HeadFragment=nullptr,
+					 *DataCache=nullptr;
+		Mutex lock; 
+		
+		DataFragment *Find(Uint64 pos)
+		{
+			if (DataCache!=nullptr&&POS::InRange(pos,DataCache->pos,DataCache->pos+DataCache->capacity-1))
+				return DataCache;
+			for (DataFragment *p=DataCache!=nullptr&&pos>DataCache->pos?DataCache:HeadFragment;p;p=p->nxt)
+				if (POS::InRange(pos,p->pos,p->pos+p->capacity-1))
+					return DataCache=p;
+			return nullptr;
+		}
+		
+	public:
+		virtual Sint64 Read(void *dst,Uint64 pos,Uint64 size)
+		{
+			lock.Lock();
+			Uint64 size_bak=size;
+			char *s=(char*)dst;
+			while (size)
+				if (DataFragment *p=Find(pos);p!=nullptr)
+				{
+					Uint64 len=POS::minN(size,p->pos+p->size-pos);
+					POS::MemcpyT(s,p->data+pos-p->pos,len);
+					s+=len;
+					pos+=len;
+					size-=len;
+				}
+				else break;
+			lock.Unlock();
+			return size_bak-size;
+		}
+		
+		virtual Sint64 Write(void *src,Uint64 pos,Uint64 size)
+		{
+			using namespace POS;
+			lock.Lock();
+			ErrorType re=0;
+			if (pos>FileSize)
+				re=-ERR_FileOperationOutofRange;
+			else
+			{
+				Uint64 size_bak=size;
+				const char *s=(const char*)src;
+				while (size)//Need improve?
+					if (DataFragment *p=Find(pos);p!=nullptr)
+					{
+						Uint64 len=minN(size,p->pos+p->capacity-pos);
+						MemcpyT(p->data+pos-p->pos,s,len);
+						s+=len;
+						pos+=len;
+						size-=len;
+						FileSize=maxN(FileSize,pos);
+					}
+					else if (HeadFragment==nullptr)
+						HeadFragment=new DataFragment(0);
+					else if ((DataCache=HeadFragment->Extend())==nullptr)
+						kout[Fault]<<"TempFileNode "<<this<<" failed to extend!"<<endl;
+				re=size_bak-size;
+			}
+			lock.Unlock();
+			return re;
+		}
+		
+		~TempFileNode()
+		{
+			delete HeadFragment;
+		}
+		
+		TempFileNode(const char *name)//??
+		:FileNode(nullptr,A_Temp,F_Managed)
+		{
+			if (name!=nullptr)
+				SetFileName((char*)name,0);
 		}
 };
 

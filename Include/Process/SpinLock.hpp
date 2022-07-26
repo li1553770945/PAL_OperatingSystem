@@ -26,7 +26,7 @@ class SpinLock
 			__sync_synchronize();
 		}
 		
-		inline void Init()//Call this is not created(Specified from memory address).
+		inline void Init()//Call this if not created(Specified from memory address).
 		{lock=0;}
 };
 

@@ -1,26 +1,19 @@
 #ifndef __SDCARD_H
 #define __SDCARD_H
 
-#include "../../Types.hpp"
+#include "../Disk.hpp"
 
-constexpr int SectorSize=512;
-struct Sector
+extern "C"
 {
-	Uint8 data[SectorSize];
-	
-	inline Uint8& operator [] (int i)
-	{return data[i];}
-	
-	inline const Uint8& operator [] (int i) const
-	{return data[i];}
+	#include <HAL/Drivers/_plic.h>
+	#include <HAL/Drivers/_fpioa.h>
+	#include <HAL/Drivers/_dmac.h>
 };
+#include <HAL/Drivers/_sdcard.h>
 
 void sdcard_init(void);
-
 void sdcard_read_sector(Sector *sec,int sectorno);
-
 void sdcard_write_sector(const Sector *sec,int sectorno);
-
 void test_sdcard(void);
 
 #endif 

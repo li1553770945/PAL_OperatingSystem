@@ -8,6 +8,7 @@ KernelThreadEntry:
 	csrw sepc, a0
 	sret
 
+.globl KernelThreadEntry2
 KernelThreadEntry2:
 	move a0,s1
 	jalr s0

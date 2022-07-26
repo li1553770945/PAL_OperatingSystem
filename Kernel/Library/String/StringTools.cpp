@@ -80,4 +80,13 @@ namespace POS
 			++re;
 		return re;
 	}
+	
+	const char* strFind(const char *s,char ch)
+	{
+		while (*s)
+			if (*s==ch)
+				return s;
+			else ++s;
+		return nullptr;
+	}
 };

@@ -6,6 +6,17 @@
 
 template <class AddrType> struct ELF_HeaderXX
 {
+	enum
+	{
+		ET_NONE=0,
+		ET_REL=1,
+		ET_EXEC=2,
+		ET_DYN=3,//Dynamic library
+		ET_CORE=4,//Unsupportted yet.
+		ET_LOPROC=0xFF00,
+		ET_HIPROC=0xFFFF
+	};
+	
 	union
 	{
 		Uint8 ident[16];//Magic number and other info
@@ -47,7 +58,7 @@ struct ELF_ProgramHeader32
 		PT_NOTE=4,//Segment include compiler infomation
 		PT_SHLIB=5,//Shared library segment
 		PT_LOPROC=0x70000000,
-		PT_HIPROC=0x7fffffff
+		PT_HIPROC=0x7FFFFFFF
 	};
 	
 	enum
@@ -55,7 +66,7 @@ struct ELF_ProgramHeader32
 		PF_X=1,
 		PF_W=2,
 		PF_R=4,
-		PF_MASKPROC=0xf0000000
+		PF_MASKPROC=0xF0000000
 	};
 	
 	Uint32 type;//Segment type
@@ -78,6 +89,7 @@ struct ELF_ProgramHeader64
 		PT_INTERP=3,//Segment specified dynamic linker
 		PT_NOTE=4,//Segment include compiler infomation
 		PT_SHLIB=5,//Shared library segment
+		PT_PHDR=6,
 		PT_LOPROC=0x70000000,
 		PT_HIPROC=0x7fffffff
 	};
@@ -108,6 +120,8 @@ struct ThreadData_CreateProcessFromELF
 	FileHandle *file;
 	Process *proc;
 	VirtualMemorySpace *vms;
+	int argc;
+	char **argv;
 	Semaphore sem;
 	ELF_Header64 header;
 	
@@ -116,6 +130,7 @@ struct ThreadData_CreateProcessFromELF
 
 inline int Thread_CreateProcessFromELF(void *userdata)
 {
+	CALLINGSTACK
 	using namespace POS;
 	ThreadData_CreateProcessFromELF *d=(ThreadData_CreateProcessFromELF*)userdata;
 	FileHandle *file=d->file;
@@ -136,6 +151,22 @@ inline int Thread_CreateProcessFromELF(void *userdata)
 		{
 			case ELF_ProgramHeader64::PT_LOAD:
 				break;
+			case ELF_ProgramHeader64::PT_PHDR:
+			case ELF_ProgramHeader64::PT_INTERP:
+			case 1685382481://Aka GNU_STACK
+			case 1685382482://Aka GNU_RELRO
+			case 7://Aka TLS
+			case ELF_ProgramHeader64::PT_DYNAMIC:
+				continue_flag=1;
+				break;
+			
+			
+//		PT_NULL=0,//Empty segment
+//		PT_LOAD=1,//Loadable segment
+//		PT_DYNAMIC=2,//Segment include dynamic linker info
+//		PT_NOTE=4,//Segment include compiler infomation
+//		PT_SHLIB=5,//Shared library segment
+			
 			default:
 				if (POS::InRange(ph.type,ELF_ProgramHeader64::PT_LOPROC,ELF_ProgramHeader64::PT_HIPROC))
 				{
@@ -159,7 +190,8 @@ inline int Thread_CreateProcessFromELF(void *userdata)
 		auto vmr=KmallocT<VirtualMemoryRegion>();
 		vmr->Init(ph.vaddr,ph.vaddr+ph.memsize,flags);
 		vms->InsertVMR(vmr);
-		MemsetT<char>((char*)ph.vaddr,0,ph.memsize);
+//		MemsetT<char>((char*)ph.vaddr,0,ph.memsize);
+		vmr->Memset0();
 		BreakPoint=maxN(BreakPoint,vmr->GetEnd());
 		
 		file->Seek(ph.offset,FileHandle::Seek_Beg);
@@ -171,21 +203,50 @@ inline int Thread_CreateProcessFromELF(void *userdata)
 		VirtualMemoryRegion *vmr_stack=KmallocT<VirtualMemoryRegion>();
 		vmr_stack->Init(InnerUserProcessStackAddr,InnerUserProcessStackAddr+InnerUserProcessStackSize,VirtualMemoryRegion::VM_USERSTACK);
 		vms->InsertVMR(vmr_stack);
-		MemsetT<char>((char*)InnerUserProcessStackAddr,0,InnerUserProcessStackSize);
+//		MemsetT<char>((char*)InnerUserProcessStackAddr,0,InnerUserProcessStackSize);
+		vmr_stack->Memset0();
 	}
 	{
 		HeapMemoryRegion *hmr=KmallocT<HeapMemoryRegion>();
 		hmr->Init(BreakPoint);
 		vms->InsertVMR(hmr);
-		MemsetT<char>((char*)hmr->GetStart(),0,hmr->GetLength());
+//		MemsetT<char>((char*)hmr->GetStart(),0,hmr->GetLength());
 		proc->SetHeap(hmr);
+		hmr->Memset0();
+	}
+	if (d->argc!=0)//Testing...
+	{
+		PtrInt p=vms->GetUsableVMR(0x60000000,0x70000000,PageSize);
+		VirtualMemoryRegion *vmr_args=KmallocT<VirtualMemoryRegion>();
+		vmr_args->Init(p,p+PageSize,VirtualMemoryRegion::VM_RW);
+		vms->InsertVMR(vmr_args);
+		vmr_args->Memset0();
+		*(PtrInt*)p=d->argc;
+		char *s=(char*)p+sizeof(PtrInt)*(d->argc+2);
+		for (int i=0;i<d->argc;++i)
+		{
+			((PtrInt*)p+1)[i]=(PtrInt)s;
+			s=strCopyRe(s,d->argv[i]);
+			*s++=0;
+		}
+		TrapFrame *tf=(TrapFrame*)(proc->Stack+proc->StackSize)-1;
+//		tf->reg.a0=d->argc;
+//		tf->reg.a1=p+sizeof(PtrInt);
+		long *q=(decltype(q))tf->reg.sp;
+		q[0]=d->argc;
+		for (int i=0;i<minN(d->argc,31);++i)//Need improve...
+			((char**)(q+1))[i]=(char*)((PtrInt*)p+1)[i];
+//		kout[Debug]<<"argc: "<<q[0]<<endl;
+//		for (int i=0;i<q[0];++i)
+//			kout[Debug]<<"argv "<<i<<":"<<((char**)(q+1))[i]<<endl;
 	}
 	vms->DisableAccessUser();
 	d->sem.Signal();
+	kout[Info]<<"CreateProcessFromELF "<<file<<" OK, PID "<<proc->GetPID()<<endl;
 	return 0;
 }
 
-inline PID CreateProcessFromELF(FileHandle *file,Uint64 flags,const char *workDir)
+inline PID CreateProcessFromELF(FileHandle *file,Uint64 flags,const char *workDir,int argc=0,char **argv=nullptr)
 {
 	using namespace POS;
 	kout[Info]<<"CreateProcessFromELF "<<file<<endl;
@@ -194,18 +255,24 @@ inline PID CreateProcessFromELF(FileHandle *file,Uint64 flags,const char *workDi
 	Sint64 err=file->Read(&d->header,sizeof(d->header));
 	if (err!=sizeof(d->header)||!d->header.IsELF())
 	{
-		kout[Error]<<"CreateProcessFromELF "<<file<<" is not elf file!"<<endl;
+		kout[Error]<<"CreateProcessFromELF "<<file<<", it is not elf file!"<<endl;
+		delete d;
+		return Process::InvalidPID;
+	}
+	if (d->header.type!=ELF_Header64::ET_EXEC)
+	{
+		kout[Error]<<"CreateProcessFromELF "<<file<<", ELF type "<<d->header.type<<" beyond ET_EXEC is not supported yet!"<<endl;
 		delete d;
 		return Process::InvalidPID;
 	}
 	//<<Chech other info??
 	
-	ISASBC
 	VirtualMemorySpace *vms=KmallocT<VirtualMemorySpace>();
 	vms->Init();
 	vms->Create(VirtualMemorySpace::VMS_Default);
 	
 	Process *proc=POS_PM.AllocProcess();
+	PID re=proc->GetPID();
 	proc->Init(flags);
 	proc->SetStack(nullptr,KernelStackSize);
 	proc->SetVMS(vms);
@@ -223,11 +290,13 @@ inline PID CreateProcessFromELF(FileHandle *file,Uint64 flags,const char *workDi
 	
 	d->vms=vms;
 	d->proc=proc;
+	d->argc=argc;
+	d->argv=argv;
 	proc->Start(Thread_CreateProcessFromELF,d,d->header.entry);
-	kout[Info]<<"CreateProcessFromELF "<<file<<" OK, PID "<<proc->GetPID()<<endl;
+	
 	d->sem.Wait();
 	delete d;
-	return flags&Process::F_AutoDestroy?Process::InvalidPID:proc->GetPID();
+	return flags&Process::F_AutoDestroy?Process::UnknownPID:re;
 }
 
 #endif

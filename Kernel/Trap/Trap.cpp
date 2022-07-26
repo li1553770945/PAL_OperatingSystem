@@ -6,6 +6,32 @@
 #include <Process/Process.hpp>
 #include <Memory/VirtualMemory.hpp>
 #include <Trap/Syscall.hpp>
+#include <HAL/Disk.hpp>
+#include <Trap/Interrupt.hpp>
+extern "C"
+{
+	#include <HAL/Drivers/_plic.h>
+};
+
+static const char* TrapInterruptCodeName[16]=
+{
+	"InterruptCode_0"							,
+	"InterruptCode_SupervisorSoftwareInterrupt" ,
+	"InterruptCode_2"							,
+	"InterruptCode_MachineSoftwareInterrupt"	,
+	"InterruptCode_4"							,
+	"InterruptCode_SupervisorTimerInterrupt"	,
+	"InterruptCode_6"							,
+	"InterruptCode_MachineTimerInterrupt"		,
+	"InterruptCode_8"							,
+	"InterruptCode_SupervisorExternalInterrupt"	,
+	"InterruptCode_10"							,
+	"InterruptCode_MachineExternalInterrupt"	,
+	"InterruptCode_12"							,
+	"InterruptCode_13"							,
+	"InterruptCode_14"							,
+	"InterruptCode_15"
+};
 
 static const char* TrapExceptionCodeName[16]=
 {
@@ -27,74 +53,125 @@ static const char* TrapExceptionCodeName[16]=
 	"ExceptionCode_StorePageFault"
 };
 
+bool OnTrap=0;//For debug
+
+void TrapFailedInfo(TrapFrame *tf)
+{
+	using namespace POS;
+	Process *cur=POS_PM.Current();
+	if ((tf->cause<<1>>1)<16)
+		kout<<"  TrapType:"<<((long long)tf->cause<0?TrapInterruptCodeName:TrapExceptionCodeName)[tf->cause&0xF]<<endline;
+	kout	<<"  cause   :"<<(void*)tf->cause<<endline
+			<<"  vaddr   :"<<(void*)tf->badvaddr<<endline
+			<<"  epc     :"<<(void*)tf->epc<<endline
+			<<"  status  :"<<(void*)tf->status<<endline
+			<<"  PID     :"<<cur->GetPID()<<endl;
+}
+
+#define TrapFailed(msg) (kout[Fault]<<msg<<endline,TrapFailedInfo(tf))
+
 extern "C"
 {
 	void Trap(TrapFrame *tf)
 	{
 		using namespace POS;
+//		kout[Test]<<"<<"<<(void*)tf->epc<<endl;
 		Process *cur=POS_PM.Current();
 		if (cur->IsUserProcess())
 			SwitchBackKernelStat();
-		ErrorType err=0;
+		if (OnTrap)
+			;//TrapFailed("Trap OnTrap");
+		else OnTrap=1;
+//		if (cur->OnTrap)
+//			;//TrapFailed("Trap ProcessOnTrap");
+//		else cur->OnTrap=1;
+//		InterruptEnable();
 		if ((long long)tf->cause<0) switch(tf->cause<<1>>1) 
 		{
+//			case InterruptCode_SupervisorSoftwareInterrupt:
+//				break;
 			case InterruptCode_SupervisorTimerInterrupt:
 				SetNextClockEvent();
 				++ClockTick;
-//				if (ClockTick%100==0)//Test
-//					kout<<LightGray<<"*"<<Reset;
-				if (ClockTick%1000==0)
-				{
-					kout[Debug]<<(void*)tf->epc<<" "<<(void*)tf->badvaddr<<" "<<(void*)tf->reg.sp<<endl;
-//					VirtualMemorySpace::EnableAccessUser();
-//					kout[Debug]<<DataWithSizeUnited((void*)tf->epc-16,40,4)<<endl;
-//					kout[Debug]<<Yellow<<DataWithSizeUnited((void*)InnerUserProcessStackAddr+4096*3,4096,32)<<endl;
-//					VirtualMemorySpace::DisableAccesUser();
-//					kout[Debug]<<DataWithSizeUnited(tf,sizeof(TrapFrame),sizeof(RegisterData))<<endl;
+				if (ClockTick%30==0)//300 is just for test...
 					POS_PM.Schedule();
-				}
 				break;
+			case InterruptCode_SupervisorExternalInterrupt://Need improve...
+			{
+				int irq=plic_claim();
+//				kout[Debug]<<"irq "<<irq<<endl;
+				switch (irq)
+				{
+					case 0:	break;
+					case UART_IRQ:
+						//...
+						break;
+					case DISK_IRQ:
+					{
+						ErrorType err=DiskInterruptSolve();
+						if (err)
+							TrapFailed("DiskInterruptSolve failed! ErrorCode "<<err);
+						break;
+					}
+					default:
+						TrapFailed("Unknown platform level interrupt "<<irq<<" !");
+				}
+				if (irq)
+					plic_complete(irq);
+//				#ifndef QEMU//??
+//				w_sip(r_sip()&~2);    // clear pending bit
+//				sbi_set_mie();
+//				#endif
+				break;
+			}
 			default:
-				kout[Warning]<<"Unknown interrupt:"<<endline
-							 <<"  casue   :"<<(void*)tf->cause<<endline
-							 <<"  badvaddr:"<<(void*)tf->badvaddr<<endline
-							 <<"  epc     :"<<(void*)tf->epc<<endline
-							 <<"  status  :"<<(void*)tf->status<<endl;
+				TrapFailed("Unknown interrupt!");
 		}
 		else switch (tf->cause)
 		{
 			case ExceptionCode_BreakPoint://??
 			case ExceptionCode_UserEcall:
-				err=TrapFunc_Syscall(tf);
+			{
+				ErrorType err=TrapFunc_Syscall(tf);
+				if (err)
+					TrapFailed("TrapFunc_Syscall failed! ErrorCode"<<err);
+				else tf->epc+=tf->cause==ExceptionCode_UserEcall?4:2;
 				break;
+			}
 			case ExceptionCode_LoadAccessFault:
 			case ExceptionCode_StoreAccessFault:
 			case ExceptionCode_InstructionPageFault:
 			case ExceptionCode_LoadPageFault:
 			case ExceptionCode_StorePageFault:
-				err=TrapFunc_FageFault(tf);
+			{
+				ErrorType err=TrapFunc_FageFault(tf);
+				if (err==4)//Debug...
+				{
+					if (tf->status&0x100)
+						kout[Fault]<<"PageFault InvalidVMR in kernel!"<<endline;
+					else kout[Error]<<"PageFault InvalidVMR! Exit this process!"<<endline;
+					TrapFailedInfo(tf);
+					cur->Exit(Process::Exit_SegmentationFault);
+					POS_PM.Schedule();
+					kout[Fault]<<"Unreachable area!"<<endl;
+				}
+				if (err)
+					TrapFailed("TrapFunc_PageFault failed! ErrorCode "<<err);
 				break;
+			}
 			default:
-				kout[Fault]<<"Unknown exception:"<<endline
-						   <<"  casue   :"<<(void*)tf->cause<<endline
-						   <<"  name    :"<<TrapExceptionCodeName[tf->cause]<<endline
-						   <<"  badvaddr:"<<(void*)tf->badvaddr<<endline
-						   <<"  epc     :"<<(void*)tf->epc<<endline
-						   <<"  status  :"<<(void*)tf->status<<endl;
-		}
-		if (err!=0)
-		{
-			kout[Fault]<<"TrapFunc failed:"<<endline
-					   <<"  cause   :"<<(void*)tf->cause<<endline;
-			if (tf->cause>0)
-				   kout<<"  name    :"<<TrapExceptionCodeName[tf->cause]<<endline
-					   <<"  vaddr   :"<<(void*)tf->badvaddr<<endline
-				       <<"  epc     :"<<(void*)tf->epc<<endline
-				       <<"  status  :"<<(void*)tf->status<<endline
-				       <<" TrapFunc ErrorType:"<<err<<endl;
+				TrapFailed("Unsolveable exception!");
 		}
 		if (cur->IsUserProcess())
 			SwitchToUserStat();
+//		InterruptDisable();
+		if (!OnTrap)
+			;//TrapFailed("~Trap NotOnTrap");
+		else OnTrap=0;
+//		if (!cur->OnTrap)
+//			;//TrapFailed("~Trap ProcessNotOnTrap");
+//		else cur->OnTrap=0;
+//		kout[Test]<<(void*)tf->epc<<">>"<<endl;
 	}
 	
 	extern void __alltraps();

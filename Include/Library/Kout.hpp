@@ -5,6 +5,8 @@
 #include "TemplateTools.hpp"
 #include "String/Convert.hpp"
 #include "../Error.hpp"
+#include "../Process/SpinLock.hpp"
+#include "../Trap/Interrupt.hpp"
 
 namespace POS
 {
@@ -81,7 +83,6 @@ namespace POS
 	{
 		friend KOUT& endl(KOUT&);
 		protected:
-		public:
 			const char *TypeName[32]{"Info","Warning","Error","Debug","Fault","Test",0};
 			KoutEX::KoutEffect TypeColor[32]{KoutEX::Cyan,KoutEX::Yellow,KoutEX::Red,KoutEX::LightMagenta,KoutEX::LightRed,KoutEX::LightCyan,KoutEX::ResetFore};
 			unsigned EnabledType=0xFFFFFFFF;
@@ -89,14 +90,38 @@ namespace POS
 			unsigned RegisteredType=0;
 			bool CurrentTypeOn=1,
 				 EnableEffect=1;
+			SpinLock lock;
+			InterruptStackSaver iss;
 			
 			inline bool Precheck()
 			{return CurrentTypeOn;}
 			
 			inline void SwitchCurrentType(unsigned p)
 			{
-				CurrentType=p;
-				CurrentTypeOn=bool(1u<<p&EnabledType);
+				if (CurrentType!=31&&p==31)
+				{
+					CurrentType=p;
+					CurrentTypeOn=bool(1u<<p&EnabledType);
+					lock.Unlock(),iss.Restore();
+				}
+				else if (CurrentType==31&&p!=31)
+				{
+					iss.Save(),lock.Lock();
+					CurrentType=p;
+					CurrentTypeOn=bool(1u<<p&EnabledType);
+				}
+//				CurrentType=p;
+//				CurrentTypeOn=bool(1u<<p&EnabledType);
+			}
+			
+			inline static void PrintHex(unsigned char x,bool isA=1)
+			{
+				if ((x>>4)<=9)
+					Putchar((x>>4)+'0');
+				else Putchar((x>>4)-10+(isA?'A':'a'));
+				if ((x&0xF)<=9)
+					Putchar((x&0xF)+'0');
+				else Putchar((x&0xF)-10+(isA?'A':'a'));
 			}
 			
 		public:
@@ -218,6 +243,13 @@ namespace POS
 				return *this;
 			}
 			
+			inline KOUT& operator << (unsigned long x)
+			{
+				if (Precheck())
+					operator << ((unsigned long long)x);
+				return *this;
+			}
+			
 			inline KOUT& operator << (long long x)
 			{
 				if (Precheck())
@@ -241,6 +273,13 @@ namespace POS
 			}
 			
 			inline KOUT& operator << (short x)
+			{
+				if (Precheck())
+					operator << ((long long)x);
+				return *this;
+			}
+			
+			inline KOUT& operator << (long x)
 			{
 				if (Precheck())
 					operator << ((long long)x);
@@ -272,53 +311,49 @@ namespace POS
 				return *this;
 			}
 			
-			inline KOUT& operator << (const DataWithSize &x)
+			inline KOUT& operator << (const DataWithSizeUnited &x)
 			{
 				if (Precheck())
 				{
-					const int size=3;
-					char buffer[size];
-					for (unsigned long long i=0;i<x.size;++i)
+					for (Uint64 s=0,t=0;s<x.size;s+=x.unitSize,++t)
 					{
-						int len=ullTOpadic(buffer,size,*((char*)x.data+i),1,16,2);
-						if (len!=-1)
+						*this<<t<<": ";
+						switch (x.flags&0xFF)
 						{
-							buffer[len]=0;
-							Puts(buffer);
-							Putchar(' ');
+							case DataWithSizeUnited::F_Hex:
+								for (unsigned long long i=0;i<x.unitSize&&s+i<x.size;++i)
+								{
+									PrintHex(*((char*)x.data+s+i));
+									Putchar(' ');
+								}
+								break;
+							case DataWithSizeUnited::F_Char:
+								for (unsigned long long i=0;i<x.unitSize&&s+i<x.size;++i)
+									Putchar(*((char*)x.data+s+i));
+								break;
+							case DataWithSizeUnited::F_Mixed:
+								for (unsigned long long i=0;i<x.unitSize&&s+i<x.size;Putchar(' '),++i)
+									if (char ch=*((char*)x.data+s+i);InRange(ch,32,126))
+										Putchar(ch);
+									else PrintHex(ch);
+								break;
 						}
+						Putchar('\n');
 					}
 				}
 				return *this;
 			}
 			
-			inline KOUT& operator << (const DataWithSizeUnited &x)
-			{
-				if (Precheck())
-				{
-					for (Uint64 s=0,i=0;s<x.size;s+=x.unitSize,++i)
-						*this<<i<<": "<<DataWithSize(x.data+s,x.unitSize)<<"\n";
-				}
-				return *this;
-			}
+			inline KOUT& operator << (const DataWithSize &x)
+			{return *this<<DataWithSizeUnited(x.data,x.size,x.size);}
 			
 			template <typename T> KOUT& operator << (const T &x)
 			{
 				if (Precheck())
 				{
 					Puts("Unknown KOUT type:");
-					const int size=3;
-					char buffer[size];
 					for (int i=0;i<sizeof(x);++i)
-					{
-						int len=ullTOpadic(buffer,size,*((char*)&x+i),1,16,2);
-						if (len!=-1)
-						{
-							buffer[len]=0;
-							Puts(buffer);
-							Putchar(' ');
-						}
-					}
+						PrintHex(*((char*)&x+i)),Putchar(' ');
 				}
 				return *this;
 			}
@@ -405,5 +440,20 @@ class CallingInfoController
 };
 
 #define CALLINGINFO CallingInfoController cic(__func__);
+
+class CallingStackController
+{
+	protected:
+		const char *name=nullptr;
+		char **&p;
+		
+	public:
+		static void PrintCallingStack(char **p);
+		~CallingStackController();
+		CallingStackController(const char *_name);
+};
+
+#define CALLINGSTACK CallingStackController pos_debug_csc(__func__);
+#define CALLINGSTACKS(s) CallingStackController pos_debug_csc(s);
 
 #endif

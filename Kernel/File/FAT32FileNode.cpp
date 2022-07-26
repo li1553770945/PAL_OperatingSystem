@@ -14,12 +14,13 @@ FAT32FileNode::FAT32FileNode(FAT32* _vfs, Uint32 _cluster, Uint64 _ContentLba, U
 
 Sint64 FAT32FileNode::Read(void* dst, Uint64 pos, Uint64 size)
 {
+	CALLINGSTACK
 	if (IsDir)
 	{
 		return -ERR_PathIsNotFile;
 	}
 	FAT32* vfs = (FAT32*)Vfs;
-	Sint64 total_has_read_size = 0;//å¯èƒ½è¦è·¨æ‰‡åŒºã€ç°‡è¯»å–ï¼Œè¿™æ˜¯æœ¬æ¬¡ï¼ˆè¯¥å‡½æ•°æ‰§è¡Œå®Œä¸€æ¬¡ï¼‰æ€»æ•°æ®é‡
+	Sint64 total_has_read_size = 0;//¿ÉÄÜÒª¿çÉÈÇø¡¢´Ø¶ÁÈ¡£¬ÕâÊÇ±¾´Î£¨¸Ãº¯ÊıÖ´ĞĞÍêÒ»´Î£©×ÜÊı¾İÁ¿
 	Uint64 bytes_per_cluster = SECTORSIZE * vfs->Dbr.BPBSectorPerClus;
 	if (pos >= FileSize)
 	{
@@ -38,45 +39,47 @@ Sint64 FAT32FileNode::Read(void* dst, Uint64 pos, Uint64 size)
 	Uint64 lba = cluster_and_lba.b;
 
 	Uint64 sector_offset = pos % SECTORSIZE;
-	Uint64 cluster_offset = pos % bytes_per_cluster;//å½“å‰ç°‡è¯»çš„ä½ç½®ï¼Œç”¨äºåˆ¤æ–­æ˜¯å¦è¯¥åˆ‡æ¢ä¸‹ä¸€ä¸ªlbaå’Œç°‡
+	Uint64 cluster_offset = pos % bytes_per_cluster;//µ±Ç°´Ø¶ÁµÄÎ»ÖÃ£¬ÓÃÓÚÅĞ¶ÏÊÇ·ñ¸ÃÇĞ»»ÏÂÒ»¸ölbaºÍ´Ø
 
 
 	while (size)
 	{
-		if (cluster == CLUSTEREND)
+		if (IsClusterEnd(cluster))
 		{
 			kout[Error] << "try to read FAT32 from cluster end" << endl;
 			return -ERR_InvalidClusterNumInFAT32;
 		}
-		Uint64 sector_need_read_size;//å½“å‰æ‰‡åŒºéœ€è¦è¯»å–çš„å­—èŠ‚
-		if (sector_offset + size <= SECTORSIZE)//è¿™ä¸ªæ‰‡åŒºå¯ä»¥ç›´æ¥æ»¡è¶³
+		Uint64 sector_need_read_size;//µ±Ç°ÉÈÇøĞèÒª¶ÁÈ¡µÄ×Ö½Ú
+		if (sector_offset + size <= SECTORSIZE)//Õâ¸öÉÈÇø¿ÉÒÔÖ±½ÓÂú×ã
 		{
 			sector_need_read_size = size;
 			size = 0;
 		}
-		else//å½“å‰æ‰‡åŒºä¸èƒ½æ»¡è¶³ï¼ŒæŠŠè¿™ä¸ªæ‰‡åŒºè¯»å®Œ
+		else//µ±Ç°ÉÈÇø²»ÄÜÂú×ã£¬°ÑÕâ¸öÉÈÇø¶ÁÍê
 		{
 			sector_need_read_size = SECTORSIZE - sector_offset;
 			size -= sector_need_read_size;
 		}
 		
+//		kout[Debug]<<"LBA "<<lba<<" "<<sector_need_read_size<<" "<<size<<" "<<cluster<<endl;
 		vfs->ReadRawData(lba, sector_offset, sector_need_read_size, (unsigned char*)dst + total_has_read_size);
 		total_has_read_size += sector_need_read_size;
 		cluster_offset += sector_need_read_size;
 		sector_offset += sector_need_read_size;
-		if (sector_offset == SECTORSIZE)//è¿™ä¸ªæ‰‡åŒºå·²ç»è¯»å®Œ
+		if (sector_offset == SECTORSIZE)//Õâ¸öÉÈÇøÒÑ¾­¶ÁÍê
 		{
 			lba++;
 			sector_offset = 0;
 		}
-		if (cluster_offset == bytes_per_cluster) //è¿™ä¸ªç°‡å·²ç»è¯»å®Œ
+		if (cluster_offset == bytes_per_cluster) //Õâ¸ö´ØÒÑ¾­¶ÁÍê
 		{
 			cluster = vfs->GetFATContentFromCluster(cluster);
-			lba = vfs->GetLbaFromCluster(cluster);//æ–°ç°‡LBA
+			lba = vfs->GetLbaFromCluster(cluster);//ĞÂ´ØLBA
 			cluster_offset = 0;
 		}
 	}
-
+	
+//	kout[Debug]<<"thrs "<<total_has_read_size<<endl;
 	return total_has_read_size;
 }
 PAL_DS::Doublet <Uint32, Uint64> FAT32FileNode::GetCLusterAndLbaFromOffset(Uint64 offset)
@@ -93,7 +96,7 @@ PAL_DS::Doublet <Uint32, Uint64> FAT32FileNode::GetCLusterAndLbaFromOffset(Uint6
 	lba = vfs->GetLbaFromCluster(cluster) + offset / SECTORSIZE;
 	return PAL_DS::Doublet <Uint32, Uint64>(cluster, lba);
 }
-ErrorType FAT32FileNode::SetSize(Uint32 size)//è®¾ç½®æ–‡ä»¶å¤§å°ï¼Œåªèƒ½ç¼©å°ï¼Œä¸èƒ½æ”¾å¤§
+ErrorType FAT32FileNode::SetSize(Uint32 size)//ÉèÖÃÎÄ¼ş´óĞ¡£¬Ö»ÄÜËõĞ¡£¬²»ÄÜ·Å´ó
 {
 	if (size > FileSize)
 	{
@@ -126,7 +129,7 @@ Sint64 FAT32FileNode::Write(void* src, Uint64 pos, Uint64 size)
 		return -ERR_FileOperationOutofRange;
 	}
 	FAT32* vfs = (FAT32*)Vfs;
-	Uint64 total_has_write_size = 0;//å¯èƒ½è¦è·¨æ‰‡åŒºã€ç°‡è¯»å–ï¼Œè¿™æ˜¯æœ¬æ¬¡ï¼ˆè¯¥å‡½æ•°æ‰§è¡Œå®Œä¸€æ¬¡ï¼‰æ€»æ•°æ®é‡
+	Uint64 total_has_write_size = 0;//¿ÉÄÜÒª¿çÉÈÇø¡¢´Ø¶ÁÈ¡£¬ÕâÊÇ±¾´Î£¨¸Ãº¯ÊıÖ´ĞĞÍêÒ»´Î£©×ÜÊı¾İÁ¿
 	Uint64 bytes_per_cluster = SECTORSIZE * vfs->Dbr.BPBSectorPerClus;
 
 	if (size == 0)
@@ -138,18 +141,18 @@ Sint64 FAT32FileNode::Write(void* src, Uint64 pos, Uint64 size)
 	Uint64 lba = cluster_and_lba.b;
 
 	Uint64 sector_offset = pos % SECTORSIZE;
-	Uint64 cluster_offset = pos % bytes_per_cluster;//å½“å‰ç°‡è¯»çš„ä½ç½®ï¼Œç”¨äºåˆ¤æ–­æ˜¯å¦è¯¥åˆ‡æ¢ä¸‹ä¸€ä¸ªlbaå’Œç°‡
+	Uint64 cluster_offset = pos % bytes_per_cluster;//µ±Ç°´Ø¶ÁµÄÎ»ÖÃ£¬ÓÃÓÚÅĞ¶ÏÊÇ·ñ¸ÃÇĞ»»ÏÂÒ»¸ölbaºÍ´Ø
 
 	while (size)
 	{
 	
-		Uint64 sector_need_write_size;//å½“å‰æ‰‡åŒºéœ€è¦å†™å…¥çš„å­—èŠ‚
-		if (sector_offset + size <= SECTORSIZE)//è¿™ä¸ªæ‰‡åŒºå¯ä»¥ç›´æ¥æ»¡è¶³
+		Uint64 sector_need_write_size;//µ±Ç°ÉÈÇøĞèÒªĞ´ÈëµÄ×Ö½Ú
+		if (sector_offset + size <= SECTORSIZE)//Õâ¸öÉÈÇø¿ÉÒÔÖ±½ÓÂú×ã
 		{
 			sector_need_write_size = size;
 			size = 0;
 		}
-		else//å½“å‰æ‰‡åŒºä¸èƒ½æ»¡è¶³ï¼ŒæŠŠè¿™ä¸ªæ‰‡åŒºè¯»å®Œ
+		else//µ±Ç°ÉÈÇø²»ÄÜÂú×ã£¬°ÑÕâ¸öÉÈÇø¶ÁÍê
 		{
 			sector_need_write_size = SECTORSIZE - sector_offset;
 			size -= sector_need_write_size;
@@ -159,21 +162,21 @@ Sint64 FAT32FileNode::Write(void* src, Uint64 pos, Uint64 size)
 		total_has_write_size += sector_need_write_size;
 		cluster_offset += sector_need_write_size;
 		sector_offset += sector_need_write_size;
-		if (sector_offset == SECTORSIZE)//è¿™ä¸ªæ‰‡åŒºå·²ç»è¯»å®Œ
+		if (sector_offset == SECTORSIZE)//Õâ¸öÉÈÇøÒÑ¾­¶ÁÍê
 		{
 			lba++;
 			sector_offset = 0;
 		}
-		if (cluster_offset == bytes_per_cluster) //è¿™ä¸ªç°‡å·²ç»è¯»å®Œ
+		if (cluster_offset == bytes_per_cluster) //Õâ¸ö´ØÒÑ¾­¶ÁÍê
 		{
 			Uint32 last_cluster = cluster;
 			cluster = vfs->GetFATContentFromCluster(cluster);
-			if (cluster == CLUSTEREND)
+			if (IsClusterEnd(cluster))
 			{
 				cluster = vfs->GetFreeClusterAndPlusOne();
 				vfs->SetFATContentFromCluster(last_cluster, cluster);
 			}
-			lba = vfs->GetLbaFromCluster(cluster);//æ–°ç°‡LBA
+			lba = vfs->GetLbaFromCluster(cluster);//ĞÂ´ØLBA
 			cluster_offset = 0;
 		}
 	}

@@ -18,7 +18,7 @@ inline char Syscall_Getchar()
 inline char Syscall_Getputchar()
 {return Getputchar();}
 
-void Syscall_Exit(int re)
+inline void Syscall_Exit(int re)
 {
 	Process *cur=POS_PM.Current();
 	cur->Exit(re);
@@ -26,7 +26,14 @@ void Syscall_Exit(int re)
 	kout[Fault]<<"Syscall_Exit: Reached unreachable branch!"<<endl;
 }
 
-PID Syscall_Fork(TrapFrame *tf)
+inline void Syscall_Rest()
+{
+	Process *proc=POS_PM.Current();
+//	proc->Rest();
+	ProcessManager::Schedule();//??
+}
+
+inline PID Syscall_Fork(TrapFrame *tf)
 {
 	Process *cur=POS_PM.Current();
 	while (1)
@@ -174,15 +181,20 @@ inline int Syscall_openat(int fd,char *filename,int flags,int mode)//Currently, 
 				  O_WRONLY=0x001,
 				  O_RDWR=0x002,
 				  O_DIRECTORY=0x0200000;//??
-	FileNode *node=nullptr;
-	if (flags&O_CREAT)
+	FileNode *node=VFSM.Open(path);
+	if (node==nullptr&&(flags&O_CREAT))
+	{
 		if (flags&O_DIRECTORY)
 			VFSM.CreateDirectory(path);
 		else VFSM.CreateFile(path);
-	node=VFSM.Open(path);
+		node=VFSM.Open(path);
+	}
 	if (node!=nullptr)
 		if (!node->IsDir()&&(flags&O_DIRECTORY))
+		{
 			node=nullptr;
+			VFSM.Close(node);//??
+		}
 	FileHandle *re=nullptr;
 	if (node!=nullptr)
 	{
@@ -341,14 +353,23 @@ inline PID Syscall_Clone(TrapFrame *tf,Uint64 flags,void *stack,PID ppid,Uint64 
 	return re;
 }
 
-inline int Syscall_execve(const char *filepath,char *argvs[],char *envp[])//Currently, argvs and envps will be ingnored.
+inline int Syscall_execve(const char *filepath,char *argvs[],char *envp[])//Currently envps will be ingnored.
 {
 	Process *cur=POS_PM.Current(),*cp=nullptr;
 	FileNode *node=VFSM.Open(cur,filepath);
 	if (node==nullptr)
 		return -1;
+	int argc=0;
+	while (argvs[argc]!=nullptr)
+		++argc;
+	char **argv=new char*[argc];
+	for (int i=0;i<argc;++i)
+		argv[i]=strDump(argvs[i]);
 	FileHandle *file=new FileHandle(node);
-	PID id=CreateProcessFromELF(file,0,cur->GetCWD());//PID will changed! Need improve...
+	PID id=CreateProcessFromELF(file,0,cur->GetCWD(),argc,argv);//PID will change! Need improve...
+	for (int i=0;i<argc;++i)
+		Kfree(argv[i]);
+	delete[] argv;
 	int re;
 	delete file;
 	if (id<=0)
@@ -450,7 +471,7 @@ inline PtrInt Syscall_mmap(void *start,Uint64 len,int prot,int flags,int fd,int 
 		mfrProt|=VirtualMemoryRegion::VM_Write;
 	if (prot&PROT_EXEC)
 		mfrProt|=VirtualMemoryRegion::VM_Exec;
-	PtrInt s=POS_PM.Current()->GetVMS()->GetUsableVMR(start==nullptr?0x60000000:(PtrInt)start,(PtrInt)0x80000000/*??*/,len);
+	PtrInt s=POS_PM.Current()->GetVMS()->GetUsableVMR(start==nullptr?0x60000000:(PtrInt)start,(PtrInt)0x70000000/*??*/,len);
 	if (s==0||start!=nullptr&&((PtrInt)start>>PageSizeBit<<PageSizeBit)!=s)
 		return -1;
 	MemapFileRegion *mfr=new MemapFileRegion(node,start==nullptr?(void*)s:start,len,off,mfrProt);
@@ -518,7 +539,8 @@ inline RegisterData Syscall_Uname(RegisterData p)
 inline RegisterData Syscall_sched_yeild()
 {
 	Process *proc=POS_PM.Current();
-	proc->Rest();
+//	proc->Rest();
+	ProcessManager::Schedule();//??
 	return 0;
 }
 
@@ -624,7 +646,8 @@ inline int Syscall_unlinkat(int dirfd,char *path,unsigned flags)
 ErrorType TrapFunc_Syscall(TrapFrame *tf)
 {
 	InterruptStackAutoSaverBlockController isas;//??
-//	kout[Test]<<"Syscall "<<tf->reg.a7<<" | "<<(void*)tf->reg.a0<<" "<<(void*)tf->reg.a1<<" "<<(void*)tf->reg.a2<<" "<<(void*)tf->reg.a3<<" "<<(void*)tf->reg.a4<<" "<<(void*)tf->reg.a5<<endl;
+	if ((long long)tf->reg.a7>=0)
+		kout[Test]<<"PID "<<POS_PM.Current()->GetPID()<<" Syscall "<<(long long)tf->reg.a7<<" "<<SyscallName((long long)tf->reg.a7)<<" "<<" | "<<(void*)tf->reg.a0<<" "<<(void*)tf->reg.a1<<" "<<(void*)tf->reg.a2<<" "<<(void*)tf->reg.a3<<" "<<(void*)tf->reg.a4<<" "<<(void*)tf->reg.a5<<endl;
 	switch (tf->reg.a7)
 	{
 		case SYS_Putchar:
@@ -644,6 +667,9 @@ ErrorType TrapFunc_Syscall(TrapFrame *tf)
 			break;
 		case SYS_GetPID:
 			tf->reg.a0=Syscall_GetPID();
+			break;
+		case SYS_Rest:
+			Syscall_Rest();
 			break;
 		
 		case	SYS_getcwd		:
@@ -728,7 +754,8 @@ ErrorType TrapFunc_Syscall(TrapFrame *tf)
 			tf->reg.a0=Syscall_Uname(tf->reg.a0);
 			break;
 		case	SYS_sched_yeild	:
-			tf->reg.a0=Syscall_sched_yeild();
+			Syscall_Rest();
+			tf->reg.a0=0;
 			break;
 		case	SYS_gettimeofday:
 			tf->reg.a0=Syscall_gettimeofday(tf->reg.a0);
@@ -736,6 +763,37 @@ ErrorType TrapFunc_Syscall(TrapFrame *tf)
 		case	SYS_nanosleep	:
 			tf->reg.a0=Syscall_nanosleep(tf->reg.a0,tf->reg.a1);
 			break;
+		
+		case SYS_exit_group:
+		case SYS_set_tid_address:
+		case SYS_clock_gettime:
+		case SYS_sigaction:
+		case SYS_sigprocmask:
+		case SYS_sigtimedwait:
+		case SYS_gettid:
+		case SYS_prlimit64:
+		case SYS_lseek:
+//		case SYS_futex:
+		case SYS_socket:
+		case SYS_newfstatat:
+		case SYS_statfs:
+		case SYS_bind:
+		case SYS_utimensat:
+		case SYS_get_robust_list:
+		case SYS_ioctl:
+		case SYS_pread64:
+		case SYS_getsockname:
+		case SYS_writev:
+		case SYS_setsockopt:
+		case SYS_sendto:
+		case SYS_recvfrom:
+		case SYS_fcntl:
+		case SYS_listen:
+		case SYS_connect:
+		case SYS_accept:
+			kout[Warning]<<"Skipped syscall "<<tf->reg.a7<<" "<<SyscallName((long long)tf->reg.a7)<<endl;
+			break;
+
 		default:
 		Default:
 		{
@@ -752,6 +810,5 @@ ErrorType TrapFunc_Syscall(TrapFrame *tf)
 			break;
 		}
 	}
-	tf->epc+=4;
 	return ERR_None;
 }

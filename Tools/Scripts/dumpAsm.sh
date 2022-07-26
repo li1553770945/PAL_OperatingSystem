@@ -1,1 +1,1 @@
-riscv64-unknown-elf-objdump -S $1 | grep $2 $3 $4
+riscv64-unknown-elf-objdump -S ../../Build/$1 | grep $2 $3 $4

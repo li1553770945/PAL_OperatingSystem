@@ -1,6 +1,8 @@
 #ifndef __MEMLAYOUT_H
 #define __MEMLAYOUT_H
 
+#include "../../Config.h"
+
 // Physical memory layout
 
 // k210 peripherals
