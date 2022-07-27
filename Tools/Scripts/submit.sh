@@ -1,7 +1,17 @@
 cd ../..
 
-rm -r Submit
 mkdir Submit
+cd Submit
+
+for file in *
+do
+	if [ "$file" != ".git" ]
+	then
+		rm -r $file
+	fi
+done
+
+cd ..
 
 cp -r -p Doc Submit/Doc
 cp -r -p Include Submit/Include
