@@ -263,9 +263,9 @@ int RunLibcTest(void*)
 	VirtualFileSystem *vfs=new FAT32();
 	VFSM.LoadVFS(vfs);
 	
-//	kout.SwitchTypeOnoff(Info,0);
-//	kout.SwitchTypeOnoff(Warning,0);
-//	kout.SwitchTypeOnoff(Test,0);
+	kout.SwitchTypeOnoff(Info,0);
+	kout.SwitchTypeOnoff(Warning,0);
+	kout.SwitchTypeOnoff(Test,0);
 	RunList("run-static.sh");
 	kout.SwitchTypeOnoff(Info,1);
 	kout.SwitchTypeOnoff(Warning,1);
