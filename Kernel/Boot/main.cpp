@@ -238,6 +238,7 @@ int RunLibcTest(void*)
 				if (lineStr[i])
 				{
 					kout[Info]<<"RunList "<<path<<" line "<<i<<" is "<<lineStr[i]<<endl;
+//					kout[Debug]<<POS_PMM.GetFreePageNum()<<endl;
 					auto [cnt,ss]=divideStringByChar(lineStr[i],' ',1);
 					if (cnt>0
 					   &&strComp(ss[3],"daemon_failure")
@@ -263,10 +264,12 @@ int RunLibcTest(void*)
 	VirtualFileSystem *vfs=new FAT32();
 	VFSM.LoadVFS(vfs);
 	
+	kout.SetEnableEffect(0);
 	kout.SwitchTypeOnoff(Info,0);
 	kout.SwitchTypeOnoff(Warning,0);
 	kout.SwitchTypeOnoff(Test,0);
 	RunList("run-static.sh");
+	kout.SetEnableEffect(1);
 	kout.SwitchTypeOnoff(Info,1);
 	kout.SwitchTypeOnoff(Warning,1);
 	kout.SwitchTypeOnoff(Test,1);

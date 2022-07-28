@@ -7,6 +7,7 @@
 #include "../Error.hpp"
 #include "../Process/SpinLock.hpp"
 #include "../Trap/Interrupt.hpp"
+#include "../Trap/Trap.hpp"
 
 namespace POS
 {

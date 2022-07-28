@@ -248,8 +248,6 @@ inline int Syscall_linkat(int olddirfd,char *oldpath,int newdirfd,char *newpath,
 	return -1;
 }
 
-
-
 inline int Syscall_mkdirat(int fd,char *filename,int mode)//Currently,mode will be ignored...
 {
 	VirtualMemorySpace::EnableAccessUser();
@@ -330,6 +328,7 @@ inline PID Syscall_Clone(TrapFrame *tf,Uint64 flags,void *stack,PID ppid,Uint64 
 		nproc->SetStack(nullptr,cur->StackSize);
 		if (stack==nullptr)//Aka fork
 		{
+//			kout[Debug]<<"Clone "<<cur->GetPID()<<" to "<<re<<" as fork"<<endl;
 			VirtualMemorySpace *nvms=KmallocT<VirtualMemorySpace>();
 			nvms->Init();
 			nvms->CreateFrom(cur->GetVMS());
@@ -338,6 +337,7 @@ inline PID Syscall_Clone(TrapFrame *tf,Uint64 flags,void *stack,PID ppid,Uint64 
 		}
 		else//Aka create thread 
 		{
+//			kout[Debug]<<"Clone "<<cur->GetPID()<<" to "<<re<<" as thread"<<endl;
 			nproc->SetVMS(cur->GetVMS());
 			TrapFrame *ntf=(TrapFrame*)(nproc->Stack+nproc->StackSize)-1;
 			MemcpyT<RegisterData>((RegisterData*)ntf,(const RegisterData*)tf,sizeof(TrapFrame)/sizeof(RegisterData));
@@ -384,6 +384,7 @@ inline int Syscall_execve(const char *filepath,char *argvs[],char *envp[])//Curr
 	cur->Exit(re);
 	POS_PM.Schedule();
 	kout[Fault]<<"Syscall_execve reached unreacheable branch!"<<endl;
+	return -1;
 }
 
 inline PID Syscall_Wait4(PID cid,int *status,int options)
@@ -433,7 +434,7 @@ inline PtrInt Syscall_brk(PtrInt pos)
 	ErrorType err=hmr->Resize(pos-hmr->BreakPoint());
 	if (err==ERR_None)
 		return 0;
-	else return -1;	
+	else return kout[Error]<<"Syscall_brk failed with return code "<<err<<endl,-1;
 }
 
 inline int Syscall_munmap(void *start,Uint64 len)
@@ -442,46 +443,76 @@ inline int Syscall_munmap(void *start,Uint64 len)
 	VirtualMemoryRegion *vmr=vms->FindVMR((PtrInt)start);
 	if (vmr==nullptr)
 		-1;
-	MemapFileRegion *mfr=(MemapFileRegion*)vmr;
-	ErrorType err=mfr->Save();
-	if (err)
-		kout[Error]<<"Syscall_munmap: mfr failed to save! ErrorCode: "<<err<<endl;
-	delete mfr;
+	if (vmr->GetFlags()&VirtualMemoryRegion::VM_File)
+	{
+		MemapFileRegion *mfr=(MemapFileRegion*)vmr;
+		ErrorType err=mfr->Save();
+		if (err)
+			kout[Error]<<"Syscall_munmap: mfr failed to save! ErrorCode: "<<err<<endl;
+		delete mfr;
+	}
+	else vms->RemoveVMR(vmr,1);
 	return 0;
 }
 
 inline PtrInt Syscall_mmap(void *start,Uint64 len,int prot,int flags,int fd,int off)//Currently flags will be ignored...
 {
-	FileHandle *fh=POS_PM.Current()->GetFileHandleFromFD(fd);
-	if (fh==nullptr)
+	if (len==0)
 		return -1;
-	FileNode *node=fh->Node();
-	if (node==nullptr)
-		return -1;
+	FileNode *node=nullptr;
+	if (fd!=-1)
+	{
+		FileHandle *fh=POS_PM.Current()->GetFileHandleFromFD(fd);
+		if (fh==nullptr)
+			return -1;
+		FileNode *node=fh->Node();
+		if (node==nullptr)
+			return -1;
+	}
+	else DoNothing;//Anonymous mmap
+		
 	constexpr Uint64 PROT_NONE=0,
 					 PROT_READ=1,
 					 PROT_WRITE=2,
 					 PROT_EXEC=4,
 					 PROT_GROWSDOWN=0X01000000,//Unsupported yet...
 					 PROT_GROWSUP=0X02000000;//Unsupported yet...
-	Uint64 mfrProt=VirtualMemoryRegion::VM_File;
+	Uint64 vmrProt=node!=nullptr?VirtualMemoryRegion::VM_File:0;
 	if (prot&PROT_READ)
-		mfrProt|=VirtualMemoryRegion::VM_Read;
+		vmrProt|=VirtualMemoryRegion::VM_Read;
 	if (prot&PROT_WRITE)
-		mfrProt|=VirtualMemoryRegion::VM_Write;
+		vmrProt|=VirtualMemoryRegion::VM_Write;
 	if (prot&PROT_EXEC)
-		mfrProt|=VirtualMemoryRegion::VM_Exec;
+		vmrProt|=VirtualMemoryRegion::VM_Exec;
 	PtrInt s=POS_PM.Current()->GetVMS()->GetUsableVMR(start==nullptr?0x60000000:(PtrInt)start,(PtrInt)0x70000000/*??*/,len);
 	if (s==0||start!=nullptr&&((PtrInt)start>>PageSizeBit<<PageSizeBit)!=s)
-		return -1;
-	MemapFileRegion *mfr=new MemapFileRegion(node,start==nullptr?(void*)s:start,len,off,mfrProt);
-	if (mfr==nullptr)
-		return -1;
-	POS_PM.Current()->GetVMS()->InsertVMR(mfr);
-	ErrorType err=mfr->Load();
-	if (err)
-		kout[Error]<<"Syscall_mmap: mfr failed to load! ErrorCode: "<<err<<endl;
-	return start==nullptr?s:(PtrInt)start;
+		goto ErrorReturn;
+	s=start==nullptr?s:(PtrInt)start;
+	if (node!=nullptr)
+	{
+		MemapFileRegion *mfr=new MemapFileRegion(node,(void*)s,len,off,vmrProt);
+		if (mfr==nullptr)
+			goto ErrorReturn;
+		POS_PM.Current()->GetVMS()->InsertVMR(mfr);
+		ErrorType err=mfr->Load();
+		if (err)
+		{
+			kout[Error]<<"Syscall_mmap: mfr failed to load! ErrorCode: "<<err<<endl;
+			delete mfr;
+			goto ErrorReturn;
+		}
+	}
+	else
+	{
+		VirtualMemoryRegion *vmr=KmallocT<VirtualMemoryRegion>();
+		vmr->Init(s,s+len,vmrProt);
+		POS_PM.Current()->GetVMS()->InsertVMR(vmr);
+	}
+	return s;
+ErrorReturn:
+	if (node)
+		VFSM.Close(node);
+	return -1;
 }
 
 inline RegisterData Syscall_times(RegisterData _tms)
@@ -783,7 +814,7 @@ ErrorType TrapFunc_Syscall(TrapFrame *tf)
 		case SYS_ioctl:
 		case SYS_pread64:
 		case SYS_getsockname:
-		case SYS_writev:
+//		case SYS_writev:
 		case SYS_setsockopt:
 		case SYS_sendto:
 		case SYS_recvfrom:
@@ -791,6 +822,7 @@ ErrorType TrapFunc_Syscall(TrapFrame *tf)
 		case SYS_listen:
 		case SYS_connect:
 		case SYS_accept:
+		case SYS_mprotect:
 			kout[Warning]<<"Skipped syscall "<<tf->reg.a7<<" "<<SyscallName((long long)tf->reg.a7)<<endl;
 			break;
 

@@ -190,8 +190,6 @@ inline int Thread_CreateProcessFromELF(void *userdata)
 		auto vmr=KmallocT<VirtualMemoryRegion>();
 		vmr->Init(ph.vaddr,ph.vaddr+ph.memsize,flags);
 		vms->InsertVMR(vmr);
-//		MemsetT<char>((char*)ph.vaddr,0,ph.memsize);
-		vmr->Memset0();
 		BreakPoint=maxN(BreakPoint,vmr->GetEnd());
 		
 		file->Seek(ph.offset,FileHandle::Seek_Beg);
@@ -203,42 +201,38 @@ inline int Thread_CreateProcessFromELF(void *userdata)
 		VirtualMemoryRegion *vmr_stack=KmallocT<VirtualMemoryRegion>();
 		vmr_stack->Init(InnerUserProcessStackAddr,InnerUserProcessStackAddr+InnerUserProcessStackSize,VirtualMemoryRegion::VM_USERSTACK);
 		vms->InsertVMR(vmr_stack);
-//		MemsetT<char>((char*)InnerUserProcessStackAddr,0,InnerUserProcessStackSize);
-		vmr_stack->Memset0();
 	}
 	{
 		HeapMemoryRegion *hmr=KmallocT<HeapMemoryRegion>();
 		hmr->Init(BreakPoint);
 		vms->InsertVMR(hmr);
-//		MemsetT<char>((char*)hmr->GetStart(),0,hmr->GetLength());
 		proc->SetHeap(hmr);
-		hmr->Memset0();
 	}
-	if (d->argc!=0)//Testing...
-	{
-		PtrInt p=vms->GetUsableVMR(0x60000000,0x70000000,PageSize);
-		VirtualMemoryRegion *vmr_args=KmallocT<VirtualMemoryRegion>();
-		vmr_args->Init(p,p+PageSize,VirtualMemoryRegion::VM_RW);
-		vms->InsertVMR(vmr_args);
-		vmr_args->Memset0();
-		*(PtrInt*)p=d->argc;
-		char *s=(char*)p+sizeof(PtrInt)*(d->argc+2);
-		for (int i=0;i<d->argc;++i)
-		{
-			((PtrInt*)p+1)[i]=(PtrInt)s;
-			s=strCopyRe(s,d->argv[i]);
-			*s++=0;
-		}
+	{//Init info //Testing...
 		TrapFrame *tf=(TrapFrame*)(proc->Stack+proc->StackSize)-1;
-//		tf->reg.a0=d->argc;
-//		tf->reg.a1=p+sizeof(PtrInt);
 		long *q=(decltype(q))tf->reg.sp;
+		Uint64 *r=(decltype(r))(q+1);
 		q[0]=d->argc;
-		for (int i=0;i<minN(d->argc,31);++i)//Need improve...
-			((char**)(q+1))[i]=(char*)((PtrInt*)p+1)[i];
-//		kout[Debug]<<"argc: "<<q[0]<<endl;
-//		for (int i=0;i<q[0];++i)
-//			kout[Debug]<<"argv "<<i<<":"<<((char**)(q+1))[i]<<endl;
+		if (q[0])
+		{
+			PtrInt p=vms->GetUsableVMR(0x60000000,0x70000000,PageSize);
+			VirtualMemoryRegion *vmr_args=KmallocT<VirtualMemoryRegion>();
+			vmr_args->Init(p,p+PageSize,VirtualMemoryRegion::VM_RW);
+			vms->InsertVMR(vmr_args);
+			*(PtrInt*)p=d->argc;
+			char *s=(char*)p+sizeof(PtrInt)*(d->argc+2);
+			for (int i=0;i<d->argc;++i)
+			{
+				((PtrInt*)p+1)[i]=(PtrInt)s;
+				((char**)r)[i]=s;
+				s=strCopyRe(s,d->argv[i]);
+				*s++=0;
+			}
+		}
+		r[d->argc]=0;//End of argv
+		r[d->argc+1]=0;//End of envs
+		r[d->argc+2]=6;//aka AT_PAGESZ(6)
+		r[d->argc+3]=PageSize;
 	}
 	vms->DisableAccessUser();
 	d->sem.Signal();

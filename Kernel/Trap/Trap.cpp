@@ -145,11 +145,11 @@ extern "C"
 			case ExceptionCode_StorePageFault:
 			{
 				ErrorType err=TrapFunc_FageFault(tf);
-				if (err==4)//Debug...
+				if (InThisSet(err,ERR_OutOfMemory,ERR_AccessInvalidVMR))//Debug...
 				{
 					if (tf->status&0x100)
-						kout[Fault]<<"PageFault InvalidVMR in kernel!"<<endline;
-					else kout[Error]<<"PageFault InvalidVMR! Exit this process!"<<endline;
+						kout[Fault]<<"TrapFunc_FageFault failed in kernel! ErrorType "<<err<<endline;
+					else kout[Error]<<"TrapFunc_FageFault failed! Exit this process! ErrorType "<<err<<endline;
 					TrapFailedInfo(tf);
 					cur->Exit(Process::Exit_SegmentationFault);
 					POS_PM.Schedule();

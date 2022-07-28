@@ -246,9 +246,6 @@ class VirtualMemoryRegion:public POS::LinkTableT <VirtualMemoryRegion>
 			return re;
 		}
 		
-		inline void Memset0()
-		{POS::MemsetT<char>((char*)Start,0,End-Start);}
-		
 		inline bool Intersect(PtrInt l,PtrInt r) const
 		{return r>Start&&End>l;}
 		
@@ -266,6 +263,9 @@ class VirtualMemoryRegion:public POS::LinkTableT <VirtualMemoryRegion>
 		
 		inline PtrInt GetLength()
 		{return End-Start;}
+		
+		inline Uint32 GetFlags()
+		{return Flags;}
 		
 		ErrorType Init(PtrInt start,PtrInt end,Uint32 flags);
 };

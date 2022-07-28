@@ -66,6 +66,7 @@ enum SyscallID
 	SYS_mmap			=222,
 	SYS_clone			=220,
 	SYS_execve			=221,
+	SYS_mprotect		=226,
 	SYS_wait4			=260,
 	SYS_prlimit64		=261,
 };
@@ -137,6 +138,7 @@ inline const char *SyscallName(int sys)
 		case SYS_mmap:				return "SYS_mmap";
 		case SYS_clone:				return "SYS_clone";
 		case SYS_execve:			return "SYS_execve";
+		case SYS_mprotect:			return "SYS_mprotect";
 		case SYS_wait4:				return "SYS_wait4";
 		case SYS_prlimit64:			return "SYS_prlimit64";
 		default:					return ""; 

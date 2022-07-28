@@ -27,7 +27,6 @@ ErrorType PageTable::Destroy(const int level)
 				ASSERT(page,"PageTable::Destroy: page is nullptr!");
 				if (--page->ref==0)
 				{
-//					kout[Test]<<"Free page "<<page<<" addr "<<(void*)(entries[i].Get<Entry::PPN>()<<PageSizeBit)<<endl;
 					POS_PMM.FreePage(page);
 				}
 			}
@@ -319,9 +318,10 @@ ErrorType VirtualMemorySpace::SolvePageFault(TrapFrame *tf)
 		PageTable *pt2;
 		if (!e2.Valid())
 		{
-			pt2=(PageTable*)POS_PMM.AllocPage(1)->KAddr();
-//			kout[Test]<<"pt2 "<<pt2<<endl;
-			ASSERT(pt2,"VirtualMemorySpace::SolvePageFault: Cannot Kmalloc pt2!");
+			Page *pg2=POS_PMM.AllocPage(1);
+			if (pg2==nullptr)
+				return ERR_OutOfMemory;
+			pt2=(PageTable*)pg2->KAddr();
 			ASSERT(((PtrInt)pt2&(PageSize-1))==0,"pt2 is not aligned to 4k!");
 			pt2->Init();
 			e2.SetPageTable(pt2);
@@ -332,9 +332,10 @@ ErrorType VirtualMemorySpace::SolvePageFault(TrapFrame *tf)
 		PageTable *pt1;
 		if (!e1.Valid())
 		{
-			pt1=(PageTable*)POS_PMM.AllocPage(1)->KAddr();
-//			kout[Test]<<"pt1 "<<pt1<<endl;
-			ASSERT(pt1,"VirtualMemorySpace::SolvePageFault: Cannot Kmalloc pt1!");
+			Page *pg1=POS_PMM.AllocPage(1);
+			if (pg1==nullptr)
+				return ERR_OutOfMemory;
+			pt1=(PageTable*)pg1->KAddr();
 			ASSERT(((PtrInt)pt1&(PageSize-1))==0,"pt1 is not aligned to 4k!");
 			pt1->Init();
 			e1.SetPageTable(pt1);
@@ -346,10 +347,10 @@ ErrorType VirtualMemorySpace::SolvePageFault(TrapFrame *tf)
 		if (!e0.Valid())
 		{
 			pg0=POS_PMM.AllocPage(1);
-//			kout[Test]<<"pg0 "<<pg0<<endl;
-			ASSERT(pg0,"VirtualMemorySpace::SolvePageFault: Cannot allocate Page pg0!");
+			if (pg0==nullptr)
+				return ERR_OutOfMemory;
 			ASSERT(((PtrInt)pg0->PAddr()&(PageSize-1))==0,"pg0->Paddr() is not aligned to 4k!");
-			MemsetT<char>((char*)pg0->KAddr(),0,PageSize);//Needed??
+			MemsetT<char>((char*)pg0->KAddr(),0,PageSize);//Clear the page data that no data will leak and also for pointer safty.
 			e0.SetPage(pg0,vmr->ToPageEntryFlags());
 		}
 		else kout[Fault]<<"VirtualMemorySpace::SolvePageFault: Page exist, however page fault!"<<endl;

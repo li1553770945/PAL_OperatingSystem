@@ -35,12 +35,15 @@ void Page::AddNext(Page * next)
         next->next->pre = next;
 }
 
-void* PhysicalMemoryManager::Alloc(Uint64 size)//è¦åˆ†é…çš„å­—èŠ‚æ•°
+void* PhysicalMemoryManager::Alloc(Uint64 size,bool success)//Òª·ÖÅäµÄ×Ö½ÚÊı
 {
     int need_page_num = size/PageSize;
     if(size%PageSize)
         need_page_num++;
-    return (void*)zone.AllocPage(need_page_num)->addr;
+    Page *page=zone.AllocPage(need_page_num);
+    if (page==nullptr&&success)
+    	kout[Fault]<<"PhysicalMemoryManager::Alloc failed to allocate! Size "<<size<<" FreePages "<<GetFreePageNum()<<endl;
+    return (void*)page->addr;
 }
 
 void PhysicalMemoryManager::Free(void *p)
@@ -95,7 +98,7 @@ void Zone::BuildTree(int pos,int left,int right,int x,int y,Uint64 addr)
 
 void Zone::InitTree(int index,int order,int left,int right)
 {
-    // kout<<"init tree:"<<index<<" "<<left<<" " <<right<<endl;
+//	kout[Debug]<<"Zone::InitTree "<<index<<" "<<order<<" "<<left<<" "<<right<<endl;
     page[index].index = index;
     page[index].flags = -1;
     page[index].addr = 0;
@@ -147,7 +150,8 @@ int Zone::Init()
     page_need_memory = page_num * sizeof(Page);
     free_memory_start_addr =  page_base + page_need_memory+4095>>PageSizeBit<<PageSizeBit;
     free_memory_size = end_addr - free_memory_start_addr;
-    int valid_page_num =  free_memory_size / page_size;
+    valid_page_num =  free_memory_size / page_size;
+    free_page_num = valid_page_num;
     BuildTree(1,left,right,1,valid_page_num,free_memory_start_addr);
     for(int i=0;i<=max_order;i++)
     {
@@ -160,6 +164,8 @@ int Zone::Init()
 }
 Page * Zone::AllocPage(Uint64 need_page_num)
 {
+	ISASBC;//??
+	
     int order = klog2(need_page_num);
     if((int)kpow2(order) != need_page_num)
     {
@@ -176,7 +182,7 @@ Page * Zone::AllocPage(Uint64 need_page_num)
     }while(++cur_order<=max_order);
     if(cur_order > max_order)
     {
-    	kout[Fault]<<"PhysicalMemoryManager::Failed to allocate Page!"<<endl;
+    	kout[Error]<<"PhysicalMemoryManager::Failed to allocate Page! FreePages "<<GetFreePageNum()<<endl;
         return nullptr;
     }
     
@@ -187,34 +193,43 @@ Page * Zone::AllocPage(Uint64 need_page_num)
     }
    
     Page * cur_page = free_area[order].head.DismantleNext();
+    free_page_num -= kpow2(order);
 //    kout[Test]<<"Zone::AllocPage: "<<cur_page->index<<" "<<cur_page->order<<endl;
     cur_page->flags = 1;
     return cur_page;
 }
 void Zone::FreePage(Page * p)
 {
+	ISASBC;//??
+	
 //    kout[Test]<<"Zone::FreePage: "<<p<<" "<<p->index<<endl;
     free_area[p->order].head.AddNext(p);
     p->flags = 0;
+
+    free_page_num += kpow2(p->order);
     Merge(p);
 }
 
 void Zone::Merge(Page * p)
 {
-    Page * partner = GetPartner(p);
-    if(partner->flags != 0)//ä¼™ä¼´æ­£åœ¨è¢«ä½¿ç”¨æˆ–ä¸å¯è®¿é—®
-    {
-        return;
-    }
-    else
-    {
-//        kout[Test]<<"Zone::Merge: "<<p<<" "<<p->index<<endl;
-        p->Dismantle();
-        partner->Dismantle();
-        Page * parent = GetParent(p);
-        parent->flags = 0;
-        free_area[parent->order].head.AddNext(parent);
-    }
+	while (1)
+	{
+		Page * partner = GetPartner(p);
+	    if(partner->flags != 0)//»ï°éÕıÔÚ±»Ê¹ÓÃ»ò²»¿É·ÃÎÊ
+	    {
+	        return;
+	    }
+	    else
+	    {
+	//        kout[Test]<<"Zone::Merge: "<<p<<" "<<p->index<<endl;
+	        p->Dismantle();
+	        partner->Dismantle();
+	        Page * parent = GetParent(p);
+	        parent->flags = 0;
+	        free_area[parent->order].head.AddNext(parent);
+	        p=parent;
+	    }
+	}
 }
 
 void Zone::Split(Page * p)
@@ -239,15 +254,15 @@ Page* Zone::GetPartner(Page * p)
         return &page[p->index + 1];
     }
 }
-Page * Zone::GetLeftSon(Page * p)//è·å–å·¦å­©å­
+Page * Zone::GetLeftSon(Page * p)//»ñÈ¡×óº¢×Ó
 {
     return &page[p->index * 2];
 }
-Page * Zone::GetRightSon(Page * p)//è·å–å³å­©å­
+Page * Zone::GetRightSon(Page * p)//»ñÈ¡ÓÒº¢×Ó
 {
     return &page[p->index * 2+1];
 }
-Page * Zone::GetParent(Page * p)//è·å–çˆ¶èŠ‚ç‚¹
+Page * Zone::GetParent(Page * p)//»ñÈ¡¸¸½Úµã
 {
     return &page[p->index / 2];
 }
@@ -273,8 +288,15 @@ Page * Zone::QueryPage(int index,Uint64 addr)
         return QueryPage(index*2+1,addr);
     }
 }
-Page * Zone::GetPageFromAddr(void* addr)//æ ¹æ®ç‰©ç†åœ°å€å’Œå¤§å°æ‹¿åˆ°å¯¹åº”çš„
+Page * Zone::GetPageFromAddr(void* addr)//¸ù¾İÎïÀíµØÖ·ºÍ´óĞ¡ÄÃµ½¶ÔÓ¦µÄÒ³
 {   
     Page * p = QueryPage(1,(Uint64)addr);
     return p;
 }
+
+Uint64 Zone::GetFreePageNum()
+{
+    return free_page_num;
+}
+
+

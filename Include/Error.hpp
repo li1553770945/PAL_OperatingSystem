@@ -11,6 +11,7 @@ enum
 	ERR_Unknown,
 	ERR_Todo,
 	ERR_KmallocFailed,
+	ERR_OutOfMemory,
 	ERR_AccessInvalidVMR,
 	ERR_AccessPermissionViolate,
 	ERR_BusyForking,

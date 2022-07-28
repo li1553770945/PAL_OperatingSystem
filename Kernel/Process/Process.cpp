@@ -623,7 +623,6 @@ PID CreateInnerUserImgProcess(PtrInt start,PtrInt end,Uint64 flags)
 		vms->Enter();
 		vms->EnableAccessUser();
 		MemcpyT<char>((char*)InnerUserProcessLoadAddr,(const char*)start,loadsize);
-		MemsetT<char>((char*)InnerUserProcessStackAddr,0,InnerUserProcessStackSize);//!!??
 		vms->DisableAccessUser();
 		vms->Leave();
 	}

@@ -97,6 +97,8 @@ class Zone
 		|----kernel---------------|------------------page-------------|---------------free_memory-----------|
 		-------------kernel_end(page_base)------------------free_memmory_start---------------------------end_addr
 		*/
+
+		Uint64 free_page_num;//空闲的页数
 	
 		int max_order;
 		int max_depth;
@@ -116,6 +118,8 @@ class Zone
 		Page * GetPartner(Page * p);//获取伙伴
 		Page * GetPageFromAddr(void*);//根据物理地址和大小拿到对应的页
 		Page * QueryPage(int index,Uint64 addr);//递归查找地址对应的页
+
+		Uint64 GetFreePageNum();
 };
 
 class PhysicalMemoryManager
@@ -125,8 +129,11 @@ class PhysicalMemoryManager
 
 	public:
 		const char* Name()  const;
-		void* Alloc(Uint64 size);
+		void* Alloc(Uint64 size,bool Success=1);
 		void Free(void *addr);
+		
+		inline Uint64 GetFreePageNum()
+		{return zone.GetFreePageNum();}
 		
 		inline Page* GetPageFromAddr(void *addr)
 		{return zone.GetPageFromAddr(addr);}
