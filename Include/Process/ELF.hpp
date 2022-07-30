@@ -112,6 +112,29 @@ struct ELF_ProgramHeader64
 	Uint64 align;//Segment alignment
 }__attribute__((packed));
 
+enum class ELF_AT
+{
+	NULL	=0,
+	IGNORE	=1,
+	EXECFD	=2,
+	PHDR	=3,
+	PHENT	=4,
+	PHNUM	=5,
+	PAGESZ	=6,
+	BASE	=7,
+	FLAGS	=8,
+	ENTRY	=9,
+	NOTELF	=10,
+	UID		=11,
+	EUID	=12,
+	GID		=13,
+	EGID	=14,
+	HWCAP	=16,
+	CLKTCK	=17,
+	SECURE	=23,
+	EXECFN	=31
+};
+
 using ELF_Header32=ELF_HeaderXX <Uint32>;
 using ELF_Header64=ELF_HeaderXX <Uint64>;
 
@@ -137,6 +160,9 @@ inline int Thread_CreateProcessFromELF(void *userdata)
 	Process *proc=d->proc;
 	VirtualMemorySpace *vms=d->vms;
 	
+	Uint64 ProgramInterpreterBase=0,
+		   ProgramHeaderAddress=0;
+	
 	vms->EnableAccessUser();
 	PtrInt BreakPoint=0;
 	for (int i=0;i<d->header.phnum;++i)
@@ -146,56 +172,117 @@ inline int Thread_CreateProcessFromELF(void *userdata)
 		Sint64 err=file->Read(&ph,sizeof(ph));
 		if (err!=sizeof(ph))
 			kout[Fault]<<"Failed to read elf program header "<<file<<" ,error code "<<-err<<endl;
-		bool continue_flag=0;
 		switch (ph.type)
 		{
 			case ELF_ProgramHeader64::PT_LOAD:
+			{
+				Uint64 flags=0;
+				if (ph.flags&ELF_ProgramHeader64::PF_R)
+					flags|=VirtualMemoryRegion::VM_Read;
+		//		if (ph.flags&ELF_ProgramHeader64::PF_W)
+					flags|=VirtualMemoryRegion::VM_Write;
+				if (ph.flags&ELF_ProgramHeader64::PF_X)
+					flags|=VirtualMemoryRegion::VM_Exec;
+				
+				kout[Test]<<"Add VMR "<<(void*)ph.vaddr<<" "<<(void*)(ph.vaddr+ph.memsize)<<" "<<(void*)flags<<endl;
+				auto vmr=KmallocT<VirtualMemoryRegion>();
+				vmr->Init(ph.vaddr,ph.vaddr+ph.memsize,flags);
+				vms->InsertVMR(vmr);
+				BreakPoint=maxN(BreakPoint,vmr->GetEnd());
+				
+				file->Seek(ph.offset,FileHandle::Seek_Beg);
+				err=file->Read((void*)ph.vaddr,ph.filesize);
+				if (err!=ph.filesize)
+					kout[Fault]<<"Failed to read elf segment "<<file<<" ,error code "<<-err<<endl;
 				break;
+			}
+			case ELF_ProgramHeader64::PT_INTERP://Need improve...
+			{
+				file->Seek(ph.offset,FileHandle::Seek_Beg);
+				char *interpPath=new char[ph.filesize];
+				err=file->Read((void*)interpPath,ph.filesize);
+				if (err==ph.filesize)
+				{
+					FileHandle *file=nullptr;
+					char *path=VFSM.NormalizePath(interpPath);
+					FileNode *node=VFSM.Open(path);
+					delete[] path;
+					if (node!=nullptr)
+						file=new FileHandle(node);
+					if (file!=nullptr)
+					{
+						ELF_Header64 header{0};
+						err=file->Read(&header,sizeof(header));
+						if (err!=sizeof(header))
+							kout[Fault]<<"Failed to read interpreter elf header! Error code "<<err<<endl;
+						Uint64 needSize=0;
+						for (int i=0;i<header.phnum;++i)
+						{
+							ELF_ProgramHeader64 ph{0};
+							file->Seek(header.phoff+i*header.phentsize,FileHandle::Seek_Beg);
+							Sint64 err=file->Read(&ph,sizeof(ph));
+							if (err!=sizeof(ph))
+								kout[Fault]<<"Failed to read interpreter elf program header "<<file<<" ,error code "<<-err<<endl;
+							if (ph.type==ELF_ProgramHeader64::PT_LOAD)
+								needSize+=ph.memsize;
+						}
+						PtrInt s=ProgramInterpreterBase=vms->GetUsableVMR(0x60000000,0x70000000,needSize);
+						{
+							TrapFrame *tf=(TrapFrame*)(proc->Stack+proc->StackSize)-1;
+							tf->epc=s+header.entry;
+							kout[Test]<<"Set entry point as "<<(void*)tf->epc<<endl;
+						}
+						for (int i=0;i<header.phnum;++i)
+						{
+							ELF_ProgramHeader64 ph{0};
+							file->Seek(header.phoff+i*header.phentsize,FileHandle::Seek_Beg);
+							Sint64 err=file->Read(&ph,sizeof(ph));
+							if (err!=sizeof(ph))
+								kout[Fault]<<"Failed to read interpreter elf program header "<<file<<" ,error code "<<-err<<endl;
+							if (ph.type==ELF_ProgramHeader64::PT_LOAD)
+							{
+								Uint64 flags=0;
+								if (ph.flags&ELF_ProgramHeader64::PF_R)
+									flags|=VirtualMemoryRegion::VM_Read;
+						//		if (ph.flags&ELF_ProgramHeader64::PF_W)
+									flags|=VirtualMemoryRegion::VM_Write;
+								if (ph.flags&ELF_ProgramHeader64::PF_X)
+									flags|=VirtualMemoryRegion::VM_Exec;
+								
+								kout[Test]<<"Add VMR of INTERP "<<(void*)(s+ph.vaddr)<<" "<<(void*)(s+ph.vaddr+ph.memsize)<<" "<<(void*)flags<<endl;
+								auto vmr=KmallocT<VirtualMemoryRegion>();
+								vmr->Init(s+ph.vaddr,s+ph.vaddr+ph.memsize,flags);
+								vms->InsertVMR(vmr);
+								
+								file->Seek(ph.offset,FileHandle::Seek_Beg);
+								err=file->Read((void*)(s+ph.vaddr),ph.filesize);
+								if (err!=ph.filesize)
+									kout[Fault]<<"Failed to read elf segment "<<file<<" ,error code "<<-err<<endl;
+							}
+						}
+					}
+					else kout[Fault]<<"Failed to read elf INTERP path "<<interpPath<<endl;
+					delete file;
+					VFSM.Close(node);
+				}
+				else kout[Fault]<<"Failed to read elf INTERP path! Error code "<<-err<<endl;
+				delete[] interpPath;
+				break;
+			}
 			case ELF_ProgramHeader64::PT_PHDR:
-			case ELF_ProgramHeader64::PT_INTERP:
+				ProgramHeaderAddress=ph.vaddr;
+				break;
 			case 1685382481://Aka GNU_STACK
 			case 1685382482://Aka GNU_RELRO
 			case 7://Aka TLS
 			case ELF_ProgramHeader64::PT_DYNAMIC:
-				continue_flag=1;
 				break;
-			
-			
-//		PT_NULL=0,//Empty segment
-//		PT_LOAD=1,//Loadable segment
-//		PT_DYNAMIC=2,//Segment include dynamic linker info
-//		PT_NOTE=4,//Segment include compiler infomation
-//		PT_SHLIB=5,//Shared library segment
-			
 			default:
 				if (POS::InRange(ph.type,ELF_ProgramHeader64::PT_LOPROC,ELF_ProgramHeader64::PT_HIPROC))
-				{
 					kout[Warning]<<"Currently unsolvable elf segment "<<ph.type<<", do nothing..."<<endl;
-					continue_flag=1;
-				}
 				else kout[Fault]<<"Unsolvable elf segment "<<ph.type<<endline<<ph<<endl;
+				break;
 		}
-		if (continue_flag)
-			continue;
-		
-		Uint64 flags=0;
-		if (ph.flags&ELF_ProgramHeader64::PF_R)
-			flags|=VirtualMemoryRegion::VM_Read;
-//		if (ph.flags&ELF_ProgramHeader64::PF_W)
-			flags|=VirtualMemoryRegion::VM_Write;
-		if (ph.flags&ELF_ProgramHeader64::PF_X)
-			flags|=VirtualMemoryRegion::VM_Exec;
-		
-		kout[Test]<<"Add VMR "<<(void*)ph.vaddr<<" "<<(void*)(ph.vaddr+ph.memsize)<<" "<<(void*)flags<<endl;
-		auto vmr=KmallocT<VirtualMemoryRegion>();
-		vmr->Init(ph.vaddr,ph.vaddr+ph.memsize,flags);
-		vms->InsertVMR(vmr);
-		BreakPoint=maxN(BreakPoint,vmr->GetEnd());
-		
-		file->Seek(ph.offset,FileHandle::Seek_Beg);
-		err=file->Read((void*)ph.vaddr,ph.filesize);
-		if (err!=ph.filesize)
-			kout[Fault]<<"Failed to read elf segment "<<file<<" ,error code "<<-err<<endl;
 	}
 	{
 		VirtualMemoryRegion *vmr_stack=KmallocT<VirtualMemoryRegion>();
@@ -210,29 +297,58 @@ inline int Thread_CreateProcessFromELF(void *userdata)
 	}
 	{//Init info //Testing...
 		TrapFrame *tf=(TrapFrame*)(proc->Stack+proc->StackSize)-1;
-		long *q=(decltype(q))tf->reg.sp;
-		Uint64 *r=(decltype(r))(q+1);
-		q[0]=d->argc;
-		if (q[0])
+		Uint8 *sp=(decltype(sp))tf->reg.sp;
+		auto PushInfo32=[&sp](Uint32 info)
 		{
-			PtrInt p=vms->GetUsableVMR(0x60000000,0x70000000,PageSize);
-			VirtualMemoryRegion *vmr_args=KmallocT<VirtualMemoryRegion>();
-			vmr_args->Init(p,p+PageSize,VirtualMemoryRegion::VM_RW);
-			vms->InsertVMR(vmr_args);
-			*(PtrInt*)p=d->argc;
-			char *s=(char*)p+sizeof(PtrInt)*(d->argc+2);
+			*(Uint32*)sp=info;
+			sp+=sizeof(long);//!! Need improve...
+		};
+		auto PushInfo64=[&sp](Uint64 info)
+		{
+			*(Uint64*)sp=info;
+			sp+=8;
+		};
+		auto AddAUX=[&PushInfo64](ELF_AT at,Uint64 value)
+		{
+			PushInfo64((Uint64)at);
+			PushInfo64(value);
+		};
+		PtrInt p=vms->GetUsableVMR(0x60000000,0x70000000,PageSize);
+		VirtualMemoryRegion *vmr_str=KmallocT<VirtualMemoryRegion>();
+		vmr_str->Init(p,p+PageSize,VirtualMemoryRegion::VM_RW);
+		vms->InsertVMR(vmr_str);
+		char *s=(char*)p;
+		auto PushString=[&s](const char *str)->const char*
+		{
+			const char *s_bak=s;
+			s=strCopyRe(s,str);
+			*s++=0;
+			return s_bak;
+		};
+	
+		PushInfo32(d->argc);
+		if (d->argc)
 			for (int i=0;i<d->argc;++i)
-			{
-				((PtrInt*)p+1)[i]=(PtrInt)s;
-				((char**)r)[i]=s;
-				s=strCopyRe(s,d->argv[i]);
-				*s++=0;
-			}
+				PushInfo64((Uint64)PushString(d->argv[i]));
+		PushInfo64(0);//End of argv
+		PushInfo64((Uint64)PushString("LD_LIBRARY_PATH=/VFS/FAT32"));
+		PushInfo64(0);//End of envs
+		if (ProgramHeaderAddress!=0)
+		{
+			AddAUX(ELF_AT::PHDR,ProgramHeaderAddress);
+			AddAUX(ELF_AT::PHENT,d->header.phentsize);
+			AddAUX(ELF_AT::PHNUM,d->header.phnum);
+			
+			AddAUX(ELF_AT::UID,10);
+			AddAUX(ELF_AT::EUID,10);
+			AddAUX(ELF_AT::GID,10);
+			AddAUX(ELF_AT::EGID,10);
 		}
-		r[d->argc]=0;//End of argv
-		r[d->argc+1]=0;//End of envs
-		r[d->argc+2]=6;//aka AT_PAGESZ(6)
-		r[d->argc+3]=PageSize;
+		AddAUX(ELF_AT::PAGESZ,PageSize);
+		if (ProgramInterpreterBase!=0)
+			AddAUX(ELF_AT::BASE,ProgramInterpreterBase);
+		AddAUX(ELF_AT::ENTRY,d->header.entry);
+		PushInfo64(0);//End of auxv
 	}
 	vms->DisableAccessUser();
 	d->sem.Signal();

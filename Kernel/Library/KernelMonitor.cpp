@@ -118,10 +118,8 @@ void KernelFaultSolver()
 			};
 			PrintVFSM(PrintVFSM,"/");
 		}
-		else if (strComp(cmd,"")==0)
-		{
-
-		}
+		else if (strComp(cmd,"FreePages")==0)
+			kout<<LightYellow<<POS_PMM.GetFreePageNum()<<endl;
 		else if (strComp(cmd,"")==0)
 		{
 

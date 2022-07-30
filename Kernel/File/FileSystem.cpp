@@ -88,6 +88,20 @@ PAL_DS::Doublet <VirtualFileSystem*,const char*> VirtualFileSystemManager::FindP
 	}
 }
 
+char* VirtualFileSystemManager::GetSymbolLinkedPath(const char *path)
+{
+	for (auto *p=SymbolLinks.Nxt();p;p=p->Nxt())
+	{
+		const char *s=MatchPrefix(path,p->Data()->a);
+		if (s!=nullptr)
+			if (*s==0)
+				return strDump(p->Data()->b);
+			else if (*s=='/')
+				return strSplice(p->Data()->b,s);
+	}
+	return nullptr;
+}
+
 char* VirtualFileSystemManager::NormalizePath(const char *path,const char *base)
 {
 	char *tmp=base==nullptr||IsAbsolutePath(path)?strDump(path):strSplice(base,"/",path);
@@ -109,7 +123,11 @@ char* VirtualFileSystemManager::NormalizePath(const char *path,const char *base)
 		}
 		else ++q;
 	*s=0;
-	char *re=strDump(tmp);
+	char *re=nullptr;
+	if (EnableSymbolLinks)
+		re=GetSymbolLinkedPath(tmp);
+	if (re==nullptr)
+		re=strDump(tmp);
 	Kfree(tmp);
 	return re;
 }
@@ -284,10 +302,48 @@ ErrorType VirtualFileSystemManager::Close(FileNode *p)
 	delete p;//??
 	return ERR_Todo;
 }
+		
+ErrorType VirtualFileSystemManager::CreateSymbolLink(const char *src,const char *dst)
+{
+	auto p=SymbolLinks.Nxt();
+	while (p)
+		if (strComp(p->Data()->a,src)==0)
+			break;
+		else p=p->Nxt();
+	if (p==nullptr)
+	{
+		p=new decltype(SymbolLinks)();
+		p->SetData(new PAL_DS::Doublet<char*,char*>(strDump(src),strDump(dst)));
+		SymbolLinks.NxtInsert(p);
+	}
+	else
+	{
+		delete[] p->Data()->b;
+		p->Data()->b=strDump(dst);
+	}
+	return ERR_None;
+}
+
+ErrorType VirtualFileSystemManager::RemoveSymbolLink(const char *src)
+{
+	for (auto *p=SymbolLinks.Nxt();p;p=p->Nxt())
+		if (strComp(p->Data()->a,src)==0)
+		{
+			p->Remove();
+			delete[] p->Data()->a;
+			delete[] p->Data()->b;
+			delete p->Data();
+			delete p;
+			break;
+		}
+	return ERR_None;
+}
 
 ErrorType VirtualFileSystemManager::Init()
 {
 	kout[Warning]<<"VirtualFileSystemManager::Init is not usable!"<<endl;
+	SymbolLinks.Init();
+	EnableSymbolLinks=1;
 	
 	root=new FileNode(nullptr,FileNode::A_Root|FileNode::A_Dir,FileNode::F_Managed|FileNode::F_Base);
 

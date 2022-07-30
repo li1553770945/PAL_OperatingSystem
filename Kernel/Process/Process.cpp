@@ -239,7 +239,7 @@ ErrorType Process::Start(int (*func)(void*),void *funcdata,PtrInt userStartAddr)
     	context.sp   =(RegisterData)tf;
     	context.s[0] =(RegisterData)func;
     	context.s[1] =(RegisterData)funcdata;
-    	tf->reg.sp	 =(RegisterData)InnerUserProcessStackAddr/*??*/+InnerUserProcessStackSize-256;
+    	tf->reg.sp	 =(RegisterData)InnerUserProcessStackAddr/*??*/+InnerUserProcessStackSize-512;
 		tf->epc      =(RegisterData)userStartAddr;
 		tf->status   =(RegisterData)((read_csr(sstatus)|SSTATUS_SPIE)&~SSTATUS_SPP&~SSTATUS_SIE);//??
 //		tf->status   =(RegisterData)((read_csr(sstatus)|SSTATUS_SPP|SSTATUS_SPIE)&~SSTATUS_SIE);//??
@@ -414,7 +414,6 @@ FileHandle* Process::GetFileHandleFromFD(int fd)
 
 ErrorType Process::InitFileTable()
 {
-	CurrentWorkDirectory=nullptr;
 	MemsetT<FileHandle*>(FileTable,0,8);
 	if (stdIO!=nullptr)
 	{
@@ -475,6 +474,7 @@ ErrorType Process::Init(Uint64 _flags)
 	SemWaitingTargetTime=0;
 	WaitSem=new Semaphore(0);
 	Heap=nullptr;
+	CurrentWorkDirectory=nullptr;
 	InitFileTable();
 	CallingStack=nullptr;
 	return ERR_None;
@@ -497,10 +497,12 @@ ErrorType Process::Destroy()
 		Kfree(Stack);
 	Stack=nullptr;
 	SemWaitingLink.Remove();//What about Lock protect??
-	SemWaitingLink.Init();
 	delete WaitSem;
 	WaitSem=nullptr;
 	SetName(nullptr,1);
+	if (CurrentWorkDirectory!=nullptr)
+		Kfree(CurrentWorkDirectory);
+	CurrentWorkDirectory=nullptr;
 	DestroyFileTable();
 	if (CallingStack)
 		kout[Warning]<<"DestroyProcess while CallingStack is not freed"<<endl;

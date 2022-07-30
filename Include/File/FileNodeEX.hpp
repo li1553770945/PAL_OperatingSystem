@@ -123,7 +123,7 @@ class PipeFileNode:public FileNode
 			return ERR_None;
 		}
 		
-		~PipeFileNode()
+		virtual ~PipeFileNode()
 		{
 			delete[] buffer;
 		}
@@ -194,6 +194,8 @@ class TempFileNode:public FileNode
 				if (DataFragment *p=Find(pos);p!=nullptr)
 				{
 					Uint64 len=POS::minN(size,p->pos+p->size-pos);
+					if (len==0)
+						break;
 					POS::MemcpyT(s,p->data+pos-p->pos,len);
 					s+=len;
 					pos+=len;
@@ -220,6 +222,7 @@ class TempFileNode:public FileNode
 					{
 						Uint64 len=minN(size,p->pos+p->capacity-pos);
 						MemcpyT(p->data+pos-p->pos,s,len);
+						p->size=maxN(p->size,pos-p->pos+len);
 						s+=len;
 						pos+=len;
 						size-=len;
@@ -235,7 +238,7 @@ class TempFileNode:public FileNode
 			return re;
 		}
 		
-		~TempFileNode()
+		virtual ~TempFileNode()
 		{
 			delete HeadFragment;
 		}
@@ -248,11 +251,47 @@ class TempFileNode:public FileNode
 		}
 };
 
+//class LinkFileNode:public FileNode
+//{
+//	protected:
+//		FileNode *target=nullptr;
+//		
+//	public:
+//		virtual Sint64 Read(void *dst,Uint64 pos,Uint64 size)
+//		{return target->Read(dst,pos,size);}
+//		
+//		virtual Sint64 Write(void *src,Uint64 pos,Uint64 size)
+//		{return target->Write(src,pos,size);}
+//		
+//		virtual Uint64 Size()
+//		{return target->Size();}
+//		
+//		virtual ErrorType Ref(FileHandle *f)
+//		{return target->Ref(f);}
+//		
+//		virtual ErrorType Unref(FileHandle *f)
+//		{return target->Unref(f);}
+//		
+//		virtual ~LinkFileNode()
+//		{
+//			//...???
+//		}
+//		
+//		LinkFileNode(const char *tailPath,const char *targetNode):FileNode(nullptr,A_Link),F_Managed),target(targetNode)
+//		{
+//			if (name!=tailPath)
+//				SetFileName((char*)name,0);//??? It is a trick?
+//		}
+//		
+//		LinkFileNode(const char *tailPath,const char *targetPath)
+//		:LinkFileNode(tailPath,VFSM.Open(targetPath),IsDir) {}
+//};
+
 class MemapFileRegion:public VirtualMemoryRegion
 {
 	protected:
 		FileNode *File=nullptr;
-		Uint64 Start=0,
+		Uint64 StartAddr=0,
 			   Length=0,
 			   Offset=0;
 		
@@ -262,7 +301,7 @@ class MemapFileRegion:public VirtualMemoryRegion
 			VirtualMemorySpace *old=VirtualMemorySpace::Current();
 			VMS->Enter();
 			VMS->EnableAccessUser();
-			Sint64 re=File->Write((void*)Start,Offset,Length);
+			Sint64 re=File->Write((void*)StartAddr,Offset,Length);
 			VMS->DisableAccessUser();
 			old->Enter();
 			return re>=0?ERR_None:-re;//??
@@ -270,14 +309,31 @@ class MemapFileRegion:public VirtualMemoryRegion
 		
 		ErrorType Load()//Load memory from file
 		{
+			CALLINGSTACKS("MemapFileRegion::Load");
 			VirtualMemorySpace *old=VirtualMemorySpace::Current();
 			VMS->Enter();
 			VMS->EnableAccessUser();
-			Sint64 re=File->Read((void*)Start,Offset,Length);
+			Sint64 re=File->Read((void*)StartAddr,Offset,Length);
 			VMS->DisableAccessUser();
 			old->Enter();
 			return re>=0?ERR_None:-re;
 		}
+		
+		ErrorType Resize(Uint64 len)
+		{
+			if (len==Length)
+				return ERR_None;
+			if (len>Length)
+				if (nxt!=nullptr&&(StartAddr+len>nxt->GetStart()||StartAddr+len>0x70000000))
+					return ERR_InvalidRangeOfVMR;
+			Length=len;
+			End=StartAddr+Length+PageSize-1>>PageSizeBit<<PageSizeBit;
+			//<<Free pages not in range...
+			return ERR_None;
+		}
+		
+		inline Uint64 GetStartAddr() const
+		{return StartAddr;}
 		
 		~MemapFileRegion()//Virtual??
 		{
@@ -287,7 +343,7 @@ class MemapFileRegion:public VirtualMemoryRegion
 		}
 		
 		MemapFileRegion(FileNode *node,void *start,Uint64 len,Uint64 offset,Uint32 prot)
-		:File(node),Start((PtrInt)start),Length(len),Offset(offset)
+		:File(node),StartAddr((PtrInt)start),Length(len),Offset(offset)
 		{
 			ASSERTEX(VirtualMemoryRegion::Init((PtrInt)start,(PtrInt)start+len,prot)==ERR_None,"MemapFileRegion "<<this<<" failed to init VMR!");
 			node->Ref(nullptr);

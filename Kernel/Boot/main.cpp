@@ -172,7 +172,6 @@ int RunAllTestSuits(void*)
 	POS_PM.Current()->SetCWD("/VFS/FAT32");
 	VirtualFileSystem *vfs=new FAT32();
 	VFSM.LoadVFS(vfs);
-//	kout[Debug]<<"brk: "<<VFSM.Open("/VFS/FAT32/brk")<<endl;
 
 //	kout.SetEnableEffect(0);
 //	kout.SwitchTypeOnoff(Info,0);
@@ -232,19 +231,20 @@ int RunLibcTest(void*)
 			char *str=new char[file->Size()+1];//Bad in efficiency??
 			if (ErrorType err=file->Read(str,file->Size());err<0||err!=file->Size())
 				kout[Error]<<"Read string failed!"<<endl;
+			str[file->Size()]=0;
 			auto [lineCnt,lineStr]=divideStringByChar(str,'\n',1);
 			kout[Info]<<"RunList "<<path<<" total "<<lineCnt<<" lines program."<<endl;
 			for (int i=0;i<lineCnt;++i)
 				if (lineStr[i])
 				{
 					kout[Info]<<"RunList "<<path<<" line "<<i<<" is "<<lineStr[i]<<endl;
-//					kout[Debug]<<POS_PMM.GetFreePageNum()<<endl;
 					auto [cnt,ss]=divideStringByChar(lineStr[i],' ',1);
 					if (cnt>0
-					   &&strComp(ss[3],"daemon_failure")
+						&&strComp(ss[3],"daemon_failure")
 						&&strComp(ss[3],"pthread_exit_cancel")
 						&&strComp(ss[3],"regex_bracket_icase")
 						&&strComp(ss[3],"rlimit_open_files")
+						&&strComp(ss[3],"dlopen")
 						)
 						Run(ss[0],cnt,ss);
 					for (int j=0;j<cnt;++j)
@@ -264,15 +264,21 @@ int RunLibcTest(void*)
 	VirtualFileSystem *vfs=new FAT32();
 	VFSM.LoadVFS(vfs);
 	
-	kout.SetEnableEffect(0);
+	VFSM.CreateSymbolLink("/lib/ld-musl-riscv64-sf.so.1","/VFS/FAT32/libc.so");
+	VFSM.CreateSymbolLink("/etc","/VFS/FAT32");
+	
+//	kout.SetEnableEffect(0);
 	kout.SwitchTypeOnoff(Info,0);
 	kout.SwitchTypeOnoff(Warning,0);
 	kout.SwitchTypeOnoff(Test,0);
+	kout.SwitchTypeOnoff(Debug,0);
+	RunList("run-dynamic.sh");
 	RunList("run-static.sh");
 	kout.SetEnableEffect(1);
 	kout.SwitchTypeOnoff(Info,1);
 	kout.SwitchTypeOnoff(Warning,1);
 	kout.SwitchTypeOnoff(Test,1);
+	kout.SwitchTypeOnoff(Debug,1);
 	
 	kout<<"RunLibcTest OK"<<endl;
 	#ifdef QEMU

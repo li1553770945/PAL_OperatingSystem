@@ -23,5 +23,6 @@ using PID=Sint32;
 using PtrInt=Uint64;//The UintXX of void*
 using PtrSInt=Sint64;
 using PageTableEntryType=Uint64;
+using SizeType=Uint64;
 
 #endif

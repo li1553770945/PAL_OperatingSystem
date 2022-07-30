@@ -197,6 +197,7 @@ class VirtualMemoryRegion:public POS::LinkTableT <VirtualMemoryRegion>
 {
 	friend class VirtualMemorySpace;
 	friend void KernelFaultSolver();
+	friend PtrInt Syscall_mmap(void *start,Uint64 len,int prot,int flags,int fd,int off);//Need improve...
 	public:
 		enum:Uint32
 		{

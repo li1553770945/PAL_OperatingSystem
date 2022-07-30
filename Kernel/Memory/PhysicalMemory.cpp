@@ -49,8 +49,9 @@ void* PhysicalMemoryManager::Alloc(Uint64 size,bool success)//要分配的字节数
 void PhysicalMemoryManager::Free(void *p)
 {
     Page * page_addr = zone.GetPageFromAddr(p);
-    zone.FreePage(page_addr);
-
+    if (page_addr==nullptr)
+    	kout[Error]<<"Failed to free "<<p<<endl;
+    else zone.FreePage(page_addr);
 }
 
 ErrorType PhysicalMemoryManager::Init()

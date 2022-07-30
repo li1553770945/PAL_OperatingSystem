@@ -17,6 +17,7 @@ enum
 	ERR_BusyForking,
 	ERR_InvalidParameter,//for unknown specific reasons
 	ERR_FileOperationOutofRange,
+	ERR_FileSeekOutOfRange,
 	ERR_VertifyNumberDisagree,
 	ERR_VersionError,
 	ERR_FileAlreadyExist,
@@ -36,7 +37,8 @@ enum
 	ERR_UnmountDeviceError,
 	ERR_LockDeviceError,
 	ERR_DeviceInitialError,
-	ERR_HeapCollision
+	ERR_HeapCollision,
+	ERR_InvalidRangeOfVMR
 };
 
 void KernelFaultSolver();

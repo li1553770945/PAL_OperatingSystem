@@ -12,7 +12,7 @@
 const unsigned MaxProcessCount=128;
 const Uint64 KernelStackSize=PageSize*4;
 const PtrInt InnerUserProcessLoadAddr=0x800020,
-			 InnerUserProcessStackSize=PageSize*4,
+			 InnerUserProcessStackSize=PageSize*32,
 			 InnerUserProcessStackAddr=0x80000000-InnerUserProcessStackSize;
 
 inline RegisterData GetCPUID()

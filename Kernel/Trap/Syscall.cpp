@@ -172,9 +172,10 @@ inline int Syscall_openat(int fd,char *filename,int flags,int mode)//Currently, 
 {
 	VirtualMemorySpace::EnableAccessUser();
 	char *path=CurrentPathFromFileNameAndFD(fd,filename);
+	kout[Debug]<<"open "<<path<<endl;
 	VirtualMemorySpace::DisableAccessUser();
 	if (path==nullptr)
-		return -1;
+		return kout[Debug]<<"A"<<endl,-1;
 	
 	constexpr int O_CREAT=0x40,
 				  O_RDONLY=0x000,
@@ -199,15 +200,16 @@ inline int Syscall_openat(int fd,char *filename,int flags,int mode)//Currently, 
 	if (node!=nullptr)
 	{
 		Uint64 fh_flags=FileHandle::F_Seek|FileHandle::F_Size;//??
-		if (flags&O_RDWR)
+//		if (flags&O_RDWR)
 			fh_flags|=FileHandle::F_Read|FileHandle::F_Write;
-		else if (flags&O_WRONLY)
-			fh_flags|=FileHandle::F_Write;
-		else fh_flags|=FileHandle::F_Read;
+//		else if (flags&O_WRONLY)
+//			fh_flags|=FileHandle::F_Write;
+//		else fh_flags|=FileHandle::F_Read;
 		re=new FileHandle(node,fh_flags);
 		re->BindToProcess(POS_PM.Current());
 	}
 	Kfree(path);
+	kout[Debug]<<"B "<<re<<endl;
 	return re?re->GetFD():-1;
 }
 
@@ -221,26 +223,69 @@ inline int Syscall_close(int fd)
 	return 0;
 }
 
-inline RegisterData Syscall_Read(int fd,void *dst,Uint64 size)
+inline Sint64 Syscall_lseek(int fd,Sint64 off,int whence)
+{
+	FileHandle *fh=POS_PM.Current()->GetFileHandleFromFD(fd);
+	if (fh==nullptr||!(fh->GetFlags()&FileHandle::F_Seek))
+		return -1;
+	
+	constexpr int SEEK_SET=0,
+				  SEEK_CUR=1,
+				  SEEK_END=2;
+	int base;
+	switch (whence)
+	{
+		case SEEK_SET:	base=FileHandle::Seek_Beg;	break;
+		case SEEK_CUR:	base=FileHandle::Seek_Cur;	break;
+		case SEEK_END:	base=FileHandle::Seek_End;	break;
+		default:	return -1;
+	}
+	ErrorType err=fh->Seek(off,base);
+	if (err)
+		return -1;
+	else return fh->GetPos();
+}
+
+template <ModeRW rw> inline RegisterData Syscall_ReadWrite(int fd,void *buf,Uint64 size,Uint64 off=-1)
 {
 	FileHandle *fh=POS_PM.Current()->GetFileHandleFromFD(fd);
 	if (fh==nullptr)
 		return -1;
 	VirtualMemorySpace::EnableAccessUser();
-	Sint64 re=fh->Read(dst,size);
+	Sint64 re;
+	if constexpr(rw==ModeRW::Write)
+		re=fh->Write(buf,size,off);
+	else re=fh->Read(buf,size,off);
 	VirtualMemorySpace::DisableAccessUser();
 	return re<0?-1:re;
 }
 
-inline RegisterData Syscall_Write(int fd,void *src,Uint64 size)
+struct iovec
+{
+	void *base;
+	SizeType len;
+};
+
+template <ModeRW rw> inline RegisterData Syscall_ReadWriteVector(int fd,iovec *iov,int iovcnt,Uint64 off=-1)
 {
 	FileHandle *fh=POS_PM.Current()->GetFileHandleFromFD(fd);
 	if (fh==nullptr)
 		return -1;
 	VirtualMemorySpace::EnableAccessUser();
-	Sint64 re=fh->Write(src,size);
+	Sint64 re=0,r;
+	for (int i=0;i<iovcnt;++i)
+	{
+		if constexpr (rw==ModeRW::W)
+			r=fh->Write(iov[i].base,iov[i].len,off==-1?-1:off+re);
+		else r=fh->Read(iov[i].base,iov[i].len,off==-1?-1:off+re);
+		if (r<0)
+			break;
+		re+=r;
+		if (r!=iov[i].len)
+			break;
+	}
 	VirtualMemorySpace::DisableAccessUser();
-	return re<0?-1:re;
+	return re;
 }
 
 inline int Syscall_linkat(int olddirfd,char *oldpath,int newdirfd,char *newpath,unsigned flags)
@@ -310,6 +355,33 @@ inline int Syscall_fstat(int fd,RegisterData _kst)
 	//<<Other info...
 	VirtualMemorySpace::DisableAccessUser();
 	return 0;
+}
+
+inline RegisterData Syscall_fcntl(int fd,int cmd,TrapFrame *tf)
+{
+	FileHandle *fh=POS_PM.Current()->GetFileHandleFromFD(fd);
+	if (fh==nullptr)
+		return -1;
+	
+	enum
+	{
+		F_DUPFD=0,
+		F_GETFD=1,
+		F_SETFD=2,
+		F_GETFL=3,
+		F_SETFL=4,
+		F_SETOWN=8,
+		F_GETOWN=9,
+		F_SETSIG=10,
+		F_GETSIG=11,
+	};
+
+	switch (cmd)
+	{
+		default:
+			kout[Error]<<"Unknown fcnt cmd "<<cmd<<endl;
+			return -1;
+	}
 }
 
 inline PID Syscall_Clone(TrapFrame *tf,Uint64 flags,void *stack,PID ppid,Uint64 tls,PID cid)
@@ -447,7 +519,7 @@ inline int Syscall_munmap(void *start,Uint64 len)
 	{
 		MemapFileRegion *mfr=(MemapFileRegion*)vmr;
 		ErrorType err=mfr->Save();
-		if (err)
+		if (err<0)
 			kout[Error]<<"Syscall_munmap: mfr failed to save! ErrorCode: "<<err<<endl;
 		delete mfr;
 	}
@@ -465,12 +537,15 @@ inline PtrInt Syscall_mmap(void *start,Uint64 len,int prot,int flags,int fd,int 
 		FileHandle *fh=POS_PM.Current()->GetFileHandleFromFD(fd);
 		if (fh==nullptr)
 			return -1;
-		FileNode *node=fh->Node();
+		node=fh->Node();
 		if (node==nullptr)
 			return -1;
 	}
 	else DoNothing;//Anonymous mmap
-		
+	kout[Debug]<<"mmap "<<start<<" "<<(void*)len<<" "<<prot<<" "<<flags<<" "<<fd<<" "<<off<<" | "<<node<<endl;
+	
+	VirtualMemorySpace *vms=POS_PM.Current()->GetVMS();
+	
 	constexpr Uint64 PROT_NONE=0,
 					 PROT_READ=1,
 					 PROT_WRITE=2,
@@ -478,24 +553,45 @@ inline PtrInt Syscall_mmap(void *start,Uint64 len,int prot,int flags,int fd,int 
 					 PROT_GROWSDOWN=0X01000000,//Unsupported yet...
 					 PROT_GROWSUP=0X02000000;//Unsupported yet...
 	Uint64 vmrProt=node!=nullptr?VirtualMemoryRegion::VM_File:0;
-	if (prot&PROT_READ)
+//	if (prot&PROT_READ)
 		vmrProt|=VirtualMemoryRegion::VM_Read;
-	if (prot&PROT_WRITE)
+//	if (prot&PROT_WRITE)
 		vmrProt|=VirtualMemoryRegion::VM_Write;
-	if (prot&PROT_EXEC)
+//	if (prot&PROT_EXEC)
 		vmrProt|=VirtualMemoryRegion::VM_Exec;
-	PtrInt s=POS_PM.Current()->GetVMS()->GetUsableVMR(start==nullptr?0x60000000:(PtrInt)start,(PtrInt)0x70000000/*??*/,len);
+	
+	constexpr Uint64 MAP_FIXED=0x10;
+	if (flags&MAP_FIXED)//Need improve...
+	{
+		VirtualMemoryRegion *vmr=vms->FindVMR((PtrInt)start);
+		if (vmr!=nullptr)
+			if (vmr->GetEnd()<=((PtrInt)start+len+PageSize-1>>PageSizeBit<<PageSizeBit))
+				if (vmr->GetFlags()&VirtualMemoryRegion::VM_File)
+				{
+					MemapFileRegion *mfr=(decltype(mfr))vmr;
+					mfr->Resize((PtrInt)start-mfr->GetStartAddr());
+				}
+				else
+				{
+					vmr->End=(PtrInt)start+PageSize-1>>PageSizeBit<<PageSizeBit;//??
+					//<<Free pages not in range...
+				}
+			else kout[Error]<<"Failed to discard mmap region inside vmr!"<<endl;
+	}
+	
+	PtrInt s=vms->GetUsableVMR(start==nullptr?0x60000000:(PtrInt)start,(PtrInt)0x70000000/*??*/,len);
 	if (s==0||start!=nullptr&&((PtrInt)start>>PageSizeBit<<PageSizeBit)!=s)
 		goto ErrorReturn;
 	s=start==nullptr?s:(PtrInt)start;
 	if (node!=nullptr)
 	{
 		MemapFileRegion *mfr=new MemapFileRegion(node,(void*)s,len,off,vmrProt);
+		kout[Debug]<<"mfr "<<mfr<<endl;
 		if (mfr==nullptr)
 			goto ErrorReturn;
-		POS_PM.Current()->GetVMS()->InsertVMR(mfr);
+		vms->InsertVMR(mfr);
 		ErrorType err=mfr->Load();
-		if (err)
+		if (err<0)
 		{
 			kout[Error]<<"Syscall_mmap: mfr failed to load! ErrorCode: "<<err<<endl;
 			delete mfr;
@@ -506,10 +602,12 @@ inline PtrInt Syscall_mmap(void *start,Uint64 len,int prot,int flags,int fd,int 
 	{
 		VirtualMemoryRegion *vmr=KmallocT<VirtualMemoryRegion>();
 		vmr->Init(s,s+len,vmrProt);
-		POS_PM.Current()->GetVMS()->InsertVMR(vmr);
+		vms->InsertVMR(vmr);
 	}
+	kout[Debug]<<"mmaped at "<<(void*)s<<endl;
 	return s;
 ErrorReturn:
+	kout[Debug]<<"mmap error"<<endl;
 	if (node)
 		VFSM.Close(node);
 	return -1;
@@ -674,6 +772,49 @@ inline int Syscall_unlinkat(int dirfd,char *path,unsigned flags)
 	return 0;
 }
 
+inline int Syscall_prlimit64(PID pid,int resource,RegisterData nlmt,RegisterData olmt)//It is not supported completely, only query is allowed now that pid and nlmt will be ignored...
+{
+	struct rlimit
+	{
+		Uint64 cur,
+			   max;
+	};
+	
+	enum
+	{
+		RLIMIT_CPU        =0,
+		RLIMIT_FSIZE      =1,
+		RLIMIT_DATA       =2,
+		RLIMIT_STACK      =3,
+		RLIMIT_CORE       =4,
+		RLIMIT_RSS        =5,
+		RLIMIT_NPROC      =6,
+		RLIMIT_NOFILE     =7,
+		RLIMIT_MEMLOCK    =8,
+		RLIMIT_AS         =9,
+		RLIMIT_LOCKS      =10,
+		RLIMIT_SIGPENDING =11,
+		RLIMIT_MSGQUEUE   =12,
+		RLIMIT_NICE       =13,
+		RLIMIT_RTPRIO     =14,
+		RLIMIT_RTTIME     =15,
+		RLIMIT_NLIMITS    =16
+	};
+	
+	int re=0;
+	rlimit *oldlimit=(decltype(oldlimit))olmt,
+		   *newlimit=(decltype(newlimit))nlmt;
+	if (oldlimit!=nullptr)
+		switch (resource)
+		{
+			case RLIMIT_STACK:	oldlimit->cur=oldlimit->max=InnerUserProcessStackSize-512;	break;//Need improve...
+			default:	re=-1;	break;
+		}
+	if (newlimit!=nullptr)
+		kout[Warning]<<"Syscall_prlimit64 newlimit is set, however it will be ignored!"<<endl;
+	return re;
+}
+
 ErrorType TrapFunc_Syscall(TrapFrame *tf)
 {
 	InterruptStackAutoSaverBlockController isas;//??
@@ -720,18 +861,38 @@ ErrorType TrapFunc_Syscall(TrapFrame *tf)
 			break;
 		case	SYS_openat		:
 			tf->reg.a0=Syscall_openat(tf->reg.a0,(char*)tf->reg.a1,tf->reg.a2,tf->reg.a3);
+			kout[Debug]<<(void*)tf->epc<<" "<<(void*)tf->reg.ra<<endl;
 			break;
 		case	SYS_close		:
 			tf->reg.a0=Syscall_close(tf->reg.a0);
+			kout[Debug]<<(void*)tf->epc<<" "<<(void*)tf->reg.ra<<endl;
 			break;
 		case	SYS_getdents64	:
 			tf->reg.a0 = Syscall_getdents64(tf->reg.a0,tf->reg.a1,tf->reg.a2);
 			break;
 		case	SYS_read		:
-			tf->reg.a0=Syscall_Read(tf->reg.a0,(void*)tf->reg.a1,tf->reg.a2);
+			tf->reg.a0=Syscall_ReadWrite<ModeRW::Read>(tf->reg.a0,(void*)tf->reg.a1,tf->reg.a2);
 			break;
 		case	SYS_write		:
-			tf->reg.a0=Syscall_Write(tf->reg.a0,(void*)tf->reg.a1,tf->reg.a2);
+			tf->reg.a0=Syscall_ReadWrite<ModeRW::Write>(tf->reg.a0,(void*)tf->reg.a1,tf->reg.a2);
+			break;
+		case SYS_readv			:
+			tf->reg.a0=Syscall_ReadWriteVector<ModeRW::Read>(tf->reg.a0,(iovec*)tf->reg.a1,tf->reg.a2);
+			break;
+		case SYS_writev			:
+			tf->reg.a0=Syscall_ReadWriteVector<ModeRW::Write>(tf->reg.a0,(iovec*)tf->reg.a1,tf->reg.a2);
+			break;
+		case SYS_pread64		:
+			tf->reg.a0=Syscall_ReadWrite<ModeRW::Read>(tf->reg.a0,(void*)tf->reg.a1,tf->reg.a2,tf->reg.a3);
+			break;
+		case SYS_pwrite64		:
+			tf->reg.a0=Syscall_ReadWrite<ModeRW::Write>(tf->reg.a0,(void*)tf->reg.a1,tf->reg.a2,tf->reg.a3);
+			break;
+		case SYS_preadv			:
+			tf->reg.a0=Syscall_ReadWriteVector<ModeRW::Read>(tf->reg.a0,(iovec*)tf->reg.a1,tf->reg.a2,tf->reg.a3);
+			break;
+		case SYS_pwritev		:
+			tf->reg.a0=Syscall_ReadWriteVector<ModeRW::Write>(tf->reg.a0,(iovec*)tf->reg.a1,tf->reg.a2,tf->reg.a3);
 			break;
 		case	SYS_linkat		:
 			tf->reg.a0=Syscall_linkat(tf->reg.a0,(char*)tf->reg.a1,tf->reg.a2,(char*)tf->reg.a3,tf->reg.a4);
@@ -777,6 +938,7 @@ ErrorType TrapFunc_Syscall(TrapFrame *tf)
 			break; 
 		case	SYS_mmap		:
 			tf->reg.a0=Syscall_mmap((void*)tf->reg.a0,tf->reg.a1,tf->reg.a2,tf->reg.a3,tf->reg.a4,tf->reg.a5);
+			kout[Debug]<<(void*)tf->epc<<" "<<(void*)tf->reg.ra<<endl;
 			break;
 		case	SYS_times		:
 			tf->reg.a0=Syscall_times(tf->reg.a0);
@@ -794,35 +956,55 @@ ErrorType TrapFunc_Syscall(TrapFrame *tf)
 		case	SYS_nanosleep	:
 			tf->reg.a0=Syscall_nanosleep(tf->reg.a0,tf->reg.a1);
 			break;
-		
-		case SYS_exit_group:
-		case SYS_set_tid_address:
-		case SYS_clock_gettime:
-		case SYS_sigaction:
+		case	SYS_lseek		:
+			tf->reg.a0=Syscall_lseek(tf->reg.a0,tf->reg.a1,tf->reg.a2);
+			break;
+		case	SYS_prlimit64	:
+			tf->reg.a0=Syscall_prlimit64(tf->reg.a0,tf->reg.a1,tf->reg.a2,tf->reg.a3);
+			break;
+		case	SYS_mprotect	:
+			tf->reg.a0=0;
+			break;
+		case	SYS_fcntl		:
+//			tf->reg.a0=Syscall_fcntl(tf->reg.a0,tf->reg.a1,tf);
+//			break;
+			
 		case SYS_sigprocmask:
 		case SYS_sigtimedwait:
+		case SYS_sigaction:
+			
 		case SYS_gettid:
-		case SYS_prlimit64:
-		case SYS_lseek:
+		case SYS_set_tid_address:
+		case SYS_exit_group:
+//			break;
+			
 //		case SYS_futex:
-		case SYS_socket:
-		case SYS_newfstatat:
-		case SYS_statfs:
-		case SYS_bind:
-		case SYS_utimensat:
-		case SYS_get_robust_list:
+
+		case SYS_clock_gettime:
 		case SYS_ioctl:
-		case SYS_pread64:
+		
+		case SYS_newfstatat:
+			
+		case SYS_statfs:
+			
+		case SYS_get_robust_list:
+			
+		case SYS_geteuid:
+		case SYS_getegid:
+			
+		case SYS_utimensat:
+			
+		case SYS_membarrier:
+			
+		case SYS_socket:
+		case SYS_bind:
 		case SYS_getsockname:
-//		case SYS_writev:
 		case SYS_setsockopt:
 		case SYS_sendto:
 		case SYS_recvfrom:
-		case SYS_fcntl:
 		case SYS_listen:
 		case SYS_connect:
 		case SYS_accept:
-		case SYS_mprotect:
 			kout[Warning]<<"Skipped syscall "<<tf->reg.a7<<" "<<SyscallName((long long)tf->reg.a7)<<endl;
 			break;
 

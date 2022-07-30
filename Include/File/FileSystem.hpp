@@ -16,6 +16,14 @@ class VirtualFileSystem;
 class VirtualFileSystemManager;
 class Process;
 
+enum class ModeRW
+{
+	Read=0,
+	Write=1,
+	R=0,
+	W=1
+};
+
 inline const char * InvalidFileNameCharacter()
 {return "/\\:*?\"<>|";}
 
@@ -33,6 +41,7 @@ class FileNode
 			A_VFS		=1ull<<2,//root of VFS
 			A_Device	=1ull<<3,
 			A_Temp		=1ull<<4,
+			A_LINK		=1ull<<5,
 //			A_Virtual	=1ull<<,
 //			A_Deleted	=1ull<<,
 //			A_Link		=1ull<<,
@@ -143,17 +152,17 @@ class FileNode
 			return re;
 		}
 		
-		virtual inline Uint64 Size()
+		virtual Uint64 Size()
 		{return FileSize;}
 		
-		virtual inline ErrorType Ref(FileHandle *f)
+		virtual ErrorType Ref(FileHandle *f)
 		{
 			//...
 			++RefCount;
 			return ERR_None;
 		}
 		
-		virtual inline ErrorType Unref(FileHandle *f)
+		virtual ErrorType Unref(FileHandle *f)
 		{
 			//...
 			--RefCount;
@@ -217,22 +226,22 @@ class FileHandle:public POS::LinkTableT<FileHandle>
 		Uint32 FD=-1;
 		
 	public:
-		inline Sint64 Read(void *dst,Uint64 size)//Need improve...
+		inline Sint64 Read(void *dst,Uint64 size,Uint64 pos=-1)//if pos==-1 means use inner pos
 		{
 			if (!(Flags&F_Read))
 				return -ERR_InvalidFileHandlePermission;
-			auto err=file->Read(dst,Pos,size);
-			if (err>=0)
+			auto err=file->Read(dst,pos==-1?Pos:pos,size);
+			if (err>=0&&pos==-1)
 				Pos+=err;
 			return err;
 		}
 		
-		inline Sint64 Write(void *src,Uint64 size)
+		inline Sint64 Write(void *src,Uint64 size,Uint64 pos=-1)//Need improve...
 		{
 			if (!(Flags&F_Write))
 				return -ERR_InvalidFileHandlePermission;
-			auto err=file->Write(src,Pos,size);
-			if (err>=0)
+			auto err=file->Write(src,pos==-1?Pos:pos,size);
+			if (err>=0&&pos==-1)
 				Pos+=err;
 			return err;
 		}
@@ -243,13 +252,19 @@ class FileHandle:public POS::LinkTableT<FileHandle>
 				return -ERR_InvalidFileHandlePermission;
 			switch (base)
 			{
-				case Seek_Beg: Pos=pos;  		break;
-				case Seek_Cur: Pos+=pos; 		break;
-				case Seek_End: Pos=file->Size();break;//??
+				case Seek_Beg:							break;
+				case Seek_Cur: pos+=Pos; 				break;
+				case Seek_End: pos+=file->Size();		break;
 				default:	return ERR_InvalidParameter;
 			}
+			if (!POS::InRange(pos,0,file->Size()))
+				return ERR_FileSeekOutOfRange;
+			Pos=pos;
 			return ERR_None;
 		}
+		
+		inline Uint64 GetPos() const
+		{return Pos;}
 		
 		inline Sint64 Size()
 		{
@@ -349,6 +364,8 @@ class VirtualFileSystemManager
 {
 	protected:
 		FileNode *root;
+		POS::LinkTable <PAL_DS::Doublet<char*,char*> > SymbolLinks;//Only after normalize path, it will be active.
+		bool EnableSymbolLinks;
 		
 		void AddNewNode(FileNode *p,FileNode *fa);
 		FileNode* AddFileInVFS(FileNode *p,char *name);
@@ -356,14 +373,13 @@ class VirtualFileSystemManager
 		FileNode* FindChildName(FileNode *p,const char *s);
 		FileNode* FindRecursive(FileNode *p,const char *path);
 		PAL_DS::Doublet <VirtualFileSystem*,const char*> FindPathOfVFS(FileNode *p,const char *path);
-		
+		char* GetSymbolLinkedPath(const char *path);//if not SymbolLinked, return nullptr
+				
 	public:
-		static inline bool IsAbsolutePath(const char *path)
-		{
-			return path!=nullptr&&*path=='/';//??
-		}
+		inline bool IsAbsolutePath(const char *path)
+		{return path!=nullptr&&*path=='/';/*??*/}
 		
-		static char* NormalizePath(const char *path,const char *base=nullptr);//if base is nullptr, or path is absolute, base will be ignored.
+		char* NormalizePath(const char *path,const char *base=nullptr);//if base is nullptr, or path is absolute, base will be ignored.
 		FileNode* FindFile(const char *path,const char *name);
 		int GetAllFileIn(const char *path,char *result[],int bufferSize,int skipCnt=0);//if unused ,user should free the char*
 		int GetAllFileIn(const char *path,FileNode *result[],int bufferSize,int skipCnt=0);
@@ -382,6 +398,11 @@ class VirtualFileSystemManager
 		FileNode* Open(const char *path);//path here should be normalized.
 		FileNode* Open(Process *proc,const char *path);
 		ErrorType Close(FileNode *p);
+		
+		ErrorType CreateSymbolLink(const char *src,const char *dst);//src and dst should be normalized path
+		ErrorType RemoveSymbolLink(const char *src);
+		inline void SetEnableSymbolLinks(bool enable)
+		{EnableSymbolLinks=enable;}
 		
 		ErrorType Init();
 		ErrorType Destroy();

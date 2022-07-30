@@ -41,7 +41,7 @@ ErrorType VirtualMemoryRegion::CopyMemory(PageTable &pt,const PageTable &src,int
 	ASSERTEX(level>=0,"VirtualMemoryRegion::CopyMemory of "<<this<<" from "<<src<<" level "<<level<<" <0!");
 	if (Flags&VM_Kernel)
 	{
-		kout[Warning]<<"VirtualMemoryRegion::CopyMemory kernel region don't need copy?"<<endl;
+//		kout[Warning]<<"VirtualMemoryRegion::CopyMemory kernel region don't need copy?"<<endl;
 		return ERR_None;
 	}
 	for (int i=0;i<PageTable::PageTableEntryCount;++i,l+=PageSizeN[level])

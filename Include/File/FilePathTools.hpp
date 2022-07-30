@@ -76,6 +76,16 @@ namespace POS
 		return re;
 	}
 	
+	inline const char* MatchPrefix(const char *str,const char *prefix)
+	{
+		if (str==nullptr||prefix==nullptr)
+			return nullptr;
+		while (*prefix&&*str++==*prefix++);
+		if (*prefix==0)
+			return str;
+		else return nullptr;
+	}
+	
 	inline Uint64 UnicodeToUtf8(char *dst,Uint32 unicode[],Uint32 len)
 	{
 		Uint64 char_len = 0;

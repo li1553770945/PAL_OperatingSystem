@@ -30,8 +30,12 @@ enum SyscallID
 	SYS_lseek			=62,
 	SYS_read			=63,
 	SYS_write			=64,
+	SYS_readv			=65,
 	SYS_writev			=66,
 	SYS_pread64			=67,
+	SYS_pwrite64		=68,
+	SYS_preadv			=69,
+	SYS_pwritev			=70,
 	SYS_newfstatat		=79,
 	SYS_fstat			=80,
 	SYS_utimensat		=88,
@@ -51,6 +55,8 @@ enum SyscallID
 	SYS_gettimeofday	=169,
 	SYS_getpid			=172,
 	SYS_getppid			=173,
+	SYS_geteuid			=175,
+	SYS_getegid			=177,
 	SYS_gettid			=178,
 	SYS_socket			=198,
 	SYS_bind			=200, 
@@ -69,6 +75,7 @@ enum SyscallID
 	SYS_mprotect		=226,
 	SYS_wait4			=260,
 	SYS_prlimit64		=261,
+	SYS_membarrier		=283,
 };
 
 inline const char *SyscallName(int sys)
@@ -102,8 +109,12 @@ inline const char *SyscallName(int sys)
 		case SYS_lseek:				return "SYS_lseek";
 		case SYS_read:				return "SYS_read";
 		case SYS_write:				return "SYS_write";
+		case SYS_readv:				return "SYS_readv";
 		case SYS_writev:			return "SYS_writev";
 		case SYS_pread64:			return "SYS_pread64";
+		case SYS_pwrite64:			return "SYS_pwrite64";
+		case SYS_preadv:			return "SYS_preadv";
+		case SYS_pwritev:			return "SYS_pwritev";
 		case SYS_newfstatat:		return "SYS_newfstatat";
 		case SYS_fstat:				return "SYS_fstat";
 		case SYS_utimensat:			return "SYS_utimensat";
@@ -123,6 +134,8 @@ inline const char *SyscallName(int sys)
 		case SYS_gettimeofday:		return "SYS_gettimeofday";
 		case SYS_getpid:			return "SYS_getpid";
 		case SYS_getppid:			return "SYS_getppid";
+		case SYS_geteuid:			return "SYS_geteuid";
+		case SYS_getegid:			return "SYS_getegid";
 		case SYS_gettid:			return "SYS_gettid";
 		case SYS_socket:			return "SYS_socket";
 		case SYS_bind:				return "SYS_bind";
@@ -141,6 +154,7 @@ inline const char *SyscallName(int sys)
 		case SYS_mprotect:			return "SYS_mprotect";
 		case SYS_wait4:				return "SYS_wait4";
 		case SYS_prlimit64:			return "SYS_prlimit64";
+		case SYS_membarrier:		return "SYS_membarrier";
 		default:					return ""; 
 	}
 }
