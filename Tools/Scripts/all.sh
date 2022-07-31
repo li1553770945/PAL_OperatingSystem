@@ -1,7 +1,7 @@
 
 rm -rf Build
 rm os.bin
-rm sbi-qemu
+rm kernel-qemu
 
 mkdir Build
 mkdir Build/User
