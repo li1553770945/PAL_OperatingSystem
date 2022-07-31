@@ -25,15 +25,15 @@ riscv64-unknown-elf-g++ -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/Library
 riscv64-unknown-elf-g++ -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/File/FAT32.cpp                 -o Build/Kernel/FAT32.o             -I"Include" -mcmodel=medany 
 riscv64-unknown-elf-g++ -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/File/FAT32FileNode.cpp         -o Build/Kernel/FAT32FileNode.o     -I"Include" -mcmodel=medany 
 
-riscv64-unknown-elf-gcc -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/HAL/Drivers/_dmac.c            -o Build/Kernel/_dmac.o             -I"Include" -mcmodel=medany 
+#riscv64-unknown-elf-gcc -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/HAL/Drivers/_dmac.c            -o Build/Kernel/_dmac.o             -I"Include" -mcmodel=medany 
 riscv64-unknown-elf-gcc -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/HAL/Drivers/_plic.c            -o Build/Kernel/_plic.o             -I"Include" -mcmodel=medany 
-riscv64-unknown-elf-gcc -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/HAL/Drivers/_spi.c             -o Build/Kernel/_spi.o              -I"Include" -mcmodel=medany 
-riscv64-unknown-elf-gcc -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/HAL/Drivers/_sysctl.c          -o Build/Kernel/_sysctl.o           -I"Include" -mcmodel=medany 
-riscv64-unknown-elf-gcc -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/HAL/Drivers/_gpiohs.c          -o Build/Kernel/_gpiohs.o           -I"Include" -mcmodel=medany 
-riscv64-unknown-elf-gcc -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/HAL/Drivers/_fpioa.c           -o Build/Kernel/_fpioa.o            -I"Include" -mcmodel=medany 
+#riscv64-unknown-elf-gcc -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/HAL/Drivers/_spi.c             -o Build/Kernel/_spi.o              -I"Include" -mcmodel=medany 
+#riscv64-unknown-elf-gcc -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/HAL/Drivers/_sysctl.c          -o Build/Kernel/_sysctl.o           -I"Include" -mcmodel=medany 
+#riscv64-unknown-elf-gcc -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/HAL/Drivers/_gpiohs.c          -o Build/Kernel/_gpiohs.o           -I"Include" -mcmodel=medany 
+#riscv64-unknown-elf-gcc -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/HAL/Drivers/_fpioa.c           -o Build/Kernel/_fpioa.o            -I"Include" -mcmodel=medany 
 riscv64-unknown-elf-g++ -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/HAL/Drivers/DriverTools.cpp    -o Build/Kernel/DriverTools.o       -I"Include" -mcmodel=medany 
-riscv64-unknown-elf-g++ -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/HAL/Drivers/_sdcard.c          -o Build/Kernel/_sdcard.o           -I"Include" -mcmodel=medany 
-#riscv64-unknown-elf-g++ -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/HAL/Drivers/_virtio_disk.cpp   -o Build/Kernel/_virtio_disk.o      -I"Include" -mcmodel=medany 
+#riscv64-unknown-elf-g++ -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/HAL/Drivers/_sdcard.c          -o Build/Kernel/_sdcard.o           -I"Include" -mcmodel=medany 
+riscv64-unknown-elf-g++ -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/HAL/Drivers/_virtio_disk.cpp   -o Build/Kernel/_virtio_disk.o      -I"Include" -mcmodel=medany 
 
 rm Build/Kernel.img
 riscv64-unknown-elf-ld -o Build/Kernel/kernel.elf -T Linker/kernel.ld Build/Kernel/*.o --format=binary Build/*.img --format=default

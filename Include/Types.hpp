@@ -1,7 +1,7 @@
 #ifndef POS_TYPES_H
 #define POS_TYPES_H
 
-#define PlatformIsBigEndian 0
+#include "Config.h"
 
 using Sint8=signed char;
 using Sint16=signed short;

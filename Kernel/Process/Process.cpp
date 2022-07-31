@@ -40,6 +40,7 @@ void ProcessManager::Schedule()
 			{
 				minWaitingTarget=minN(minWaitingTarget,tar->SemWaitingTargetTime);
 				if (GetClockTime()>=tar->SemWaitingTargetTime)
+//					kout[Debug]<<"Switch "<<tar->GetPID()<<" ready"<<endl,
 					tar->SwitchStat(Process::S_Ready);
 			}
 

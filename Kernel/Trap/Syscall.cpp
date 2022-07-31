@@ -177,28 +177,33 @@ inline int Syscall_openat(int fd,char *filename,int flags,int mode)//Currently, 
 	if (path==nullptr)
 		return kout[Debug]<<"A"<<endl,-1;
 	
+	kout[Debug]<<"H"<<endl;
 	constexpr int O_CREAT=0x40,
 				  O_RDONLY=0x000,
 				  O_WRONLY=0x001,
 				  O_RDWR=0x002,
 				  O_DIRECTORY=0x0200000;//??
 	FileNode *node=VFSM.Open(path);
+	kout[Debug]<<"C"<<endl; 
 	if (node==nullptr&&(flags&O_CREAT))
 	{
 		if (flags&O_DIRECTORY)
 			VFSM.CreateDirectory(path);
 		else VFSM.CreateFile(path);
 		node=VFSM.Open(path);
+		kout[Debug]<<"D"<<endl; 
 	}
 	if (node!=nullptr)
 		if (!node->IsDir()&&(flags&O_DIRECTORY))
 		{
 			node=nullptr;
 			VFSM.Close(node);//??
+			kout[Debug]<<"E"<<endl; 
 		}
 	FileHandle *re=nullptr;
 	if (node!=nullptr)
 	{
+		kout[Debug]<<"F"<<endl; 
 		Uint64 fh_flags=FileHandle::F_Seek|FileHandle::F_Size;//??
 //		if (flags&O_RDWR)
 			fh_flags|=FileHandle::F_Read|FileHandle::F_Write;
@@ -207,6 +212,7 @@ inline int Syscall_openat(int fd,char *filename,int flags,int mode)//Currently, 
 //		else fh_flags|=FileHandle::F_Read;
 		re=new FileHandle(node,fh_flags);
 		re->BindToProcess(POS_PM.Current());
+		kout[Debug]<<"G"<<endl; 
 	}
 	Kfree(path);
 	kout[Debug]<<"B "<<re<<endl;

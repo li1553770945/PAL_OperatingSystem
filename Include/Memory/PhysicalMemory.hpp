@@ -1,6 +1,7 @@
 #ifndef POS_PHYSICALMEMORY_HPP
 #define POS_PHYSICALMEMORY_HPP
 
+#include "../Config.h"
 #include "../Types.hpp"
 #include "../Error.hpp"
 
@@ -10,15 +11,19 @@ constexpr Uint32 PageSizeBit=12,
 constexpr Uint64 PageSizeN[3]{PageSize,PageSize*512,PageSize*512*512};
 					   
 #ifdef QEMU
+inline Uint64 PhysicalMemorySize()
+{return 0x7E00000;}
+
 constexpr Uint64 PhysicalVirtualMemoryOffset=0xFFFFFFFF40000000ull,
 				 PhysicalKernelStartAddr=0x80200000ull;
 #else
+inline Uint64 PhysicalMemorySize()
+{return 0x5E0000;}
+
 constexpr Uint64 PhysicalVirtualMemoryOffset=0xFFFFFFFF40000000ull,
 				 PhysicalKernelStartAddr=0x80020000ull;
 #endif
 
-inline Uint64 PhysicalMemorySize()
-{return 0x5F0000;}
 
 inline Uint64 PhysicalMemoryPhysicalStart()
 {return 0x80000000;}

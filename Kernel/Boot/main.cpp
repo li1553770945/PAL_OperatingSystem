@@ -245,6 +245,7 @@ int RunLibcTest(void*)
 						&&strComp(ss[3],"regex_bracket_icase")
 						&&strComp(ss[3],"rlimit_open_files")
 						&&strComp(ss[3],"dlopen")
+						&&strComp(ss[3],"tls_get_new_dtv")
 						)
 						Run(ss[0],cnt,ss);
 					for (int j=0;j<cnt;++j)
@@ -542,6 +543,9 @@ void InitBSS()
 int main()
 {
 	PrintSystemInfo();
+	
+	set_csr(sstatus,0x2000);
+	
 	POS_InitClock();
 	POS_InitTrap();
 	InitBSS();

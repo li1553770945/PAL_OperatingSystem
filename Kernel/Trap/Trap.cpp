@@ -59,8 +59,8 @@ void TrapFailedInfo(TrapFrame *tf)
 {
 	using namespace POS;
 	Process *cur=POS_PM.Current();
-//	for (int i=0;i<=31;++i)
-//		kout<<"x"<<i<<":"<<(void*)tf->reg.x[i]<<endline;
+	for (int i=0;i<=31;++i)
+		kout<<"x"<<i<<":"<<(void*)tf->reg.x[i]<<endline;
 	if ((tf->cause<<1>>1)<16)
 		kout<<"  TrapType:"<<((long long)tf->cause<0?TrapInterruptCodeName:TrapExceptionCodeName)[tf->cause&0xF]<<endline;
 	kout	<<"  cause   :"<<(void*)tf->cause<<endline
@@ -80,7 +80,8 @@ extern "C"
 		using namespace POS;
 //		kout[Test]<<"<<"<<(void*)tf->epc<<endl;
 		Process *cur=POS_PM.Current();
-		if (cur->IsUserProcess())
+		bool FromUser=cur->IsUserProcess()&&cur->GetStat()==Process::S_UserRunning;
+		if (FromUser)
 			SwitchBackKernelStat();
 		if (OnTrap)
 			;//TrapFailed("Trap OnTrap");
@@ -165,7 +166,7 @@ extern "C"
 			default:
 				TrapFailed("Unsolveable exception!");
 		}
-		if (cur->IsUserProcess())
+		if (FromUser)
 			SwitchToUserStat();
 //		InterruptDisable();
 		if (!OnTrap)

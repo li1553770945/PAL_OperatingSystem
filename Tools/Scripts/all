@@ -1,11 +1,9 @@
 
 rm -rf Build
 rm os.bin
-rm sbi-qemu
 
 mkdir Build
 mkdir Build/User
-mkdir Build/Kernel
 
 for file in User/Library/*{.cpp,.S}
 do
@@ -22,6 +20,9 @@ do
 	riscv64-unknown-elf-ld -o Build/User/$name.elf -T Linker/user.ld Build/User/$name.o Build/User/UserMain.o Build/User/UserStart.o
 	riscv64-unknown-elf-objcopy Build/User/$name.elf --strip-all -O binary Build/$name.img
 done
+
+mkdir Build
+mkdir Build/Kernel
 
 riscv64-unknown-elf-g++ -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/Boot/main.cpp                  -o Build/Kernel/main.o              -I"Include" -mcmodel=medany 
 riscv64-unknown-elf-g++ -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/Boot/Start.S                   -o Build/Kernel/Start.o             -I"Include" -mcmodel=medany 
@@ -43,16 +44,16 @@ riscv64-unknown-elf-g++ -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/Library
 riscv64-unknown-elf-g++ -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/File/FAT32.cpp                 -o Build/Kernel/FAT32.o             -I"Include" -mcmodel=medany 
 riscv64-unknown-elf-g++ -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/File/FAT32FileNode.cpp         -o Build/Kernel/FAT32FileNode.o     -I"Include" -mcmodel=medany 
 
-#riscv64-unknown-elf-gcc -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/HAL/Drivers/_dmac.c            -o Build/Kernel/_dmac.o             -I"Include" -mcmodel=medany 
+riscv64-unknown-elf-gcc -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/HAL/Drivers/_dmac.c            -o Build/Kernel/_dmac.o             -I"Include" -mcmodel=medany 
 riscv64-unknown-elf-gcc -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/HAL/Drivers/_plic.c            -o Build/Kernel/_plic.o             -I"Include" -mcmodel=medany 
-#riscv64-unknown-elf-gcc -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/HAL/Drivers/_spi.c             -o Build/Kernel/_spi.o              -I"Include" -mcmodel=medany 
-#riscv64-unknown-elf-gcc -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/HAL/Drivers/_sysctl.c          -o Build/Kernel/_sysctl.o           -I"Include" -mcmodel=medany 
-#riscv64-unknown-elf-gcc -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/HAL/Drivers/_gpiohs.c          -o Build/Kernel/_gpiohs.o           -I"Include" -mcmodel=medany 
-#riscv64-unknown-elf-gcc -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/HAL/Drivers/_fpioa.c           -o Build/Kernel/_fpioa.o            -I"Include" -mcmodel=medany 
+riscv64-unknown-elf-gcc -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/HAL/Drivers/_spi.c             -o Build/Kernel/_spi.o              -I"Include" -mcmodel=medany 
+riscv64-unknown-elf-gcc -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/HAL/Drivers/_sysctl.c          -o Build/Kernel/_sysctl.o           -I"Include" -mcmodel=medany 
+riscv64-unknown-elf-gcc -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/HAL/Drivers/_gpiohs.c          -o Build/Kernel/_gpiohs.o           -I"Include" -mcmodel=medany 
+riscv64-unknown-elf-gcc -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/HAL/Drivers/_fpioa.c           -o Build/Kernel/_fpioa.o            -I"Include" -mcmodel=medany 
 riscv64-unknown-elf-g++ -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/HAL/Drivers/DriverTools.cpp    -o Build/Kernel/DriverTools.o       -I"Include" -mcmodel=medany 
-#riscv64-unknown-elf-g++ -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/HAL/Drivers/_sdcard.c          -o Build/Kernel/_sdcard.o           -I"Include" -mcmodel=medany 
+riscv64-unknown-elf-g++ -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/HAL/Drivers/_sdcard.c          -o Build/Kernel/_sdcard.o           -I"Include" -mcmodel=medany 
 riscv64-unknown-elf-g++ -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/HAL/Drivers/_virtio_disk.cpp   -o Build/Kernel/_virtio_disk.o      -I"Include" -mcmodel=medany 
 
 rm Build/Kernel.img
-riscv64-unknown-elf-ld -o  kernel-qemu -T Linker/kernel-qemu.ld Build/Kernel/*.o
+riscv64-unknown-elf-ld -o  kernel-qemu -T Linker/kernel.ld Build/Kernel/*.o --format=binary Build/*.img --format=default
 

@@ -274,6 +274,9 @@ void virtio_disk_rw(Uint8 *buf,Uint64 sector, int write)
 
 
 	disk.lock.Unlock();//??
+	
+//	while (disk.info[idx[0]].sem->Value()!=0)
+//		kout[Fault]<<POS_PM.Current()->GetPID()<<" sem "<<disk.info[idx[0]].sem<<" "<<disk.info[idx[0]].sem->Value()<<" | "<<buf<<" "<<sector<<endl;
 
   *R(VIRTIO_MMIO_QUEUE_NOTIFY) = 0; // value is queue number
 
@@ -281,7 +284,7 @@ void virtio_disk_rw(Uint8 *buf,Uint64 sector, int write)
 //  while(b->disk == 1) {
 //    sleep(b, &disk.vdisk_lock);
 //  }
-//kout[Debug]<<"Wait "<<disk.info[idx[0]].sem->Value()<<" "<<idx[0]<<endl;
+//	kout[Debug]<<POS_PM.Current()->GetPID()<<" Wait "<<disk.info[idx[0]].sem<<" | "<<buf<<" "<<sector<<endl;
 	disk.info[idx[0]].sem->Wait();
 //kout[Debug]<<"Wait OK"<<endl;
 	disk.lock.Lock();
@@ -311,6 +314,7 @@ void virtio_disk_intr()
     
 //    disk.info[id].b->disk = 0;   // disk is done with buf
 //    wakeup(disk.info[id].b);
+//	kout[Debug]<<POS_PM.Current()->GetPID()<<" Signal "<<disk.info[id].sem<<endl;
 	disk.info[id].sem->Signal();
 
     disk.used_idx = (disk.used_idx + 1) % NUM;

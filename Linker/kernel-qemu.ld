@@ -6,7 +6,7 @@ SECTIONS
 	
 	PROVIDE(kernelstart = .);
 	
-	.text :
+	.text : AT(0x80200000)
 	{
 		PROVIDE(textstart = .);
 		*(.text.entry)
