@@ -42,6 +42,7 @@ class FileNode
 			A_Device	=1ull<<3,
 			A_Temp		=1ull<<4,
 			A_LINK		=1ull<<5,
+			A_Specical	=1ull<<6,
 //			A_Virtual	=1ull<<,
 //			A_Deleted	=1ull<<,
 //			A_Link		=1ull<<,
@@ -246,7 +247,7 @@ class FileHandle:public POS::LinkTableT<FileHandle>
 			return err;
 		}
 		
-		inline ErrorType Seek(Sint64 pos,Uint8 base=Seek_Beg)
+		inline ErrorType Seek(Sint64 pos,Uint8 base=Seek_Beg,bool forceseek=0)
 		{
 			if (!(Flags&F_Seek))
 				return -ERR_InvalidFileHandlePermission;
@@ -257,7 +258,7 @@ class FileHandle:public POS::LinkTableT<FileHandle>
 				case Seek_End: pos+=file->Size();		break;
 				default:	return ERR_InvalidParameter;
 			}
-			if (!POS::InRange(pos,0,file->Size()))
+			if (!POS::InRange(pos,0,file->Size())&&!forceseek)
 				return ERR_FileSeekOutOfRange;
 			Pos=pos;
 			return ERR_None;
@@ -314,6 +315,14 @@ class FileHandle:public POS::LinkTableT<FileHandle>
 					proc->FileTable[1]->PreInsert(this);
 				if (fd==1&&proc->FileTable[0])
 					proc->FileTable[0]->NxtInsert(this);
+				return ERR_None;
+			}
+			if (proc->FileTable[0]==nullptr&&fd==-1)//??
+			{
+				FD=0;
+				proc->FileTable[0]=this;
+				if (proc->FileTable[1])//??
+					proc->FileTable[1]->PreInsert(this);
 				return ERR_None;
 			}
 			FileHandle *p=proc->FileTable[1]?proc->FileTable[1]:proc->FileTable[0];//Need improve...
@@ -393,6 +402,7 @@ class VirtualFileSystemManager
 		ErrorType Move(const char *src,const char *dst);
 		ErrorType Copy(const char *src,const char *dst);
 		ErrorType Delete(const char *path);
+		ErrorType Delete(FileNode *node);
 		ErrorType LoadVFS(VirtualFileSystem *vfs,const char *path="/VFS");
 		
 		FileNode* Open(const char *path);//path here should be normalized.

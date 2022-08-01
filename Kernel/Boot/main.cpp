@@ -242,10 +242,9 @@ int RunLibcTest(void*)
 					if (cnt>0
 						&&strComp(ss[3],"daemon_failure")
 						&&strComp(ss[3],"pthread_exit_cancel")
-						&&strComp(ss[3],"regex_bracket_icase")
 						&&strComp(ss[3],"rlimit_open_files")
-						&&strComp(ss[3],"dlopen")
-						&&strComp(ss[3],"tls_get_new_dtv")
+//						&&strComp(ss[3],"dlopen")
+//						&&strComp(ss[3],"tls_get_new_dtv")
 						)
 						Run(ss[0],cnt,ss);
 					for (int j=0;j<cnt;++j)
@@ -260,28 +259,29 @@ int RunLibcTest(void*)
 		VFSM.Close(node);
 	};
 	
-	kout<<"RunLibcTest..."<<endl;
 	POS_PM.Current()->SetCWD("/VFS/FAT32");
 	VirtualFileSystem *vfs=new FAT32();
 	VFSM.LoadVFS(vfs);
 	
 	VFSM.CreateSymbolLink("/lib/ld-musl-riscv64-sf.so.1","/VFS/FAT32/libc.so");
-	VFSM.CreateSymbolLink("/etc","/VFS/FAT32");
+	VFSM.CreateSymbolLink("/VFS/FAT32/dlopen_dso.so","/VFS/FAT32/libdlopen_dso.so");
+//	VFSM.CreateSymbolLink("/etc","/VFS/FAT32");
 	
-//	kout.SetEnableEffect(0);
+	kout.SetEnableEffect(0);
 	kout.SwitchTypeOnoff(Info,0);
 	kout.SwitchTypeOnoff(Warning,0);
 	kout.SwitchTypeOnoff(Test,0);
 	kout.SwitchTypeOnoff(Debug,0);
+	kout<<"RunLibcTest..."<<endl;
 	RunList("run-dynamic.sh");
 	RunList("run-static.sh");
+	kout<<"RunLibcTest OK"<<endl;
 	kout.SetEnableEffect(1);
 	kout.SwitchTypeOnoff(Info,1);
 	kout.SwitchTypeOnoff(Warning,1);
 	kout.SwitchTypeOnoff(Test,1);
 	kout.SwitchTypeOnoff(Debug,1);
 	
-	kout<<"RunLibcTest OK"<<endl;
 	#ifdef QEMU
 	SBI_SHUTDOWN();
 	#else
@@ -555,7 +555,6 @@ int main()
 //	PrintDeviceTree((void*)DTB+PhymemVirmemOffset()+PhysicalMemoryPhysicalStart());
 	DiskInit();
 	VFSM.Init();
-//	ForkServer.Init();
 	InterruptEnable();
 	
 	TestFuncs();

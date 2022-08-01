@@ -38,7 +38,9 @@ enum
 	ERR_LockDeviceError,
 	ERR_DeviceInitialError,
 	ERR_HeapCollision,
-	ERR_InvalidRangeOfVMR
+	ERR_InvalidRangeOfVMR,
+	ERR_DiskRwOutOfRange,
+	ERR_FileOccupied
 };
 
 void KernelFaultSolver();

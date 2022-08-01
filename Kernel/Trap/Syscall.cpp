@@ -143,7 +143,7 @@ inline int Syscall_chdir(char *path)
 	return 0;
 }
 
-inline char* CurrentPathFromFileNameAndFD(int fd,char *filename)
+inline char* CurrentPathFromFileNameAndFD(int fd,const char *filename)
 {
 	Process *cur=POS_PM.Current();
 	char *path=nullptr;
@@ -172,38 +172,37 @@ inline int Syscall_openat(int fd,char *filename,int flags,int mode)//Currently, 
 {
 	VirtualMemorySpace::EnableAccessUser();
 	char *path=CurrentPathFromFileNameAndFD(fd,filename);
-	kout[Debug]<<"open "<<path<<endl;
 	VirtualMemorySpace::DisableAccessUser();
 	if (path==nullptr)
-		return kout[Debug]<<"A"<<endl,-1;
-	
-	kout[Debug]<<"H"<<endl;
+		return -1;
+
 	constexpr int O_CREAT=0x40,
 				  O_RDONLY=0x000,
 				  O_WRONLY=0x001,
 				  O_RDWR=0x002,
-				  O_DIRECTORY=0x0200000;//??
+				  O_DIRECTORY=0200000,//??
+				  O_EXCL=0x80;
 	FileNode *node=VFSM.Open(path);
-	kout[Debug]<<"C"<<endl; 
-	if (node==nullptr&&(flags&O_CREAT))
-	{
-		if (flags&O_DIRECTORY)
-			VFSM.CreateDirectory(path);
-		else VFSM.CreateFile(path);
-		node=VFSM.Open(path);
-		kout[Debug]<<"D"<<endl; 
-	}
+	if (flags&O_CREAT)
+		if (node==nullptr)
+		{
+			if (flags&O_DIRECTORY)
+				VFSM.CreateDirectory(path);
+			else VFSM.CreateFile(path);
+			node=VFSM.Open(path);
+		}
+		else if (flags&O_EXCL)
+			node=nullptr;//??
+	
 	if (node!=nullptr)
 		if (!node->IsDir()&&(flags&O_DIRECTORY))
 		{
 			node=nullptr;
 			VFSM.Close(node);//??
-			kout[Debug]<<"E"<<endl; 
 		}
 	FileHandle *re=nullptr;
 	if (node!=nullptr)
 	{
-		kout[Debug]<<"F"<<endl; 
 		Uint64 fh_flags=FileHandle::F_Seek|FileHandle::F_Size;//??
 //		if (flags&O_RDWR)
 			fh_flags|=FileHandle::F_Read|FileHandle::F_Write;
@@ -212,10 +211,8 @@ inline int Syscall_openat(int fd,char *filename,int flags,int mode)//Currently, 
 //		else fh_flags|=FileHandle::F_Read;
 		re=new FileHandle(node,fh_flags);
 		re->BindToProcess(POS_PM.Current());
-		kout[Debug]<<"G"<<endl; 
 	}
 	Kfree(path);
-	kout[Debug]<<"B "<<re<<endl;
 	return re?re->GetFD():-1;
 }
 
@@ -246,7 +243,7 @@ inline Sint64 Syscall_lseek(int fd,Sint64 off,int whence)
 		case SEEK_END:	base=FileHandle::Seek_End;	break;
 		default:	return -1;
 	}
-	ErrorType err=fh->Seek(off,base);
+	ErrorType err=fh->Seek(off,base,1/*??*/);
 	if (err)
 		return -1;
 	else return fh->GetPos();
@@ -323,8 +320,10 @@ inline int Syscall_mount(const char *special,const char *dir,const char *fstype,
 	return 0;
 }
 
-inline int Syscall_fstat(int fd,RegisterData _kst)
+inline int Syscall_fstat_node(FileNode *node,RegisterData _kst)
 {
+	if (node==nullptr)
+		return -1;
 	struct kstat
 	{
 		Uint64 st_dev;
@@ -347,20 +346,49 @@ inline int Syscall_fstat(int fd,RegisterData _kst)
 		long st_ctime_nsec;
 		unsigned __unused[2];
 	}*kst=(kstat*)_kst;
-	FileHandle *fh=POS_PM.Current()->GetFileHandleFromFD(fd);
-	if (fh==nullptr)
-		return -1;
-	FileNode *node=fh->Node();
-	if (node==nullptr)
-		return -1;
+	
+	enum
+	{
+		S_IFDIR=0040000,
+		S_IFCHR=0020000,
+		S_IFBLK=0060000,
+		S_IFREG=0100000,
+		S_IFIFO=0010000,
+		S_IFLNK=0120000,
+		S_IFSOCK=0140000
+	};
+	
 	VirtualMemorySpace::EnableAccessUser();
 	MemsetT<char>((char*)kst,0,sizeof(kstat));
 	kst->st_size=node->Size();
-	kst->st_mode = 1;
+	if (node->GetAttributes()&FileNode::A_Specical)
+		kst->st_mode|=S_IFCHR;
+	else if (node->GetAttributes()&FileNode::A_Dir)
+		kst->st_mode|=S_IFDIR;
+	else kst->st_mode|=S_IFREG;
 	kst->st_nlink = 1;
 	//<<Other info...
 	VirtualMemorySpace::DisableAccessUser();
 	return 0;
+}
+
+inline int Syscall_fstat(int fd,RegisterData _kst)
+{
+	FileHandle *fh=POS_PM.Current()->GetFileHandleFromFD(fd);
+	if (fh==nullptr)
+		return -1;
+	FileNode *node=fh->Node();
+	return Syscall_fstat_node(node,_kst);
+}
+
+inline int Syscall_newfstatat(int dirfd,const char *pathname,RegisterData _kst,int flags)
+{
+	if (flags)
+		kout[Warning]<<"Syscall_newfstatat: flags is not supported yet and it will be ignored!"<<endl;
+	VirtualMemorySpace::EnableAccessUser();
+	char *path=CurrentPathFromFileNameAndFD(dirfd,pathname);//Is this right?? dirfd is relative path for pathname rather than directly used...
+	VirtualMemorySpace::DisableAccessUser();
+	return Syscall_fstat_node(VFSM.Open(path),_kst);
 }
 
 inline RegisterData Syscall_fcntl(int fd,int cmd,TrapFrame *tf)
@@ -548,7 +576,7 @@ inline PtrInt Syscall_mmap(void *start,Uint64 len,int prot,int flags,int fd,int 
 			return -1;
 	}
 	else DoNothing;//Anonymous mmap
-	kout[Debug]<<"mmap "<<start<<" "<<(void*)len<<" "<<prot<<" "<<flags<<" "<<fd<<" "<<off<<" | "<<node<<endl;
+//	kout[Debug]<<"mmap "<<start<<" "<<(void*)len<<" "<<prot<<" "<<flags<<" "<<fd<<" "<<off<<" | "<<node<<endl;
 	
 	VirtualMemorySpace *vms=POS_PM.Current()->GetVMS();
 	
@@ -592,7 +620,7 @@ inline PtrInt Syscall_mmap(void *start,Uint64 len,int prot,int flags,int fd,int 
 	if (node!=nullptr)
 	{
 		MemapFileRegion *mfr=new MemapFileRegion(node,(void*)s,len,off,vmrProt);
-		kout[Debug]<<"mfr "<<mfr<<endl;
+//		kout[Debug]<<"mfr "<<mfr<<endl;
 		if (mfr==nullptr)
 			goto ErrorReturn;
 		vms->InsertVMR(mfr);
@@ -610,10 +638,10 @@ inline PtrInt Syscall_mmap(void *start,Uint64 len,int prot,int flags,int fd,int 
 		vmr->Init(s,s+len,vmrProt);
 		vms->InsertVMR(vmr);
 	}
-	kout[Debug]<<"mmaped at "<<(void*)s<<endl;
+//	kout[Debug]<<"mmaped at "<<(void*)s<<endl;
 	return s;
 ErrorReturn:
-	kout[Debug]<<"mmap error"<<endl;
+//	kout[Debug]<<"mmap error"<<endl;
 	if (node)
 		VFSM.Close(node);
 	return -1;
@@ -645,6 +673,21 @@ inline RegisterData Syscall_times(RegisterData _tms)
 		cur->GetVMS()->DisableAccessUser();
 	}
 	return GetClockTime();
+}
+
+inline int Syscall_clock_gettime(RegisterData clkid,RegisterData tp)//Currently, clkid will be ignored...
+{
+	struct timespec
+	{
+		int tv_sec;
+		int tv_nsec;
+	}*tv=(timespec*)tp;
+	VirtualMemorySpace::EnableAccessUser();
+	ClockTime t=GetClockTime();
+	tv->tv_sec=t/Timer_1s;
+	tv->tv_nsec=t%Timer_1s;//??
+	VirtualMemorySpace::DisableAccessUser();
+	return 0;
 }
 
 inline RegisterData Syscall_Uname(RegisterData p)
@@ -775,7 +818,7 @@ inline int Syscall_unlinkat(int dirfd,char *path,unsigned flags)
 	VirtualMemorySpace::EnableAccessUser();
 	int re = VFSM.Unlink(abs_path);
 	VirtualMemorySpace::DisableAccessUser();
-	return 0;
+	return re?-1:0;
 }
 
 inline int Syscall_prlimit64(PID pid,int resource,RegisterData nlmt,RegisterData olmt)//It is not supported completely, only query is allowed now that pid and nlmt will be ignored...
@@ -819,6 +862,35 @@ inline int Syscall_prlimit64(PID pid,int resource,RegisterData nlmt,RegisterData
 	if (newlimit!=nullptr)
 		kout[Warning]<<"Syscall_prlimit64 newlimit is set, however it will be ignored!"<<endl;
 	return re;
+}
+
+inline int Syscall_statfs(const char *path,RegisterData buf)
+{
+	struct statfs 
+	{
+		Uint64 f_type,
+			   f_bsize,
+			   f_blocks,
+			   f_bfree,
+			   f_bavail,
+			   f_files,
+			   f_ffree;
+		Uint32 f_fsid[2];
+		Uint64 f_namelen,
+			   f_frsize,
+			   f_flags,
+			   f_spare[4];
+	}*data=(statfs*)buf;
+	VirtualMemorySpace::EnableAccessUser();
+	//We provide info /VFS/FAT32 here because testsuits request the /
+	data->f_bsize=512;
+	data->f_blocks=123;
+	data->f_files=4;
+	data->f_namelen=255;
+	//Need improve...
+	
+	VirtualMemorySpace::DisableAccessUser();
+	return 0;
 }
 
 ErrorType TrapFunc_Syscall(TrapFrame *tf)
@@ -867,11 +939,9 @@ ErrorType TrapFunc_Syscall(TrapFrame *tf)
 			break;
 		case	SYS_openat		:
 			tf->reg.a0=Syscall_openat(tf->reg.a0,(char*)tf->reg.a1,tf->reg.a2,tf->reg.a3);
-			kout[Debug]<<(void*)tf->epc<<" "<<(void*)tf->reg.ra<<endl;
 			break;
 		case	SYS_close		:
 			tf->reg.a0=Syscall_close(tf->reg.a0);
-			kout[Debug]<<(void*)tf->epc<<" "<<(void*)tf->reg.ra<<endl;
 			break;
 		case	SYS_getdents64	:
 			tf->reg.a0 = Syscall_getdents64(tf->reg.a0,tf->reg.a1,tf->reg.a2);
@@ -882,22 +952,22 @@ ErrorType TrapFunc_Syscall(TrapFrame *tf)
 		case	SYS_write		:
 			tf->reg.a0=Syscall_ReadWrite<ModeRW::Write>(tf->reg.a0,(void*)tf->reg.a1,tf->reg.a2);
 			break;
-		case SYS_readv			:
+		case 	SYS_readv		:
 			tf->reg.a0=Syscall_ReadWriteVector<ModeRW::Read>(tf->reg.a0,(iovec*)tf->reg.a1,tf->reg.a2);
 			break;
-		case SYS_writev			:
+		case 	SYS_writev		:
 			tf->reg.a0=Syscall_ReadWriteVector<ModeRW::Write>(tf->reg.a0,(iovec*)tf->reg.a1,tf->reg.a2);
 			break;
-		case SYS_pread64		:
+		case 	SYS_pread64		:
 			tf->reg.a0=Syscall_ReadWrite<ModeRW::Read>(tf->reg.a0,(void*)tf->reg.a1,tf->reg.a2,tf->reg.a3);
 			break;
-		case SYS_pwrite64		:
+		case 	SYS_pwrite64	:
 			tf->reg.a0=Syscall_ReadWrite<ModeRW::Write>(tf->reg.a0,(void*)tf->reg.a1,tf->reg.a2,tf->reg.a3);
 			break;
-		case SYS_preadv			:
+		case	 SYS_preadv		:
 			tf->reg.a0=Syscall_ReadWriteVector<ModeRW::Read>(tf->reg.a0,(iovec*)tf->reg.a1,tf->reg.a2,tf->reg.a3);
 			break;
-		case SYS_pwritev		:
+		case 	SYS_pwritev		:
 			tf->reg.a0=Syscall_ReadWriteVector<ModeRW::Write>(tf->reg.a0,(iovec*)tf->reg.a1,tf->reg.a2,tf->reg.a3);
 			break;
 		case	SYS_linkat		:
@@ -917,6 +987,9 @@ ErrorType TrapFunc_Syscall(TrapFrame *tf)
 			break;
 		case	SYS_fstat		:
 			tf->reg.a0=Syscall_fstat(tf->reg.a0,tf->reg.a1);
+			break;
+		case 	SYS_newfstatat	:
+			tf->reg.a0=Syscall_newfstatat(tf->reg.a0,(const char*)tf->reg.a1,tf->reg.a2,tf->reg.a3);
 			break;
 		case	SYS_clone		:
 			tf->reg.a0=Syscall_Clone(tf,tf->reg.a0,(void*)tf->reg.a1,tf->reg.a2,tf->reg.a3,tf->reg.a4);
@@ -944,7 +1017,6 @@ ErrorType TrapFunc_Syscall(TrapFrame *tf)
 			break; 
 		case	SYS_mmap		:
 			tf->reg.a0=Syscall_mmap((void*)tf->reg.a0,tf->reg.a1,tf->reg.a2,tf->reg.a3,tf->reg.a4,tf->reg.a5);
-			kout[Debug]<<(void*)tf->epc<<" "<<(void*)tf->reg.ra<<endl;
 			break;
 		case	SYS_times		:
 			tf->reg.a0=Syscall_times(tf->reg.a0);
@@ -971,10 +1043,15 @@ ErrorType TrapFunc_Syscall(TrapFrame *tf)
 		case	SYS_mprotect	:
 			tf->reg.a0=0;
 			break;
-		case	SYS_fcntl		:
-//			tf->reg.a0=Syscall_fcntl(tf->reg.a0,tf->reg.a1,tf);
-//			break;
+		case 	SYS_clock_gettime:
+			tf->reg.a0=Syscall_clock_gettime(tf->reg.a0,tf->reg.a1);
+			break;
+		case 	SYS_statfs		:
+			tf->reg.a0=Syscall_statfs((const char*)tf->reg.a0,tf->reg.a1);
+			break;
 			
+		case SYS_fcntl:
+		
 		case SYS_sigprocmask:
 		case SYS_sigtimedwait:
 		case SYS_sigaction:
@@ -982,16 +1059,10 @@ ErrorType TrapFunc_Syscall(TrapFrame *tf)
 		case SYS_gettid:
 		case SYS_set_tid_address:
 		case SYS_exit_group:
-//			break;
 			
 //		case SYS_futex:
 
-		case SYS_clock_gettime:
 		case SYS_ioctl:
-		
-		case SYS_newfstatat:
-			
-		case SYS_statfs:
 			
 		case SYS_get_robust_list:
 			

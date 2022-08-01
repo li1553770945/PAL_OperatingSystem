@@ -1,4 +1,3 @@
-
 rm -rf Build
 rm os.bin
 rm kernel-qemu

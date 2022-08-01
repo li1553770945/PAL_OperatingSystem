@@ -247,6 +247,22 @@ ErrorType VirtualFileSystemManager::Copy(const char *src,const char *dst)
 	return ERR_Todo;
 }
 
+ErrorType VirtualFileSystemManager::Delete(FileNode *node)
+{
+	if (node->GetAttributes()&FileNode::A_Temp)
+	{
+		if (node->RefCount!=0)//??
+		{
+			node->Flags|=FileNode::F_AutoClose;
+			return ERR_None;
+		}
+		delete node;
+		return ERR_None;
+	}
+	kout[Warning]<<"VirtualFileSystemManager::Delete is not usable yet!"<<endl;
+	return ERR_Todo;
+}
+
 ErrorType VirtualFileSystemManager::Delete(const char *path)
 {
 	kout[Warning]<<"VirtualFileSystemManager::Delete is not usable yet!"<<endl;
@@ -268,7 +284,7 @@ ErrorType VirtualFileSystemManager::Unlink(const char *path)
 {
 	FileNode *p=FindRecursive(root,path);
 	if (p==nullptr)
-		return 0;
+		return ERR_FilePathNotExist;
 	if (p->Flags&FileNode::F_BelongVFS)
 	{
 		char * pa = p->GetPath<1>();
@@ -277,6 +293,7 @@ ErrorType VirtualFileSystemManager::Unlink(const char *path)
 		Close(p);
 		return err;
 	}
+	ErrorType err=Delete(p);
 	return ERR_None;
 }
 ErrorType VirtualFileSystemManager::Unlink(Process *proc,const char *path)
@@ -355,11 +372,17 @@ ErrorType VirtualFileSystemManager::Init()
 	
 	{
 		FileNode *Dir_Dev=new FileNode(nullptr,FileNode::A_Dir,FileNode::F_Managed|FileNode::F_Base);
-		Dir_Dev->SetFileName("Dev",1);
+		Dir_Dev->SetFileName("dev",1);
 		AddNewNode(Dir_Dev,root);
 	
 		stdIO=new UartFileNode();//??
 		AddNewNode(stdIO,Dir_Dev);
+		
+		ZeroFileNode *zero=new ZeroFileNode();
+		AddNewNode(zero,Dir_Dev);
+		
+		CreateSymbolLink("/dev/zero","/dev/Zero");
+		CreateSymbolLink("/dev/null","/dev/Zero");
 	}
 	
 	{

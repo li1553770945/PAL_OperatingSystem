@@ -25,12 +25,30 @@ class UartFileNode:public FileNode
 			return size;
 		}
 		
-		UartFileNode():FileNode(nullptr,A_Device,F_Managed)
+		UartFileNode():FileNode(nullptr,A_Device|A_Specical,F_Managed)
 		{
-			SetFileName("STDIO",1);
+			SetFileName("stdIO",1);
 		}
 };
 extern UartFileNode *stdIO;
+
+class ZeroFileNode:public FileNode
+{
+	public:
+		virtual Sint64 Read(void *dst,Uint64,Uint64 size)
+		{
+			POS::MemsetT<char>((char*)dst,0,size);
+			return size;
+		}
+		
+		virtual Sint64 Write(void*,Uint64,Uint64 size)
+		{return size;}
+		
+		ZeroFileNode():FileNode(nullptr,A_Specical,F_Managed)
+		{
+			SetFileName("Zero",1);
+		}
+};
 
 class PipeFileNode:public FileNode
 {

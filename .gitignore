@@ -4,3 +4,4 @@ os.bin
 /Others
 /.vscode
 os_serial_out.txt
+kernel-qemu

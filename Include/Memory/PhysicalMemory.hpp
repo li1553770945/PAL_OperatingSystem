@@ -12,7 +12,7 @@ constexpr Uint64 PageSizeN[3]{PageSize,PageSize*512,PageSize*512*512};
 					   
 #ifdef QEMU
 inline Uint64 PhysicalMemorySize()
-{return 0x7E00000;}
+{return 0x3E00000;}
 
 constexpr Uint64 PhysicalVirtualMemoryOffset=0xFFFFFFFF40000000ull,
 				 PhysicalKernelStartAddr=0x80200000ull;

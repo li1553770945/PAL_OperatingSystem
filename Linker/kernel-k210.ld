@@ -2,11 +2,11 @@ OUTPUT_ARCH("riscv")
 ENTRY(_start)
 SECTIONS
 {
-	. = 0xffffffffc0200000;
+	. = 0xffffffffc0020000;
 	
 	PROVIDE(kernelstart = .);
 	
-	.text :
+	.text : 
 	{
 		PROVIDE(textstart = .);
 		*(.text.entry)

@@ -14,7 +14,9 @@ const char* FAT32::FileSystemName()
 
 FAT32::FAT32()
 {
-	Init();
+	ErrorType err=Init();
+	if (err)
+		kout[Fault]<<"Failed to init FAT32! Error code "<<err<<endl;
 }
 
 ErrorType FAT32::ReadRawData(Uint64 lba,Uint64 offset, Uint64 size, unsigned char* buffer)
