@@ -258,7 +258,10 @@ int RunLibcTest(void*)
 		}
 		VFSM.Close(node);
 	};
-	
+	for (Sector *i=(Sector*)0xFFFFFFFFC0000000;i<(Sector*)0xFFFFFFFFC8000000;++i)
+	if ((*i)[511]==0xAA)
+		kout[Fault]<<(void*)i<<":"<<DataWithSize((void*)i,512)<<endl;
+
 	POS_PM.Current()->SetCWD("/VFS/FAT32");
 	VirtualFileSystem *vfs=new FAT32();
 	VFSM.LoadVFS(vfs);
