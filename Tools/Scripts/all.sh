@@ -1,4 +1,6 @@
+
 rm -rf Build
+rm os.bin
 rm kernel-qemu
 
 mkdir Build
@@ -49,8 +51,7 @@ riscv64-unknown-elf-gcc -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/HAL/Dri
 #riscv64-unknown-elf-gcc -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/HAL/Drivers/_fpioa.c           -o Build/Kernel/_fpioa.o            -I"Include" -mcmodel=medany 
 riscv64-unknown-elf-g++ -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/HAL/Drivers/DriverTools.cpp    -o Build/Kernel/DriverTools.o       -I"Include" -mcmodel=medany 
 #riscv64-unknown-elf-g++ -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/HAL/Drivers/_sdcard.c          -o Build/Kernel/_sdcard.o           -I"Include" -mcmodel=medany 
-#riscv64-unknown-elf-g++ -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/HAL/Drivers/_virtio_disk.cpp   -o Build/Kernel/_virtio_disk.o      -I"Include" -mcmodel=medany 
-riscv64-unknown-elf-g++ -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/HAL/RAMDISK.cpp   				-o Build/Kernel/RAMDISK.o      -I"Include" -mcmodel=medany 
+riscv64-unknown-elf-g++ -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/HAL/Drivers/_virtio_disk.cpp   -o Build/Kernel/_virtio_disk.o      -I"Include" -mcmodel=medany 
 
 rm Build/Kernel.img
 riscv64-unknown-elf-ld -o  kernel-qemu -T Linker/kernel-qemu.ld Build/Kernel/*.o

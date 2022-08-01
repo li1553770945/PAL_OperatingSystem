@@ -244,7 +244,7 @@ int RunLibcTest(void*)
 						&&strComp(ss[3],"pthread_exit_cancel")
 						&&strComp(ss[3],"rlimit_open_files")
 //						&&strComp(ss[3],"dlopen")
-//						&&strComp(ss[3],"tls_get_new_dtv")
+						&&strComp(ss[3],"tls_get_new_dtv")
 						)
 						Run(ss[0],cnt,ss);
 					for (int j=0;j<cnt;++j)
@@ -258,7 +258,7 @@ int RunLibcTest(void*)
 		}
 		VFSM.Close(node);
 	};
-
+	
 	POS_PM.Current()->SetCWD("/VFS/FAT32");
 	VirtualFileSystem *vfs=new FAT32();
 	VFSM.LoadVFS(vfs);
