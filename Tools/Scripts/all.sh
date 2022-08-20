@@ -54,5 +54,11 @@ riscv64-unknown-elf-g++ -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/HAL/Dri
 riscv64-unknown-elf-g++ -w -nostdlib -fno-exceptions -fno-rtti -c Kernel/HAL/Drivers/_virtio_disk.cpp   -o Build/Kernel/_virtio_disk.o      -I"Include" -mcmodel=medany 
 
 rm Build/Kernel.img
-riscv64-unknown-elf-ld -o  kernel-qemu -T Linker/kernel-qemu.ld Build/Kernel/*.o
+riscv64-unknown-elf-ld -o Build/Kernel/kernel.elf -T Linker/kernel-k210.ld Build/Kernel/*.o --format=binary Build/*.img --format=default
+riscv64-unknown-elf-objcopy Build/Kernel/kernel.elf --strip-all -O binary Build/Kernel.img
 
+cd Tools/Scripts
+
+riscv64-unknown-elf-objcopy ../../SBI/rustsbi-k210 --strip-all -O binary ../../Build/PAL_OS.bin
+dd if=../../Build/Kernel.img of=../../Build/PAL_OS.bin bs=128k seek=1
+cp ../../Build/PAL_OS.bin ../../os.bin
