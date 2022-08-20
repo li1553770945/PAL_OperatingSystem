@@ -6,7 +6,7 @@
 #define PAL_OperatingSystem_Version_Third 202206040
 #define PAL_OperatingSystem_Author "qianpinyi&&peacesheep"
 
-#define QEMU
+//#define QEMU
 #define PlatformIsBigEndian 0
 
 #endif
