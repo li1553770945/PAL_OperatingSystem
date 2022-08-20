@@ -4,7 +4,7 @@
 #include "FileSystem.hpp"
 #include "../Library/BasicFunctions.hpp"
 #include "../Memory/VirtualMemory.hpp"
-
+using namespace POS;
 class UartFileNode:public FileNode
 {
 	public:

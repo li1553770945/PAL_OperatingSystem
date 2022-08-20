@@ -138,7 +138,9 @@ class FileNode
 		
 	public:
 		virtual Sint64 Read(void *dst,Uint64 pos,Uint64 size)
-		{return ERR_UnsuppoertedVirtualFunction;}
+		{
+			return ERR_UnsuppoertedVirtualFunction;
+		}
 		
 		virtual Sint64 Write(void *src,Uint64 pos,Uint64 size)
 		{return ERR_UnsuppoertedVirtualFunction;}
@@ -195,7 +197,7 @@ class FileNode
 				Flags|=F_BelongVFS;
 		}
 };
-
+using namespace POS;
 class FileHandle:public POS::LinkTableT<FileHandle>
 {
 	friend class Process;
@@ -229,8 +231,10 @@ class FileHandle:public POS::LinkTableT<FileHandle>
 	public:
 		inline Sint64 Read(void *dst,Uint64 size,Uint64 pos=-1)//if pos==-1 means use inner pos
 		{
+			using namespace POS;
 			if (!(Flags&F_Read))
 				return -ERR_InvalidFileHandlePermission;
+		
 			auto err=file->Read(dst,pos==-1?Pos:pos,size);
 			if (err>=0&&pos==-1)
 				Pos+=err;
@@ -285,6 +289,7 @@ class FileHandle:public POS::LinkTableT<FileHandle>
 		
 		ErrorType Close()
 		{
+			kout[Debug]<<"close fd"<<GetFD()<<endl;
 			ErrorType err=ERR_None;
 			if (file)
 			{
@@ -304,6 +309,7 @@ class FileHandle:public POS::LinkTableT<FileHandle>
 		
 		ErrorType BindToProcess(Process *_proc,int fd=-1)//if fd==-1, auto allocate fd; fd should not be used if specified!
 		{
+			
 			if (proc!=nullptr)
 				return ERR_TargetExist;
 			proc=_proc;
@@ -342,9 +348,13 @@ class FileHandle:public POS::LinkTableT<FileHandle>
 					else if (p->FD==fd)
 						return ERR_TargetExist;
 			FD=fd;
+			kout[Debug]<<p<<" "<<p->Nxt()<<endl;
+			kout[Debug]<<"nex insert fd:"<<fd<<endl;
 			p->NxtInsert(this);
+			
 			if (fd<=7)
 				proc->FileTable[fd]=this;
+			kout[Debug]<<p->Nxt()<<endl;;
 			return ERR_None;
 		}
 		

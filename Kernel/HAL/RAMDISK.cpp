@@ -5,7 +5,7 @@ using namespace POS;
 
 constexpr Uint64 RAMDISK_BaseP=0x84200000,
 				 RAMDISK_BaseK=RAMDISK_BaseP+PhysicalVirtualMemoryOffset,
-				 RAMDISK_SectorCount=4*1024*1024/SectorSize;
+				 RAMDISK_SectorCount=64*1024*1024/SectorSize;
 
 ErrorType DiskInit()
 {

@@ -290,6 +290,262 @@ int RunLibcTest(void*)
 	return 0;
 }
 
+int RunBusyboxTest(void*)
+{
+	auto Run=[](int argc=0,char ** const argv=nullptr)
+	{
+		FileNode *node=VFSM.Open(POS_PM.Current(),"busybox");
+		if (!node)
+			kout[Error]<<"Cannot open file busybox"<<endl;
+		else if (node->IsDir())
+			kout[Error]<<"Cannot run directory "<<"busybox"<<endl;
+		else
+		{
+			kout[Info]<<"Run busybox "<<argv[0]<<" "<<argv[1]<<endl; 
+			FileHandle *file=new FileHandle(node);
+			PID id=CreateProcessFromELF(file,0,".",argc,argv);
+			if (id>0)
+			{
+				Process *proc=POS_PM.Current(),*cp=nullptr;
+				while ((cp=proc->GetQuitingChild(id))==nullptr)
+					proc->GetWaitSem()->Wait();
+				cp->Destroy();
+			}
+			delete file;
+		}
+		VFSM.Close(node);
+	};
+	kout[Debug]<<"Run busybox test..."<<endl;
+	// kout.SetEnableEffect(0);
+	// kout.SwitchTypeOnoff(Info,0);
+	// kout.SwitchTypeOnoff(Warning,0);
+	// kout.SwitchTypeOnoff(Test,0);
+	// kout.SwitchTypeOnoff(Debug,0);
+
+	POS_PM.Current()->SetCWD("/VFS/FAT32");
+
+	char **sh = new char *[2];
+	sh[0] =  new char[32];
+	sh[1] =  new char[32];
+	strCopy(sh[0],"sh");
+	strCopy(sh[1],"./busybox_testcode.sh");
+	Run(2,sh);
+	kout.SetEnableEffect(1);
+	kout.SwitchTypeOnoff(Info,1);
+	kout.SwitchTypeOnoff(Warning,1);
+	kout.SwitchTypeOnoff(Test,1);
+	kout.SwitchTypeOnoff(Debug,1);
+
+	kout[Debug]<<"Run bosybox test ok"<<endl;
+	delete sh;
+	return 0;
+}
+int RunLmbenchTest(void*)
+{
+	
+	auto Run=[](const char *path,int argc=0,char ** const argv=nullptr)
+	{
+		FileNode *node=VFSM.Open(POS_PM.Current(),path);
+		kout[Debug]<<"runing "<<path<<endl;
+		if (!node)
+			kout[Error]<<"Cannot open file "<<path<<endl;
+		else if (node->IsDir())
+			kout[Error]<<"Cannot run directory "<<path<<endl;
+		else
+		{
+			kout[Info]<<"Run "<<path<<endl; 
+			FileHandle *file=new FileHandle(node);
+			PID id=CreateProcessFromELF(file,0,".",argc,argv);
+			if (id>0)
+			{
+				Process *proc=POS_PM.Current(),*cp=nullptr;
+				while ((cp=proc->GetQuitingChild(id))==nullptr)
+					proc->GetWaitSem()->Wait();
+				cp->Destroy();
+			}
+			delete file;
+		}
+		VFSM.Close(node);
+	};
+	
+	auto RunList=[Run](const char *path)
+	{
+		FileNode *node=VFSM.Open(POS_PM.Current(),path);
+		if (!node||node->IsDir())
+			kout[Error]<<"RunList: Target "<<path<<" is not shell list"<<endl;
+		else
+		{
+			kout[Info]<<"RunList "<<path<<endl;
+			FileHandle *file=new FileHandle(node);
+			char *str=new char[file->Size()+1];//Bad in efficiency??
+			if (ErrorType err=file->Read(str,file->Size());err<0||err!=file->Size())
+				kout[Error]<<"Read string failed!"<<endl;
+			str[file->Size()]=0;
+			auto [lineCnt,lineStr]=divideStringByChar(str,'\n',1);
+			kout[Info]<<"RunList "<<path<<" total "<<lineCnt<<" lines program."<<endl;
+			for (int i=0;i<lineCnt;++i)
+				if (lineStr[i])
+				{
+					kout[Info]<<"RunList "<<path<<" line "<<i<<" is "<<lineStr[i]<<endl;
+					auto [cnt,ss]=divideStringByChar(lineStr[i],' ',1);
+					if (cnt>0)
+					{
+						if(strComp(ss[0],"echo")==0)
+						{
+							for(int j=1;j<cnt;j++)
+							{
+								kout<<ss[j]<<" ";
+							}
+							kout<<endl;
+						}
+						else
+						{
+							Run(ss[0],cnt,ss);
+						}
+						
+					}
+						
+					for (int j=0;j<cnt;++j)
+						delete ss[j];
+					delete ss;
+					delete lineStr[i];
+				}
+				else kout[Info]<<"RunList "<<path<<" line "<<i<<" is empty line."<<endl;
+			delete str;
+			delete file;
+		}
+		VFSM.Close(node);
+	};
+
+
+	kout[Debug]<<"Run busybox test..."<<endl;
+	// kout.SetEnableEffect(0);
+	// kout.SwitchTypeOnoff(Info,0);
+	// kout.SwitchTypeOnoff(Warning,0);
+	// kout.SwitchTypeOnoff(Test,0);
+	// kout.SwitchTypeOnoff(Debug,0);
+
+	POS_PM.Current()->SetCWD("/VFS/FAT32");
+
+	RunList("./lmbench_testcode.sh");
+	kout.SetEnableEffect(1);
+	kout.SwitchTypeOnoff(Info,1);
+	kout.SwitchTypeOnoff(Warning,1);
+	kout.SwitchTypeOnoff(Test,1);
+	kout.SwitchTypeOnoff(Debug,1);
+
+	kout[Debug]<<"Run bosybox test ok"<<endl;
+	return 0;
+}
+int RunLuaTest(void*)
+{
+	auto Run=[](const char *pat,int argc=0,char ** const argv=nullptr)
+	{
+		char path[] = "./lua";
+		FileNode *node=VFSM.Open(POS_PM.Current(),path);
+		kout[Debug]<<"runing "<<path<<" ";
+		for(int i=1;i<argc;i++)
+		{
+			kout[Debug]<<argv[i]<<" ";
+		}
+		kout[Debug]<<endl;
+		if (!node)
+			kout[Error]<<"Cannot open file "<<path<<endl;
+		else if (node->IsDir())
+			kout[Error]<<"Cannot run directory "<<path<<endl;
+		else
+		{
+			FileHandle *file=new FileHandle(node);
+			PID id=CreateProcessFromELF(file,0,".",argc,argv);
+			if (id>0)
+			{
+				Process *proc=POS_PM.Current(),*cp=nullptr;
+				while ((cp=proc->GetQuitingChild(id))==nullptr)
+					proc->GetWaitSem()->Wait();
+				if(cp->GetReturnedValue() == 0)
+				{
+					kout<<"testcase lua "<<argv[1]<<" success"<<endl;
+				}
+				else
+				{	
+					kout<<"testcase lua "<<argv[1]<<" fail"<<endl;
+				}
+				cp->Destroy();
+			}
+			delete file;
+		}
+		VFSM.Close(node);
+	};
+	
+	auto RunList=[Run](const char *path)
+	{
+		FileNode *node=VFSM.Open(POS_PM.Current(),path);
+		if (!node||node->IsDir())
+			kout[Error]<<"RunList: Target "<<path<<" is not shell list"<<endl;
+		else
+		{
+			kout[Info]<<"RunList "<<path<<endl;
+			FileHandle *file=new FileHandle(node);
+			char *str=new char[file->Size()+1];//Bad in efficiency??
+			if (ErrorType err=file->Read(str,file->Size());err<0||err!=file->Size())
+				kout[Error]<<"Read string failed!"<<endl;
+			str[file->Size()]=0;
+			auto [lineCnt,lineStr]=divideStringByChar(str,'\n',1);
+			kout[Info]<<"RunList "<<path<<" total "<<lineCnt<<" lines program."<<endl;
+			for (int i=0;i<lineCnt;++i)
+				if (lineStr[i])
+				{
+					kout[Info]<<"RunList "<<path<<" line "<<i<<" is "<<lineStr[i]<<endl;
+					auto [cnt,ss]=divideStringByChar(lineStr[i],' ',1);
+					if (cnt>0)
+					{
+						if(strComp(ss[0],"echo")==0)
+						{
+							for(int j=1;j<cnt;j++)
+							{
+								kout<<ss[j]<<" ";
+							}
+							kout<<endl;
+						}
+						else
+						{
+							Run(ss[0],cnt,ss);
+						}
+						
+					}
+						
+					for (int j=0;j<cnt;++j)
+						delete ss[j];
+					delete ss;
+					delete lineStr[i];
+				}
+				else kout[Info]<<"RunList "<<path<<" line "<<i<<" is empty line."<<endl;
+			delete str;
+			delete file;
+		}
+		VFSM.Close(node);
+	};
+
+
+	kout[Debug]<<"run lua test..."<<endl;
+	kout.SetEnableEffect(0);
+	kout.SwitchTypeOnoff(Info,0);
+	kout.SwitchTypeOnoff(Warning,0);
+	kout.SwitchTypeOnoff(Test,0);
+	kout.SwitchTypeOnoff(Debug,0);
+
+	POS_PM.Current()->SetCWD("/VFS/FAT32");
+
+	RunList("./lua_testcode.sh");
+	kout.SetEnableEffect(1);
+	kout.SwitchTypeOnoff(Info,1);
+	kout.SwitchTypeOnoff(Warning,1);
+	kout.SwitchTypeOnoff(Test,1);
+	kout.SwitchTypeOnoff(Debug,1);
+
+	kout[Debug]<<"run lua test ok"<<endl;
+	return 0;
+}
 void TestFuncs()
 {
 //	kout.SwitchTypeOnoff(Test,0);
@@ -520,9 +776,33 @@ void TestFuncs()
 		}
 	}
 	
+	VirtualFileSystem *vfs=new FAT32();
+	VFSM.LoadVFS(vfs);
 	if (1)
 	{
-		PID id=CreateKernelThread(RunLibcTest,nullptr,0);
+		PID id=CreateKernelThread(RunLuaTest,nullptr,0);
+		if (0)
+		{
+			Process *proc=POS_PM.Current(),*cp;
+			while ((cp=proc->GetQuitingChild(id))==nullptr)
+				proc->GetWaitSem()->Wait();
+			cp->Destroy();
+		}
+	}
+	if (0)
+	{
+		PID id=CreateKernelThread(RunBusyboxTest,nullptr,0);
+		if (0)
+		{
+			Process *proc=POS_PM.Current(),*cp;
+			while ((cp=proc->GetQuitingChild(id))==nullptr)
+				proc->GetWaitSem()->Wait();
+			cp->Destroy();
+		}
+	}
+	if (0)
+	{
+		PID id=CreateKernelThread(RunLmbenchTest,nullptr,0);
 		if (0)
 		{
 			Process *proc=POS_PM.Current(),*cp;

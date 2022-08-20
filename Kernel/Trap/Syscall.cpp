@@ -170,6 +170,7 @@ inline char* CurrentPathFromFileNameAndFD(int fd,const char *filename)
 
 inline int Syscall_openat(int fd,char *filename,int flags,int mode)//Currently, mode will be ignored...
 {
+	kout[Debug]<<"open file name:"<<filename<<endl;
 	VirtualMemorySpace::EnableAccessUser();
 	char *path=CurrentPathFromFileNameAndFD(fd,filename);
 	VirtualMemorySpace::DisableAccessUser();
@@ -210,9 +211,12 @@ inline int Syscall_openat(int fd,char *filename,int flags,int mode)//Currently, 
 //			fh_flags|=FileHandle::F_Write;
 //		else fh_flags|=FileHandle::F_Read;
 		re=new FileHandle(node,fh_flags);
+	
 		re->BindToProcess(POS_PM.Current());
+		kout[Debug]<<"bind to process success"<<endl;
 	}
 	Kfree(path);
+	kout[Debug]<<"openat new fd:"<<re->GetFD()<<endl;
 	return re?re->GetFD():-1;
 }
 
@@ -251,15 +255,38 @@ inline Sint64 Syscall_lseek(int fd,Sint64 off,int whence)
 
 template <ModeRW rw> inline RegisterData Syscall_ReadWrite(int fd,void *buf,Uint64 size,Uint64 off=-1)
 {
+	if constexpr(rw==ModeRW::Write)
+		kout[Debug]<<"begin to write from fd:"<<fd<<endl;
+	else 
+	{
+		
+		kout[Debug]<<"begin to read from fd:"<<fd<<endl;
+		
+	}
+
 	FileHandle *fh=POS_PM.Current()->GetFileHandleFromFD(fd);
+	kout[Debug]<<"fh:"<<fh<<endl;
 	if (fh==nullptr)
 		return -1;
+	kout[Debug]<<"111111"<<endl;
 	VirtualMemorySpace::EnableAccessUser();
+	kout[Debug]<<"222222"<<endl;
 	Sint64 re;
 	if constexpr(rw==ModeRW::Write)
+	{
 		re=fh->Write(buf,size,off);
-	else re=fh->Read(buf,size,off);
+	}
+	else 
+	{
+		kout[Debug]<<"read buf:"<<buf<<" size:"<<size<<" off:"<<off<<endl;
+		re=fh->Read(buf,size,off);
+	}
+	kout[Debug]<<"333333"<<endl;
 	VirtualMemorySpace::DisableAccessUser();
+	if constexpr(rw==ModeRW::Write)
+		kout[Debug]<<"write ok"<<endl;
+	else 
+		kout[Debug]<<"read ok"<<endl;
 	return re<0?-1:re;
 }
 
@@ -324,29 +351,20 @@ inline int Syscall_fstat_node(FileNode *node,RegisterData _kst)
 {
 	if (node==nullptr)
 		return -1;
-	struct kstat
+	struct stat
 	{
-		Uint64 st_dev;
-		Uint64 st_ino;
-		Uint32 st_mode;
-		Uint32 st_nlink;
-		Uint32 st_uid;
-		Uint32 st_gid;
-		Uint64 st_rdev;
-		unsigned long __pad;
-		int st_size;
-		Uint32 st_blksize;
-		int __pad2;
-		Uint64 st_blocks;
-		long st_atime_sec;
-		long st_atime_nsec;
-		long st_mtime_sec;
-		long st_mtime_nsec;
-		long st_ctime_sec;
-		long st_ctime_nsec;
-		unsigned __unused[2];
-	}*kst=(kstat*)_kst;
-	
+		Uint32    st_dev;
+		Uint16    st_ino;
+		Uint16    st_mode;
+		Sint16    st_nlink;
+		Sint16    st_uid;
+		Sint16    st_gid;
+		Uint32    st_rdev;
+		long      st_size;
+        long long st_atime;
+        long long st_mtime;
+        long long st_ctime;
+	}*kst=(stat*)_kst;
 	enum
 	{
 		S_IFDIR=0040000,
@@ -355,11 +373,31 @@ inline int Syscall_fstat_node(FileNode *node,RegisterData _kst)
 		S_IFREG=0100000,
 		S_IFIFO=0010000,
 		S_IFLNK=0120000,
-		S_IFSOCK=0140000
+		S_IFSOCK=0140000,
+
+		S_ISUID=04000, //set-user-ID bit
+		S_ISGID=02000, //set-group-ID bit (see below)
+		S_ISVTX=01000, //sticky bit (see below)
+
+		S_IRWXU=00700, //owner has read, write, and execute permission
+		S_IRUSR=00400, //owner has read permission
+		S_IWUSR=00200, //owner has write permission
+		S_IXUSR=00100, //owner has execute permission
+
+		S_IRWXG=00070, //group has read, write, and execute permission
+		S_IRGRP=00040, //group has read permission
+		S_IWGRP=00020, //group has write permission
+		S_IXGRP=00010, //group has execute permission
+
+		S_IRWXO=00007, //others (not in group) have read, write, and execute permission
+		S_IROTH=00004, //others have read permission
+		S_IWOTH=00002, //others have write permission
+		S_IXOTH=00001 //others have execute permission
 	};
 	
 	VirtualMemorySpace::EnableAccessUser();
-	MemsetT<char>((char*)kst,0,sizeof(kstat));
+	kout[Debug]<<node->GetName()<<endl;
+	MemsetT<char>((char*)kst,0,sizeof(stat));
 	kst->st_size=node->Size();
 	if (node->GetAttributes()&FileNode::A_Specical)
 		kst->st_mode|=S_IFCHR;
@@ -367,6 +405,11 @@ inline int Syscall_fstat_node(FileNode *node,RegisterData _kst)
 		kst->st_mode|=S_IFDIR;
 	else kst->st_mode|=S_IFREG;
 	kst->st_nlink = 1;
+	kst->st_uid = 0;
+	kst->st_mode |= S_IRWXU; 
+	kst->st_mode |= S_IRWXG;
+	kst->st_mode |= S_IRWXO;
+	//TODO:直接给了所有权限
 	//<<Other info...
 	VirtualMemorySpace::DisableAccessUser();
 	return 0;
@@ -388,6 +431,7 @@ inline int Syscall_newfstatat(int dirfd,const char *pathname,RegisterData _kst,i
 	VirtualMemorySpace::EnableAccessUser();
 	char *path=CurrentPathFromFileNameAndFD(dirfd,pathname);//Is this right?? dirfd is relative path for pathname rather than directly used...
 	VirtualMemorySpace::DisableAccessUser();
+	kout[Debug]<<path<<endl;
 	return Syscall_fstat_node(VFSM.Open(path),_kst);
 }
 
@@ -412,6 +456,23 @@ inline RegisterData Syscall_fcntl(int fd,int cmd,TrapFrame *tf)
 
 	switch (cmd)
 	{
+		case 0x406:
+		{
+			Process *cur=POS_PM.Current();
+			FileHandle *fh=cur->GetFileHandleFromFD(fd);
+			FileHandle *re=nullptr;
+			
+			Uint64 fh_flags=FileHandle::F_Seek|FileHandle::F_Size;//??
+	//		if (flags&O_RDWR)
+				fh_flags|=FileHandle::F_Read|FileHandle::F_Write;
+	//		else if (flags&O_WRONLY)
+	//			fh_flags|=FileHandle::F_Write;
+	//		else fh_flags|=FileHandle::F_Read;
+			re=new FileHandle(fh->Node(),fh_flags);
+			re->BindToProcess(POS_PM.Current());
+			return re->GetFD();
+		}
+				
 		default:
 			kout[Error]<<"Unknown fcnt cmd "<<cmd<<endl;
 			return -1;
@@ -892,7 +953,50 @@ inline int Syscall_statfs(const char *path,RegisterData buf)
 	VirtualMemorySpace::DisableAccessUser();
 	return 0;
 }
+inline int Syscall_getuid()
+{
+	//TODO:not done
+	return 0;
+}
+inline int  Syscall_sendfile(int out_fd,int in_fd,long long * offset,Uint64 count)
+{
+	Uint64 off;
+	if(offset == nullptr)
+	{
+		off=0;
+	}
+	else
+	{
+		off = *offset;
+	}
+	kout[Debug]<<"copy from "<<out_fd<<" to "<<in_fd<<" offset:"<<off<<" count "<<count<<endl;
+	
+	
+	FileHandle *out_fh=POS_PM.Current()->GetFileHandleFromFD(out_fd),*in_fh = POS_PM.Current()->GetFileHandleFromFD(in_fd);
+	kout[Debug]<<"from:"<<out_fh->Node()->GetName()<<" to:"<<in_fh->Node()->GetName()<<endl;
+	Uint64 handle_size = 0,need_handle_size = out_fh->Size() - off;
+	out_fh->Seek(off);
 
+	const Uint32 BUFFER_SIZE = 1024;
+	char buffer[BUFFER_SIZE];
+	while(handle_size < need_handle_size)
+	{
+		Uint32 read_size;
+		if(need_handle_size-handle_size<=BUFFER_SIZE)
+		{
+			read_size = need_handle_size - handle_size;
+		}	
+		else
+		{
+			read_size = BUFFER_SIZE;
+		}
+		out_fh->Read(buffer,read_size);
+		in_fh->Write(buffer,read_size);
+		handle_size+=read_size;
+		kout[Debug]<<handle_size<<" "<<need_handle_size<<endl;
+	}
+	return handle_size;
+}
 ErrorType TrapFunc_Syscall(TrapFrame *tf)
 {
 	InterruptStackAutoSaverBlockController isas;//??
@@ -1051,7 +1155,8 @@ ErrorType TrapFunc_Syscall(TrapFrame *tf)
 			break;
 			
 		case SYS_fcntl:
-		
+			tf->reg.a0=Syscall_fcntl(tf->reg.a0,tf->reg.a1,tf);
+			break;
 		case SYS_sigprocmask:
 		case SYS_sigtimedwait:
 		case SYS_sigaction:
@@ -1084,7 +1189,12 @@ ErrorType TrapFunc_Syscall(TrapFrame *tf)
 		case SYS_accept:
 			kout[Warning]<<"Skipped syscall "<<tf->reg.a7<<" "<<SyscallName((long long)tf->reg.a7)<<endl;
 			break;
-
+		case SYS_getuid:
+			tf->reg.a0 = Syscall_getuid();
+			break;
+		case SYS_sendfile:
+			tf->reg.a0 = Syscall_sendfile(tf->reg.a0,tf->reg.a1,(long long*)tf->reg.a2,tf->reg.a3);
+			break;
 		default:
 		Default:
 		{
@@ -1094,9 +1204,10 @@ ErrorType TrapFunc_Syscall(TrapFrame *tf)
 			else
 			{
 				kout[Error]<<"TrapFunc_Syscall: Unknown syscall "<<tf->reg.a7<<" from user process "<<cur->GetPID()<<"!"<<endl;
-				cur->Exit(Process::Exit_BadSyscall);
-				POS_PM.Schedule();
-				kout[Fault]<<"TrapFunc_Syscall: Reaced unreachable branch!"<<endl;
+				tf->reg.a0 = 0;
+				// cur->Exit(Process::Exit_BadSyscall);
+				// POS_PM.Schedule();
+				// kout[Fault]<<"TrapFunc_Syscall: Reaced unreachable branch!"<<endl;
 			}
 			break;
 		}

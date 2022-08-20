@@ -36,6 +36,7 @@ enum SyscallID
 	SYS_pwrite64		=68,
 	SYS_preadv			=69,
 	SYS_pwritev			=70,
+	SYS_sendfile        =71,
 	SYS_newfstatat		=79,
 	SYS_fstat			=80,
 	SYS_utimensat		=88,
@@ -55,6 +56,7 @@ enum SyscallID
 	SYS_gettimeofday	=169,
 	SYS_getpid			=172,
 	SYS_getppid			=173,
+	SYS_getuid          =174,
 	SYS_geteuid			=175,
 	SYS_getegid			=177,
 	SYS_gettid			=178,
@@ -155,6 +157,7 @@ inline const char *SyscallName(int sys)
 		case SYS_wait4:				return "SYS_wait4";
 		case SYS_prlimit64:			return "SYS_prlimit64";
 		case SYS_membarrier:		return "SYS_membarrier";
+		case SYS_sendfile:          return "SYS_sendfile";
 		default:					return ""; 
 	}
 }
