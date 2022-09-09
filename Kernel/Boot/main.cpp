@@ -616,7 +616,7 @@ void TestFuncs()
 	if (0) CreateKernelThread(KernelThreadTest2,nullptr);
 	if (0) CreateInnerUserImgProcessWithName(Hello_img);
 	if (0) CreateInnerUserImgProcessWithName(Count1_100_img);
-	if (0) CreateInnerUserImgProcessWithName(ForkTest_img);
+	if (1) CreateInnerUserImgProcessWithName(ForkTest_img);
 	
 	if (0)
 	{
@@ -778,10 +778,11 @@ void TestFuncs()
 	
 	VirtualFileSystem *vfs=new FAT32();
 	VFSM.LoadVFS(vfs);
-	if (1)
+	if (0)
 	{
+
 		PID id=CreateKernelThread(RunLuaTest,nullptr,0);
-		if (0)
+		if (1)
 		{
 			Process *proc=POS_PM.Current(),*cp;
 			while ((cp=proc->GetQuitingChild(id))==nullptr)
@@ -792,7 +793,7 @@ void TestFuncs()
 	if (0)
 	{
 		PID id=CreateKernelThread(RunBusyboxTest,nullptr,0);
-		if (0)
+		if (1)
 		{
 			Process *proc=POS_PM.Current(),*cp;
 			while ((cp=proc->GetQuitingChild(id))==nullptr)
@@ -803,7 +804,7 @@ void TestFuncs()
 	if (0)
 	{
 		PID id=CreateKernelThread(RunLmbenchTest,nullptr,0);
-		if (0)
+		if (1)
 		{
 			Process *proc=POS_PM.Current(),*cp;
 			while ((cp=proc->GetQuitingChild(id))==nullptr)
@@ -811,6 +812,7 @@ void TestFuncs()
 			cp->Destroy();
 		}
 	}
+	kout<<"!TEST FINISH!"<<endl;
 }
 
 void InitBSS()

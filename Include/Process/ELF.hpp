@@ -280,7 +280,7 @@ inline int Thread_CreateProcessFromELF(void *userdata)
 			default:
 				if (POS::InRange(ph.type,ELF_ProgramHeader64::PT_LOPROC,ELF_ProgramHeader64::PT_HIPROC))
 					kout[Warning]<<"Currently unsolvable elf segment "<<ph.type<<", do nothing..."<<endl;
-				else kout[Error]<<"Unsolvable elf segment "<<ph.type<<endline<<ph<<endl;
+				else kout[Error]<<"Unsolvable elf segment "<<ph.type<<endl<<ph<<endl;
 				break;
 		}
 	}

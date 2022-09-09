@@ -22,6 +22,7 @@ enum SyscallID
 	SYS_umount2			=39,
 	SYS_mount			=40,
 	SYS_statfs			=43, 
+	SYS_faccessat       =48,
 	SYS_chdir			=49,
 	SYS_openat			=56,
 	SYS_close			=57,
@@ -58,6 +59,7 @@ enum SyscallID
 	SYS_getppid			=173,
 	SYS_getuid          =174,
 	SYS_geteuid			=175,
+	SYS_getgid          =176,
 	SYS_getegid			=177,
 	SYS_gettid			=178,
 	SYS_socket			=198,
@@ -158,6 +160,9 @@ inline const char *SyscallName(int sys)
 		case SYS_prlimit64:			return "SYS_prlimit64";
 		case SYS_membarrier:		return "SYS_membarrier";
 		case SYS_sendfile:          return "SYS_sendfile";
+		case SYS_faccessat:         return "SYS_faccessat";
+		case SYS_getgid:            return "SYS_getgid";
+		case SYS_getuid:            return "SYS_getuid";
 		default:					return ""; 
 	}
 }

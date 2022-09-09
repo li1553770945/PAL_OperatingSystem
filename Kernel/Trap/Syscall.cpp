@@ -960,24 +960,32 @@ inline int Syscall_getuid()
 }
 inline int  Syscall_sendfile(int out_fd,int in_fd,long long * offset,Uint64 count)
 {
-	Uint64 off;
-	if(offset == nullptr)
-	{
-		off=0;
-	}
-	else
-	{
-		off = *offset;
-	}
-	kout[Debug]<<"copy from "<<out_fd<<" to "<<in_fd<<" offset:"<<off<<" count "<<count<<endl;
+	
+
+	kout[Debug]<<"copy from "<<in_fd<<" to "<<out_fd<<" count "<<count<<endl;
 	
 	
 	FileHandle *out_fh=POS_PM.Current()->GetFileHandleFromFD(out_fd),*in_fh = POS_PM.Current()->GetFileHandleFromFD(in_fd);
-	kout[Debug]<<"from:"<<out_fh->Node()->GetName()<<" to:"<<in_fh->Node()->GetName()<<endl;
-	Uint64 handle_size = 0,need_handle_size = out_fh->Size() - off;
-	out_fh->Seek(off);
+	
+	if(offset != nullptr)
+	{
+		if(*offset >= in_fh->Size())
+		{
+			kout[Error]<<"offset biger then file size"<<endl;
+			return -1;
+		}
+		in_fh->Seek(*offset);
+	}
+	
 
-	const Uint32 BUFFER_SIZE = 1024;
+	kout[Debug]<<"from:"<<in_fh->Node()->GetName()<<" to:"<<out_fh->Node()->GetName()<<endl;
+	if(in_fh->GetPos()==in_fh->Size())
+	{
+		return 0;
+	}
+	Uint64 handle_size = 0,need_handle_size = minN(count,in_fh->Size()-in_fh->GetPos());
+
+	const Uint32 BUFFER_SIZE = 102400;
 	char buffer[BUFFER_SIZE];
 	while(handle_size < need_handle_size)
 	{
@@ -990,13 +998,33 @@ inline int  Syscall_sendfile(int out_fd,int in_fd,long long * offset,Uint64 coun
 		{
 			read_size = BUFFER_SIZE;
 		}
-		out_fh->Read(buffer,read_size);
-		in_fh->Write(buffer,read_size);
+		in_fh->Read(buffer,read_size);
+		out_fh->Write(buffer,read_size);
 		handle_size+=read_size;
 		kout[Debug]<<handle_size<<" "<<need_handle_size<<endl;
 	}
-	return handle_size;
+	return count;
 }
+inline int  Syscall_faccessat(int fd, const char *pathname, int mode, int flag)
+{
+	return 0;
+}
+inline int Syscall_geteuid()
+{
+	return 0;//TODO:euid直接返回了0
+}
+
+inline int Syscall_getegid()
+{
+	return 0;//TODO:egid直接返回了0
+}
+
+inline int Syscall_getgid()
+{
+	return 0;//TODO:egid直接返回了0
+}
+
+
 ErrorType TrapFunc_Syscall(TrapFrame *tf)
 {
 	InterruptStackAutoSaverBlockController isas;//??
@@ -1115,6 +1143,9 @@ ErrorType TrapFunc_Syscall(TrapFrame *tf)
 			break;
 		case	SYS_brk			:
 			tf->reg.a0=Syscall_brk(tf->reg.a0);
+			kout[Debug]<<"return value:"<<tf->reg.a0<<endl;
+			// for (VirtualMemoryRegion *vmr=POS_PM.Current()->GetVMS()->VmrHead.Nxt();vmr;vmr=vmr->Nxt())
+			// 	kout<<LightYellow<<"["<<(void*)vmr->Start<<","<<(void*)vmr->End<<") "<<(void*)vmr->Flags<<endl;
 			break;
 		case	SYS_munmap		:
 			tf->reg.a0=Syscall_munmap((void*)tf->reg.a0,tf->reg.a1);
@@ -1171,8 +1202,8 @@ ErrorType TrapFunc_Syscall(TrapFrame *tf)
 			
 		case SYS_get_robust_list:
 			
-		case SYS_geteuid:
-		case SYS_getegid:
+		
+		
 			
 		case SYS_utimensat:
 			
@@ -1194,6 +1225,18 @@ ErrorType TrapFunc_Syscall(TrapFrame *tf)
 			break;
 		case SYS_sendfile:
 			tf->reg.a0 = Syscall_sendfile(tf->reg.a0,tf->reg.a1,(long long*)tf->reg.a2,tf->reg.a3);
+			break;
+		case SYS_faccessat:
+			tf->reg.a0 = Syscall_faccessat(tf->reg.a0,(const char*)tf->reg.a1,tf->reg.a2,tf->reg.a3);
+			break;
+		case SYS_getegid:
+			tf->reg.a0 = Syscall_getegid();
+			break;
+		case SYS_geteuid:
+			tf->reg.a0 = Syscall_geteuid();
+			break;
+		case SYS_getgid:
+			tf->reg.a0 = Syscall_getgid();
 			break;
 		default:
 		Default:
